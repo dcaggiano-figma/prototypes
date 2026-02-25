@@ -1,0 +1,70 @@
+name: Verify Templates
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'templates/**'
+      - 'package.json'
+      - '.github/workflows/verify-templates.yml'
+  pull_request:
+    paths:
+      - 'templates/**'
+      - 'package.json'
+      - '.github/workflows/verify-templates.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        template:
+          - blank_slate
+          - browser-shell
+          - eval-starter
+          - figma-design
+          - make
+
+    name: ${{ matrix.template }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Scaffold template
+        run: bash scaffold.sh ${{ matrix.template }}
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Verify dist output
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "::error::Build produced no dist/ directory for template '${{ matrix.template }}'"
+            exit 1
+          fi
+          echo "dist/ contains $(find dist -type f | wc -l) files"
