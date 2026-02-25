@@ -44,8 +44,19 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Scaffold template
-        run: bash scaffold.sh ${{ matrix.template }}
+      - name: Copy template to workspace
+        run: |
+          shopt -s dotglob
+          cp -r templates/${{ matrix.template }}/* .
+          # Merge template deps into root package.json
+          node -e "
+            const fs = require('fs');
+            const root = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const tmpl = JSON.parse(fs.readFileSync('templates/${{ matrix.template }}/package.json', 'utf8'));
+            root.dependencies = { ...root.dependencies, ...tmpl.dependencies };
+            root.devDependencies = { ...root.devDependencies, ...tmpl.devDependencies };
+            fs.writeFileSync('package.json', JSON.stringify(root, null, 2) + '\n');
+          "
 
       - name: Install dependencies
         env:

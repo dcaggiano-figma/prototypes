@@ -14,7 +14,6 @@
     "build": "pnpm exec vite build",
     "lint": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm lint && pnpm typecheck",
-    "scaffold": "bash scaffold.sh"
+    "verify": "pnpm lint && pnpm typecheck"
   }
 }
