@@ -16,9 +16,9 @@
     "verify": "pnpm lint && pnpm typecheck"
   },
   "dependencies": {
-    "@figma/fpl-components": "^0.1.0",
-    "@figma/fpl-icons": "^0.1.0",
-    "@figma/fpl-tokens": "^0.1.0",
+    "@figma/fpl-components": "0.0.2-release-test.3",
+    "@figma/fpl-icons": "0.0.1-release-test.3",
+    "@figma/fpl-tokens": "0.0.1-release-test.3",
     "@figma/proto-ui": "^0.1.0",
     "@tanstack/react-router": "^1.114.0",
     "clsx": "^2.1.1",
