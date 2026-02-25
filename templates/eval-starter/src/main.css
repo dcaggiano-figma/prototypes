@@ -1,0 +1,6 @@
+/* Import FPL tokens - provides all CSS custom properties */
+@import '@figma/fpl-tokens/index.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

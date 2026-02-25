@@ -1,0 +1,71 @@
+name: Share Proto
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  share:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+          BRANCH="${{ github.ref_name }}"
+          BASE_PATH="/share/$BRANCH/$SHORT_SHA/"
+
+          echo "Building with base=$BASE_PATH"
+          pnpm run build --base "$BASE_PATH"
+
+          if [ ! -d "dist" ]; then
+            echo "::error::Build produced no output — dist/ does not exist."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: figma/actions-configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 #v4.0.2
+        with:
+          role-to-assume: arn:aws:iam::133326480594:role/protov2_scaffold_workflow_role
+          aws-region: us-east-1
+
+      - name: Upload to S3
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+          BRANCH="${{ github.ref_name }}"
+
+          echo "Uploading $BRANCH/$SHORT_SHA to S3..."
+          aws s3 sync "dist/" \
+            "s3://figma-protov2/share/$BRANCH/$SHORT_SHA/" \
+            --delete
+
+      - name: Print share URL
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+          BRANCH="${{ github.ref_name }}"
+          URL="https://protov2.figma.design/share/$BRANCH/$SHORT_SHA/"
+
+          echo "## Shared" >> "$GITHUB_STEP_SUMMARY"
+          echo "[$BRANCH]($URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo ""
+          echo "Shared at: $URL"

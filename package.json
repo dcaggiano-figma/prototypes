@@ -1,0 +1,20 @@
+{
+  "name": "prototype-playground",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10 <11",
+    "npm": "please-use-pnpm",
+    "yarn": "please-use-pnpm"
+  },
+  "scripts": {
+    "dev": "pnpm exec vite",
+    "build": "pnpm exec vite build",
+    "lint": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm lint && pnpm typecheck",
+    "scaffold": "bash scaffold.sh"
+  }
+}

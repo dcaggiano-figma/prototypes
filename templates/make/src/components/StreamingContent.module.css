@@ -1,0 +1,32 @@
+.container {
+  position: relative;
+}
+
+.scrollArea {
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+}
+
+.scrollArea::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+.fadeTop {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 16px;
+  background: linear-gradient(to bottom, var(--color-bg), transparent);
+  z-index: 1;
+}
+
+.fadeBottom {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 16px;
+  background: linear-gradient(to top, var(--color-bg), transparent);
+  z-index: 1;
+}

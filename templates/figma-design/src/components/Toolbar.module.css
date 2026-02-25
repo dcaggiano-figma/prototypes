@@ -1,0 +1,23 @@
+/* Clip-path variants */
+.clipInset {
+  clip-path: inset(0);
+}
+
+.clipInsetOverflow {
+  clip-path: inset(-40px 0 0 0);
+}
+
+/* Width resize transition */
+.transitionWidth {
+  transition: width 800ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* Slide (transform) transition */
+.transitionSlide {
+  transition: transform 400ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* Translate using CSS variable */
+.slideOffset {
+  transform: translateY(var(--slide-offset));
+}

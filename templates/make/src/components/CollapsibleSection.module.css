@@ -1,0 +1,4 @@
+.content {
+  overflow: hidden;
+  transition: max-height var(--duration-md) ease-in-out, opacity var(--duration-md) ease-in-out;
+}

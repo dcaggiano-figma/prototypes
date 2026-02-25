@@ -1,0 +1,56 @@
+{
+  "enabledMcpjsonServers": ["figma-desktop"],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-eslint-config-edit.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-npm-npx.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Read:*",
+      "Write:*",
+      "Edit:**",
+      "Glob:*",
+      "Grep:*",
+      "WebFetch:*",
+      "WebSearch:*",
+      "Bash(ls:*)",
+      "Bash(pwd:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(rm ./**)",
+      "Bash(pnpm:*)",
+      "Bash(xargs:*)",
+      "Bash(find:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(git:*)",
+      "Bash(timeout:*)"
+    ],
+    "ask": [
+      "Bash(git:commit,push,add)",
+      "Bash(pnpm:add,remove)"
+    ]
+  }
+}
