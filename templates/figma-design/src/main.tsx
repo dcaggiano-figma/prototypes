@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import '@figma/fpl-tokens/index.css';
 import '@figma/fpl-components/fpl.css';
 import { ThemeProvider } from '@figma/fpl-tokens';
-import { DevOverlay } from '@figma/proto-ui';
+import { DevOverlay } from '@figma/ppg-ui';
 import App from './App';
 import './main.css';
 

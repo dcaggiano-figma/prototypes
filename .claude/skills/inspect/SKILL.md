@@ -10,7 +10,7 @@ Fetch and act on Element Inspector annotations from a running prototype.
 
 ## Background
 
-The Element Inspector is part of the DevOverlay (`@figma/proto-element-inspector`). Users activate it with the "Inspect" badge or `Ctrl+Shift+I`, then click on elements to annotate them with notes. Annotations include CSS selectors, React component names, bounding boxes, and computed styles.
+The Element Inspector is part of the DevOverlay (`@figma/ppg-element-inspector`). Users activate it with the "Inspect" badge or `Ctrl+Shift+I`, then click on elements to annotate them with notes. Annotations include CSS selectors, React component names, bounding boxes, and computed styles.
 
 Annotations are synced to the Vite dev server and accessible via HTTP.
 

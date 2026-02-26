@@ -117,7 +117,7 @@ Extend from the shared React tsconfig:
 
 ```json
 {
-  "extends": "@figma/proto-tsconfig/react.json",
+  "extends": "@figma/ppg-tsconfig/react.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {

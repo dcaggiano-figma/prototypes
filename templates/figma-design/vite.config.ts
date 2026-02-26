@@ -1,5 +1,5 @@
 import path from 'path';
-import { createViteConfig } from '@figma/proto-vite-config';
+import { createViteConfig } from '@figma/ppg-vite-config';
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 
 export default createViteConfig({

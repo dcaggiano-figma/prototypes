@@ -1,4 +1,4 @@
-import baseConfig from '@figma/proto-eslint-config';
+import baseConfig from '@figma/ppg-eslint-config';
 
 export default [
   ...baseConfig,

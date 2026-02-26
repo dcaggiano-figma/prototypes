@@ -1,4 +1,4 @@
-import fplPreset from '@figma/proto-tailwind-config';
+import fplPreset from '@figma/ppg-tailwind-config';
 
 /** @type {import('tailwindcss').Config} */
 export default {

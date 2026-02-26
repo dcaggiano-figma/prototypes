@@ -200,10 +200,10 @@ is composed of overlapping rounded rectangles and ellipses in Figma's brand
 colors (red, orange, green, purple, blue). This makes the default state more
 visually impressive and demonstrates frame/child hierarchy.
 
-### FB-24: Pull in @figma/proto-tailwind-config `[x]`
+### FB-24: Pull in @figma/ppg-tailwind-config `[x]`
 **Milestone**: general
 **Priority**: P1
-Use the shared `@figma/proto-tailwind-config` package from `fpl/foundations/tailwind-config`
+Use the shared `@figma/ppg-tailwind-config` package from `fpl/foundations/tailwind-config`
 as the Tailwind CSS configuration for protofig. This ensures we're using the
 canonical FPL design tokens (colors, spacing, radius, etc.) and keeps the app
 consistent with other FPL apps. Add it as a dependency and wire it into the
@@ -215,7 +215,7 @@ Tailwind/Vite config.
 Set up Tailwind ESLint rules to ensure we're only ever using tokens from the FPL
 design system in our utility classes. This prevents ad-hoc color values, spacing,
 and other arbitrary values from creeping in. Should be configured after FB-24
-(@figma/proto-tailwind-config) is wired up so the allowed values match the token set.
+(@figma/ppg-tailwind-config) is wired up so the allowed values match the token set.
 
 ### FB-26: Use Figma's favicon `[x]`
 **Milestone**: general

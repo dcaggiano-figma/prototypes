@@ -1,5 +1,5 @@
 {
-  "extends": "@figma/proto-tsconfig/node.json",
+  "extends": "@figma/ppg-tsconfig/node.json",
   "compilerOptions": {
     "composite": true,
     "skipLibCheck": true,

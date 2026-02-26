@@ -64,9 +64,9 @@ Before considering the setup complete, verify:
 3. Create the project structure following the established patterns in other apps
 4. Integrate all required tools from the packages directory
 5. Set up the development scripts in package.json
-6. Use the prototype ESLint config (`@figma/proto-eslint-config/prototype`) in `eslint.config.js`:
+6. Use the prototype ESLint config (`@figma/ppg-eslint-config/prototype`) in `eslint.config.js`:
    ```js
-   import protoConfig from '@figma/proto-eslint-config/prototype';
+   import protoConfig from '@figma/ppg-eslint-config/prototype';
    export default [...protoConfig];
    ```
    This downgrades FPL convention rules to warnings so designers aren't blocked while prototyping.
