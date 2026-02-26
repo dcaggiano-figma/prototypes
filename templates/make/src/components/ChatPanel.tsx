@@ -462,7 +462,7 @@ export function ChatPanel({
           {displayedPrompt ? (
             <div
               ref={msgRef}
-              className={clsx('transition-opacity duration-[200ms] ease-in', animPhase === 'measuring' ? 'opacity-0' : 'opacity-100')}
+              className={clsx('transition-opacity duration-sm ease-in', animPhase === 'measuring' ? 'opacity-0' : 'opacity-100')}
             >
               <ChatMessage
                 sender="user"

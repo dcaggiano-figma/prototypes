@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Input, Label, ButtonLarge } from '@figma/fpl-components';
+import { Input, Label, Button } from '@figma/fpl-components';
 
 function App() {
   console.error('[EVAL] Login form loaded');
@@ -60,9 +60,9 @@ function App() {
         </div>
 
         <div className="mt-24px">
-          <ButtonLarge variant="primary" onClick={handleSubmit}>
+          <Button variant="primary" size="lg" onClick={handleSubmit}>
             Log in
-          </ButtonLarge>
+          </Button>
         </div>
       </div>
     </div>

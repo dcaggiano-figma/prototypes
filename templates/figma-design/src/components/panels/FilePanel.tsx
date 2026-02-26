@@ -9,7 +9,9 @@ import {
   Icon16Group,
   Icon16Hidden,
   Icon16Line,
+  Icon16Polygon,
   Icon16Rectangle,
+  Icon16Star,
   Icon16Text,
   Icon16Visible,
   Icon24Plus,
@@ -18,6 +20,7 @@ import {
 
 import { useSceneGraph, useSelection } from '../../canvas';
 import type { SceneNode, VectorNode } from '../../canvas';
+import { useMinimizeUI } from '../MinimizeUIContext';
 
 interface Page {
   name: string;
@@ -32,10 +35,10 @@ const PAGES: Page[] = [
 
 
 export function FilePanel() {
+  const { toggleMinimize, fileName, setFileName } = useMinimizeUI();
   const [selectedPage, setSelectedPage] = useState(0);
 
   // File name inline editing
-  const [fileName, setFileName] = useState('Untitled');
   const [isEditingFileName, setIsEditingFileName] = useState(false);
   const [editingValue, setEditingValue] = useState('');
   const fileNameInputRef = useRef<HTMLInputElement>(null);
@@ -166,7 +169,7 @@ export function FilePanel() {
           <span className="px-2 text-bodyMd text-text-secondary truncate">Drafts</span>
         </div>
         <div className="flex items-center">
-          <IconButton size='lg' aria-label="Desktop view">
+          <IconButton size='lg' aria-label="Minimize UI" onClick={toggleMinimize}>
             <Icon24SidebarOpen />
           </IconButton>
         </div>
@@ -417,6 +420,10 @@ function NodeTypeIcon({ node }: { node: SceneNode }) {
       return <Icon16Line />;
     case 'GROUP':
       return <Icon16Group />;
+    case 'STAR':
+      return <Icon16Star />;
+    case 'POLYGON':
+      return <Icon16Polygon />;
     case 'VECTOR':
       return <VectorPreviewIcon node={node} />;
   }

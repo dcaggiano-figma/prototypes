@@ -32,12 +32,25 @@ const FRAME_DEFAULTS = {
   paddingLeft: 0,
 };
 
+const TEXT_APPEARANCE: AppearanceMixin = {
+  cornerRadius: 0,
+  fills: [{
+    type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true,
+  }],
+  strokes: [],
+  effects: [],
+};
+
 const TEXT_DEFAULTS = {
   characters: '',
+  fontFamily: 'Inter',
   fontSize: 16,
   fontWeight: 400,
+  lineHeight: 20,
+  letterSpacing: 0,
   textAlignHorizontal: 'LEFT' as const,
   textAlignVertical: 'TOP' as const,
+  textAutoResize: 'WIDTH_AND_HEIGHT' as const,
 };
 
 function getTypeDefaults(type: NodeType): Partial<SceneNode> {
@@ -49,9 +62,20 @@ function getTypeDefaults(type: NodeType): Partial<SceneNode> {
     case 'ELLIPSE':
       return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS };
     case 'TEXT':
-      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, ...TEXT_DEFAULTS };
+      return { ...GEOMETRY_DEFAULTS, ...TEXT_APPEARANCE, ...TEXT_DEFAULTS, width: 120, height: 22 };
     case 'LINE':
-      return { ...GEOMETRY_DEFAULTS, strokes: [] };
+      return {
+        ...GEOMETRY_DEFAULTS,
+        strokes: [{
+          paint: { type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true },
+          weight: 1,
+          position: 'CENTER' as const,
+        }],
+      };
+    case 'POLYGON':
+      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, sides: 3 };
+    case 'STAR':
+      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, points: 5, innerRadius: 0.382 };
     case 'VECTOR':
       return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, paths: [] };
     case 'GROUP':
@@ -189,9 +213,10 @@ export function createSceneGraph(initialNodes?: SceneNode[]): SceneGraphStore {
     createNode(type, props = {}) {
       const defaults = getTypeDefaults(type);
       const id = props.id ?? generateId();
+      const num = id.match(/\d+$/)?.[0] ?? id;
       const node = {
         id,
-        name: props.name ?? `${type.charAt(0)}${type.slice(1).toLowerCase()} ${id}`,
+        name: props.name ?? `${type.charAt(0)}${type.slice(1).toLowerCase()} ${num}`,
         type,
         parentId: props.parentId ?? null,
         children: [],

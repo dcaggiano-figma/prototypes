@@ -1,5 +1,5 @@
 /** Discriminator for node behavior */
-export type NodeType = 'FRAME' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'LINE' | 'GROUP' | 'VECTOR'
+export type NodeType = 'FRAME' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'LINE' | 'GROUP' | 'VECTOR' | 'POLYGON' | 'STAR'
 
 /** RGB color with channels 0-255 */
 export interface Color {
@@ -99,10 +99,14 @@ export interface EllipseNode extends BaseNode, GeometryMixin, AppearanceMixin {
 export interface TextNode extends BaseNode, GeometryMixin, AppearanceMixin {
   type: 'TEXT'
   characters: string
+  fontFamily: string
   fontSize: number
   fontWeight: number
+  lineHeight: number
+  letterSpacing: number
   textAlignHorizontal: 'LEFT' | 'CENTER' | 'RIGHT'
   textAlignVertical: 'TOP' | 'CENTER' | 'BOTTOM'
+  textAutoResize: 'WIDTH_AND_HEIGHT' | 'HEIGHT' | 'NONE'
 }
 
 /** Line node */
@@ -126,16 +130,29 @@ export interface VectorNode extends BaseNode, GeometryMixin, AppearanceMixin {
   paths: VectorPath[]
 }
 
+/** Polygon node */
+export interface PolygonNode extends BaseNode, GeometryMixin, AppearanceMixin {
+  type: 'POLYGON'
+  sides: number
+}
+
+/** Star node */
+export interface StarNode extends BaseNode, GeometryMixin, AppearanceMixin {
+  type: 'STAR'
+  points: number
+  innerRadius: number
+}
+
 /** Group node — bounds derived from children */
 export interface GroupNode extends BaseNode {
   type: 'GROUP'
 }
 
 /** Union of all scene node types */
-export type SceneNode = FrameNode | RectangleNode | EllipseNode | TextNode | LineNode | GroupNode | VectorNode
+export type SceneNode = FrameNode | RectangleNode | EllipseNode | TextNode | LineNode | GroupNode | VectorNode | PolygonNode | StarNode
 
 /** Nodes that have geometry (position/size) */
-export type GeometryNode = FrameNode | RectangleNode | EllipseNode | TextNode | LineNode | VectorNode
+export type GeometryNode = FrameNode | RectangleNode | EllipseNode | TextNode | LineNode | VectorNode | PolygonNode | StarNode
 
 /** Nodes that have appearance (fills/strokes) */
-export type AppearanceNode = FrameNode | RectangleNode | EllipseNode | TextNode | VectorNode
+export type AppearanceNode = FrameNode | RectangleNode | EllipseNode | TextNode | VectorNode | PolygonNode | StarNode

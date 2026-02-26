@@ -59,6 +59,9 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
       const node = store.getNode(id);
       if (!node || !isGeometryNode(node)) continue;
 
+      // Lines render their selection outline via DOM in ResizeHandles
+      if (node.type === 'LINE') continue;
+
       // Convert world-space bounds to screen-space
       const world = getWorldPosition(store, node);
       const sx = world.x * viewport.scale + viewport.origin.x;
@@ -66,20 +69,61 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
       const sw = node.width * viewport.scale;
       const sh = node.height * viewport.scale;
 
-      // Blue outline
+      // Blue outline (rotated if node has rotation)
+      const nodeRotation = node.rotation ?? 0;
       ctx.strokeStyle = selectionColor;
       ctx.lineWidth = 1;
-      ctx.strokeRect(sx, sy, sw, sh);
+
+      if (nodeRotation !== 0) {
+        ctx.save();
+        ctx.translate(sx + sw / 2, sy + sh / 2);
+        ctx.rotate(nodeRotation * Math.PI / 180);
+        ctx.strokeRect(-sw / 2, -sh / 2, sw, sh);
+        ctx.restore();
+      } else {
+        ctx.strokeRect(sx, sy, sw, sh);
+      }
 
       // Dimension label below selection
+      // For rotated nodes, position below the rotated bounding box
       const label = `${Math.round(node.width)} \u00D7 ${Math.round(node.height)}`;
       const fontSize = 11;
-      ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+      ctx.font = `${fontSize}px "Inter", system-ui, sans-serif`;
       const textMetrics = ctx.measureText(label);
       const textW = textMetrics.width + 8;
       const textH = fontSize + 6;
-      const textX = sx + sw / 2 - textW / 2;
-      const textY = sy + sh + 8;
+
+      let labelCenterX: number;
+      let labelTopY: number;
+
+      if (nodeRotation !== 0) {
+        // Compute the lowest point of the rotated rectangle to position label below it
+        const rad = nodeRotation * Math.PI / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const hw = sw / 2;
+        const hh = sh / 2;
+        // The 4 corners relative to center
+        const cornerOffsets = [
+          { dx: -hw, dy: -hh },
+          { dx: hw, dy: -hh },
+          { dx: hw, dy: hh },
+          { dx: -hw, dy: hh },
+        ];
+        let maxY = -Infinity;
+        for (const c of cornerOffsets) {
+          const ry = c.dx * sin + c.dy * cos;
+          if (ry > maxY) maxY = ry;
+        }
+        labelCenterX = sx + sw / 2;
+        labelTopY = sy + sh / 2 + maxY + 8;
+      } else {
+        labelCenterX = sx + sw / 2;
+        labelTopY = sy + sh + 8;
+      }
+
+      const textX = labelCenterX - textW / 2;
+      const textY = labelTopY;
 
       // Label background
       ctx.fillStyle = selectionColor;
@@ -91,7 +135,7 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
       ctx.fillStyle = labelTextColor;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(label, sx + sw / 2, textY + textH / 2);
+      ctx.fillText(label, labelCenterX, textY + textH / 2);
     }
 
     // Draw box selection rectangle

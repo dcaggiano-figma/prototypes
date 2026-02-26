@@ -12,6 +12,8 @@ export interface NumericFieldProps {
   formatter?: NumberFormatter
   /** Override the default text icon with a custom React node */
   icon?: React.ReactNode
+  /** Disable the input */
+  disabled?: boolean
 }
 
 /** 24x24px box for a text-based icon character (X, Y, W, H, R, %, etc.) */
@@ -24,7 +26,7 @@ export function CharIcon({ children }: { children: React.ReactNode }) {
 }
 
 export function NumericField({
-  label, value, onChange, formatter, icon,
+  label, value, onChange, formatter, icon, disabled,
 }: NumericFieldProps) {
   const fmt = formatter ?? defaultFormatter;
 
@@ -45,6 +47,7 @@ export function NumericField({
         value={value}
         formatter={fmt}
         onChange={handleChange}
+        disabled={disabled}
       />
     </ScrubbableInput.Root>
   );

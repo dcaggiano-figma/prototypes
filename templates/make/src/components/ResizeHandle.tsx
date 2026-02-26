@@ -10,7 +10,7 @@ export function ResizeHandle({ onMouseDown }: ResizeHandleProps) {
     <ButtonPrimitive
       aria-label="Resize panel"
       // eslint-disable-next-line @repo/no-arbitrary-value
-      className="absolute top-0 bottom-0 -right-[2px] w-[4px] z-[10] cursor-col-resize group p-0 border-none"
+      className="absolute top-0 bottom-0 -right-[2px] w-1 z-[10] cursor-col-resize group p-0 border-none"
       onMouseDown={onMouseDown}
     >
       {/* eslint-disable-next-line @repo/no-arbitrary-value */}

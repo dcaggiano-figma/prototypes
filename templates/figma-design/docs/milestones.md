@@ -132,7 +132,7 @@ can use utility classes that match Figma's design system.
 
 ### Deliverables
 
-- [ ] Create `@figma/ppg-tailwind-config` package under `fpl/foundations/` (based on
+- [ ] Create `@figma/fpl-tailwind-config` package under `fpl/foundations/` (based on
       the ai-prototype-scaffold reference)
 - [ ] Map FPL tokens to tailwind: colors, spacing, radius, shadows, font
       families, font weights, z-index, durations

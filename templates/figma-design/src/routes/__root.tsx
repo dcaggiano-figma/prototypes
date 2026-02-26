@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { createRootRoute } from '@tanstack/react-router';
 import { LeftRail } from '../components/LeftRail';
@@ -21,6 +21,10 @@ import { Icon24Help, Icon24Star } from '@figma/fpl-icons';
 import { showToast } from '../components/toast';
 import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
 import { Providers } from '../providers';
+import { useAction } from '../actions/provider';
+import { MinimizeUIProvider } from '../components/MinimizeUIContext';
+import { FloatingFileHeader } from '../components/FloatingFileHeader';
+import { MinimizedRightPanel } from '../components/MinimizedRightPanel';
 
 // ---------------------------------------------------------------------------
 // Generic main content switching per nav item
@@ -46,6 +50,14 @@ const NAV_VIEW_CONFIG: Partial<Record<string, NavViewConfig>> = {
 // ---------------------------------------------------------------------------
 
 function EditorLayout() {
+  return (
+    <Providers>
+      <EditorContent />
+    </Providers>
+  );
+}
+
+function EditorContent() {
   const helpMenu = Menu.useMenu();
   const featuresModal = PrototypeFeaturesModal();
   const [activeRailItem, setActiveRailItem] = useState('file');
@@ -53,6 +65,19 @@ function EditorLayout() {
   const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => readStoredTheme());
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [variablesViewMode, setVariablesViewMode] = useState<VariablesViewMode>('hidden');
+
+  // Minimize UI state
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [fileName, setFileName] = useState('Untitled');
+  const toggleMinimized = useCallback(() => setIsMinimized((v) => !v), []);
+
+  // Register keyboard shortcut for minimize UI
+  useAction('view.minimize-ui', toggleMinimized);
+
+  const minimizeCtx = useMemo(
+    () => ({ isMinimized, toggleMinimize: toggleMinimized, fileName, setFileName }),
+    [isMinimized, toggleMinimized, fileName],
+  );
 
   const handleThemeChange = (next: ThemeSetting) => {
     setThemeSetting(next);
@@ -62,6 +87,8 @@ function EditorLayout() {
   // Nav item change handler — manages variablesViewMode transitions
   const handleRailItemChange = (id: string) => {
     if (id === 'variables') {
+      // Auto-exit minimize mode when entering variables view
+      if (isMinimized) setIsMinimized(false);
       // No-op if already viewing variables in full mode
       if (activeRailItem === 'variables' && variablesViewMode === 'full') return;
       setVariablesViewMode('full');
@@ -119,24 +146,27 @@ function EditorLayout() {
   const showRightPanel = viewConfig?.showRightPanel ?? true;
 
   return (
-    <Providers>
+    <MinimizeUIProvider value={minimizeCtx}>
     <div className="h-screen flex overflow-hidden">
       {/* Canvas — fixed behind everything */}
       <Canvas />
 
-      {/* Left icon rail */}
-      <LeftRail
-        activeItem={activeRailItem}
-        onItemChange={handleRailItemChange}
-        labelsVisible={false}
-        activeMode={activeMode}
-        themeSetting={themeSetting}
-        onThemeChange={handleThemeChange}
-        onOpenActions={() => setIsActionsOpen(true)}
-      />
+      {/* Left icon rail — hidden when minimized */}
+      {!isMinimized && (
+        <LeftRail
+          activeItem={activeRailItem}
+          onItemChange={handleRailItemChange}
+          labelsVisible={false}
+          activeMode={activeMode}
+          themeSetting={themeSetting}
+          onThemeChange={handleThemeChange}
+          onOpenActions={() => setIsActionsOpen(true)}
+          onToggleMinimize={toggleMinimized}
+        />
+      )}
 
-      {/* Left panel */}
-      <LeftPanel activeItem={activeRailItem} />
+      {/* Left panel — hidden when minimized */}
+      {!isMinimized && <LeftPanel activeItem={activeRailItem} />}
 
       {/* Canvas / main area */}
       <main className={clsx('flex-1 relative', MainContent ? 'bg-bg' : 'pointer-events-none')}>
@@ -153,7 +183,11 @@ function EditorLayout() {
       </main>
 
       {/* Right panel — conditionally hidden */}
-      {showRightPanel && <RightPanel activeMode={activeMode} />}
+      {showRightPanel && !isMinimized && <RightPanel activeMode={activeMode} />}
+
+      {/* Floating panels in minimized mode */}
+      {isMinimized && <FloatingFileHeader />}
+      {showRightPanel && isMinimized && <MinimizedRightPanel activeMode={activeMode} />}
 
       {/* Minimized Variables floating window */}
       {variablesViewMode === 'minimized' && (
@@ -183,7 +217,7 @@ function EditorLayout() {
       </Menu.Root>
       {featuresModal.modal}
     </div>
-    </Providers>
+    </MinimizeUIProvider>
   );
 }
 

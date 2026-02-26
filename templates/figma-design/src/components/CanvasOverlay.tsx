@@ -22,7 +22,7 @@ export function CanvasOverlay({ activeMode, onModeChange, isActionsOpen, onActio
         <Outlet />
       </div>
       {/* Toolbar area — positioned at bottom center */}
-      <div className="absolute bottom-16px left-1/2 -translate-x-1/2 z-nav pointer-events-auto">
+      <div className="absolute bottom-12px left-1/2 -translate-x-1/2 z-nav pointer-events-auto">
         <ToastContainer />
         <div>{/* Toolbar stack — future secondary toolbars go here */}
           <Toolbar activeMode={activeMode} onModeChange={onModeChange} isActionsOpen={isActionsOpen} onActionsOpenChange={onActionsOpenChange} />

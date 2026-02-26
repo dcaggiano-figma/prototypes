@@ -58,6 +58,7 @@ interface LeftRailProps {
   themeSetting: ThemeSetting;
   onThemeChange: (setting: ThemeSetting) => void;
   onOpenActions: () => void;
+  onToggleMinimize?: () => void;
 }
 
 const mainNavItems = [
@@ -71,7 +72,7 @@ const secondaryNavItems = [
   { Icon: Icon24Variable, label: 'Variables', id: 'variables' },
 ];
 
-export function LeftRail({ activeItem, onItemChange, labelsVisible, activeMode, themeSetting, onThemeChange, onOpenActions }: LeftRailProps) {
+export function LeftRail({ activeItem, onItemChange, labelsVisible, activeMode, themeSetting, onThemeChange, onOpenActions, onToggleMinimize }: LeftRailProps) {
   const mainMenu = Menu.useMenu();
 
   const filteredNavItems = useMemo(() => {
@@ -219,7 +220,7 @@ export function LeftRail({ activeItem, onItemChange, labelsVisible, activeMode, 
       { type: 'item', id: 'memory-usage', label: 'Memory usage', onClick: noop },
       { type: 'separator' },
       { type: 'checkbox', id: 'additional-labels', label: 'Additional labels', checked: prefs.additionalLabels, onChange: toggle('additionalLabels') },
-      { type: 'item', id: 'minimize-ui', label: 'Minimize UI', shortcut: '⇧⌘\\', onClick: noop },
+      { type: 'item', id: 'minimize-ui', label: 'Minimize UI', shortcut: '⇧⌘\\', onClick: onToggleMinimize ?? noop },
       { type: 'checkbox', id: 'show-ui', label: 'Show/Hide UI', checked: prefs.showUI, onChange: toggle('showUI') },
       { type: 'item', id: 'multiplayer-cursors', label: 'Multiplayer cursors', shortcut: '⌥⌘\\', onClick: noop },
       { type: 'item', id: 'switch-draw', label: 'Switch to Draw', onClick: noop },

@@ -2,12 +2,9 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ButtonPrimitive, Checkbox, HiddenLabel, HiddenLegend, IconButton, Input, Label, ScrollContainer, SegmentedControl, Select, Tabs,
 } from '@figma/fpl-components';
+import { SplitInput } from '@figma/fpl-components/beta';
 import {
   Icon16ChevronDown,
-  Icon24Link,
-  Icon16Remove,
-  Icon16Settings,
-  Icon16Visible,
   Icon24AlLayoutGridHorizontal,
   Icon24AlLayoutGridNone,
   Icon24AlLayoutGridVertical,
@@ -34,6 +31,27 @@ import {
   Icon24Rotate,
   Icon24Rotation,
   Icon24MultiEdit,
+  Icon24TextAlignBottom,
+  Icon24TextAlignCenter,
+  Icon24TextAlignLeft,
+  Icon24TextAlignMiddle,
+  Icon24TextAlignRight,
+  Icon24TextAlignTop,
+  Icon24TextLetterSpacing,
+  Icon24TextLineHeight,
+  Icon24TextResizeFixed,
+  Icon24TextResizeHeight,
+  Icon24TextResizeWidth,
+  Icon24Adjust,
+  Icon24CountPolygon,
+  Icon24CountStar,
+  Icon24Hidden,
+  Icon24Minus,
+  Icon24Styles,
+  Icon24StrokeWeight,
+  Icon24Border,
+  Icon24AspectRatio,
+  Icon24Angle,
 } from '@figma/fpl-icons';
 
 import {
@@ -47,13 +65,19 @@ import type {
   AppearanceNode,
   FrameNode,
   GeometryNode,
+  Paint,
+  PolygonNode,
   SceneNode,
+  StarNode,
   Stroke,
+  TextNode,
 } from '../../canvas';
 import { IconButtonGroup } from '../icon-button-group';
 import { PropertySection, PropertyRow, PlaceholderSection } from '../property-layout';
 import { NumericField, positiveFormatter, percentFormatter } from '../numeric-field';
 import { ColorSwatch, HexInput, OpacityInput, PercentSuffix, hexToRgb } from '../color-inputs';
+
+const FONT_SIZE_PRESETS = ['10', '11', '12', '13', '14', '15', '16', '20', '24', '32', '36', '40', '48', '64', '96', '128'];
 
 type DesignTab = 'design' | 'prototype';
 
@@ -177,7 +201,8 @@ function NodeProperties({ node }: { node: SceneNode }) {
     <>
       <NodeHeader node={node} />
       {isGeometryNode(node) && <PositionSection node={node} />}
-      {isGeometryNode(node) && <LayoutSection node={node} />}
+      {isTextNode(node) ? <TextLayoutSection node={node} /> : isGeometryNode(node) && <LayoutSection node={node} />}
+      {isTextNode(node) && <TypographySection node={node} />}
       {isGeometryNode(node) && <AppearanceSection node={node} />}
       {isAppearanceNode(node) && <FillSection node={node} />}
       {isAppearanceNode(node) && <StrokeSection node={node} />}
@@ -209,6 +234,8 @@ function nodeTypeLabel(node: SceneNode): string {
     case 'LINE': return 'Line';
     case 'GROUP': return 'Group';
     case 'VECTOR': return 'Vector path';
+    case 'POLYGON': return 'Polygon';
+    case 'STAR': return 'Star';
   }
 }
 
@@ -256,6 +283,182 @@ function PositionSection({ node }: { node: GeometryNode }) {
         </IconButtonGroup>
         <div />
       </PropertyRow>
+    </PropertySection>
+  );
+}
+
+function TextLayoutSection({ node }: { node: TextNode }) {
+  const store = useSceneGraph();
+
+  const handleW = useCallback(
+    (v: number) => {
+      const updates: Partial<TextNode> = { width: v };
+      if (node.textAutoResize === 'WIDTH_AND_HEIGHT') {
+        updates.textAutoResize = 'HEIGHT';
+      }
+      store.updateNode(node.id, updates);
+    },
+    [store, node.id, node.textAutoResize],
+  );
+
+  const handleH = useCallback(
+    (v: number) => {
+      const updates: Partial<TextNode> = { height: v };
+      if (node.textAutoResize !== 'NONE') {
+        updates.textAutoResize = 'NONE';
+      }
+      store.updateNode(node.id, updates);
+    },
+    [store, node.id, node.textAutoResize],
+  );
+
+  const wDisabled = node.textAutoResize === 'WIDTH_AND_HEIGHT';
+  const hDisabled = node.textAutoResize !== 'NONE';
+
+  return (
+    <PropertySection
+      title="Layout"
+      headerActions={
+        <IconButton aria-label="Resize to fit"><Icon24ResizeToFit /></IconButton>
+      }
+    >
+      <PropertyRow columns="1fr 24px">
+        <SegmentedControl.Root
+          value={node.textAutoResize}
+          onChange={(v) => store.updateNode(node.id, { textAutoResize: v as TextNode['textAutoResize'] })}
+          legend={<HiddenLegend>Resizing</HiddenLegend>}
+        >
+          <SegmentedControl.Option value="WIDTH_AND_HEIGHT" icon={<Icon24TextResizeWidth />} aria-label="Auto width" />
+          <SegmentedControl.Option value="HEIGHT" icon={<Icon24TextResizeHeight />} aria-label="Auto height" />
+          <SegmentedControl.Option value="NONE" icon={<Icon24TextResizeFixed />} aria-label="Fixed size" />
+        </SegmentedControl.Root>
+        <div />
+      </PropertyRow>
+      <PropertyRow columns="1fr 1fr 24px">
+        <NumericField
+          label="W"
+          value={node.width}
+          onChange={handleW}
+          formatter={positiveFormatter}
+          disabled={wDisabled}
+        />
+        <NumericField
+          label="H"
+          value={node.height}
+          onChange={handleH}
+          formatter={positiveFormatter}
+          disabled={hDisabled}
+        />
+        <IconButton aria-label="Resize to fit">
+          <Icon24AspectRatio />
+        </IconButton>
+      </PropertyRow>
+    </PropertySection>
+  );
+}
+
+function TypographySection({ node }: { node: TextNode }) {
+  const store = useSceneGraph();
+
+  const updateField = useCallback(
+    (field: string, value: number | string) => {
+      store.updateNode(node.id, { [field]: value });
+    },
+    [store, node.id],
+  );
+
+  return (
+    <PropertySection title="Typography">
+      {/* Font family + weight */}
+      <PropertyRow columns="1fr 24px">
+        <Select.Root value={node.fontFamily} onChange={(v) => v && updateField('fontFamily', v)}>
+          <Select.Trigger label={<HiddenLabel>Font family</HiddenLabel>} width="fill" />
+          <Select.Container>
+            <Select.Option value="Inter">Inter</Select.Option>
+            <Select.Option value="Roboto">Roboto</Select.Option>
+            <Select.Option value="Arial">Arial</Select.Option>
+            <Select.Option value="Georgia">Georgia</Select.Option>
+            <Select.Option value="monospace">Monospace</Select.Option>
+          </Select.Container>
+        </Select.Root>
+        <div />
+      </PropertyRow>
+
+      {/* Font size + line height */}
+      <PropertyRow columns="1fr 1fr 24px">
+        <Select.Root value={String(node.fontWeight)} onChange={(v) => v && updateField('fontWeight', Number(v))}>
+          <Select.Trigger label={<HiddenLabel>Font weight</HiddenLabel>} width="fill" />
+          <Select.Container>
+            <Select.Option value="300">Light</Select.Option>
+            <Select.Option value="400">Regular</Select.Option>
+            <Select.Option value="500">Medium</Select.Option>
+            <Select.Option value="600">Semi Bold</Select.Option>
+            <Select.Option value="700">Bold</Select.Option>
+          </Select.Container>
+        </Select.Root>
+        <SplitInput
+          aria-label="Font size"
+          value={String(node.fontSize)}
+          onChange={(v) => updateField('fontSize', Number(v))}
+        >
+          <SplitInput.OptionGroup
+            title={
+              <SplitInput.MenuHiddenTitle>
+                Font size presets
+              </SplitInput.MenuHiddenTitle>
+            }
+          >
+            {FONT_SIZE_PRESETS.map((size) => (
+              <SplitInput.Option key={size} value={size}>
+                {size}
+              </SplitInput.Option>
+            ))}
+          </SplitInput.OptionGroup>
+        </SplitInput>
+        <div />
+      </PropertyRow>
+
+      {/* Letter spacing */}
+      <PropertyRow>
+        <NumericField
+          label="Line height"
+          value={node.lineHeight}
+          onChange={(v) => updateField('lineHeight', v)}
+          formatter={positiveFormatter}
+          icon={<Icon24TextLineHeight />}
+        />
+        <NumericField
+          label="Letter spacing"
+          value={node.letterSpacing}
+          onChange={(v) => updateField('letterSpacing', v)}
+          icon={<Icon24TextLetterSpacing />}
+        />
+        <div />
+      </PropertyRow>
+
+      {/* Horizontal alignment */}
+      <PropertyRow columns="1fr 1fr 24px">
+        <SegmentedControl.Root
+          value={node.textAlignHorizontal}
+          onChange={(v) => updateField('textAlignHorizontal', v)}
+          legend={<HiddenLegend>Horizontal alignment</HiddenLegend>}
+        >
+          <SegmentedControl.Option value="LEFT" icon={<Icon24TextAlignLeft />} aria-label="Align left" />
+          <SegmentedControl.Option value="CENTER" icon={<Icon24TextAlignCenter />} aria-label="Align center" />
+          <SegmentedControl.Option value="RIGHT" icon={<Icon24TextAlignRight />} aria-label="Align right" />
+        </SegmentedControl.Root>
+        <SegmentedControl.Root
+          value={node.textAlignVertical}
+          onChange={(v) => updateField('textAlignVertical', v)}
+          legend={<HiddenLegend>Vertical alignment</HiddenLegend>}
+        >
+          <SegmentedControl.Option value="TOP" icon={<Icon24TextAlignTop />} aria-label="Align top" />
+          <SegmentedControl.Option value="CENTER" icon={<Icon24TextAlignMiddle />} aria-label="Align middle" />
+          <SegmentedControl.Option value="BOTTOM" icon={<Icon24TextAlignBottom />} aria-label="Align bottom" />
+        </SegmentedControl.Root>
+        <IconButton aria-label="Type settings"><Icon24Adjust /></IconButton>
+      </PropertyRow>
+
     </PropertySection>
   );
 }
@@ -309,7 +512,7 @@ function LayoutSection({ node }: { node: GeometryNode }) {
           aria-label={constrained ? 'Unlock proportions' : 'Lock proportions'}
           onClick={() => setConstrained(!constrained)}
         >
-          <Icon24Link />
+          <Icon24AspectRatio />
         </IconButton>
       </PropertyRow>
       {isFrame && <FrameSpacingRows node={node as FrameNode} />}
@@ -405,8 +608,43 @@ function AppearanceSection({ node }: { node: GeometryNode }) {
         ) : (
           <div />
         )}
-        <div />
+        {node.type === 'POLYGON' || node.type === 'STAR' ? (
+          <IconButton aria-label="Adjust"><Icon24Adjust /></IconButton>
+        ) : (
+          <IconButton aria-label="Individual corners"><Icon24Corners /></IconButton>
+        )}
       </PropertyRow>
+      {node.type === 'POLYGON' && (
+        <PropertyRow>
+          <NumericField
+            label="Sides"
+            icon={<Icon24CountPolygon />}
+            value={(node as PolygonNode).sides}
+            onChange={(v) => store.updateNode(node.id, { sides: Math.max(3, Math.round(v)) })}
+            formatter={positiveFormatter}
+          />
+          <div />
+        </PropertyRow>
+      )}
+      {node.type === 'STAR' && (
+        <PropertyRow>
+          <NumericField
+            label="Points"
+            icon={<Icon24CountStar />}
+            value={(node as StarNode).points}
+            onChange={(v) => store.updateNode(node.id, { points: Math.max(3, Math.round(v)) })}
+            formatter={positiveFormatter}
+          />
+          <NumericField
+            label="Inner radius"
+            icon={<Icon24Angle />}
+            value={Math.round((node as StarNode).innerRadius * 1000) / 10}
+            onChange={(v) => store.updateNode(node.id, { innerRadius: v / 100 })}
+            formatter={percentFormatter}
+          />
+          <div />
+        </PropertyRow>
+      )}
     </PropertySection>
   );
 }
@@ -435,19 +673,34 @@ function FillSection({ node }: { node: AppearanceNode }) {
     [store, node.id, node.fills],
   );
 
-  if (!fill) return <PlaceholderSection title="Fill" actions />;
+  const toggleVisibility = useCallback(() => {
+    const newFills = [...node.fills];
+    newFills[0] = { ...newFills[0], visible: !newFills[0].visible };
+    store.updateNode(node.id, { fills: newFills });
+  }, [store, node.id, node.fills]);
+
+  const addFill = useCallback(() => {
+    const newFill: Paint = { type: 'SOLID', color: { r: 196, g: 196, b: 196 }, opacity: 1, visible: true };
+    store.updateNode(node.id, { fills: [...node.fills, newFill] });
+  }, [store, node.id, node.fills]);
+
+  const removeFill = useCallback(() => {
+    store.updateNode(node.id, { fills: node.fills.slice(1) });
+  }, [store, node.id, node.fills]);
+
+  if (!fill) return <PlaceholderSection title="Fill" actions onAdd={addFill} />;
 
   return (
     <PropertySection
       title="Fill"
       headerActions={(
         <>
-          <IconButton aria-label="Fill settings"><Icon16Settings /></IconButton>
-          <IconButton aria-label="Add fill"><Icon24Plus /></IconButton>
+          <IconButton aria-label="Fill settings"><Icon24Styles /></IconButton>
+          <IconButton aria-label="Add fill" onClick={addFill}><Icon24Plus /></IconButton>
         </>
       )}
     >
-      <PropertyRow columns="1fr auto auto">
+      <PropertyRow columns="1fr auto auto" style={{ opacity: fill.visible ? 1 : 0.4 }}>
         <Input.Group columns="1fr 52px">
           <Input.Root>
             <ColorSwatch color={fill.color} onChange={handleColorChange} />
@@ -461,11 +714,11 @@ function FillSection({ node }: { node: AppearanceNode }) {
             <PercentSuffix />
           </Input.Root>
         </Input.Group>
-        <IconButton aria-label="Toggle visibility">
-          <Icon16Visible />
+        <IconButton aria-label="Toggle visibility" onClick={toggleVisibility}>
+          {fill.visible ? <Icon24Eye /> : <Icon24Hidden />}
         </IconButton>
-        <IconButton aria-label="Remove fill">
-          <Icon16Remove />
+        <IconButton aria-label="Remove fill" onClick={removeFill}>
+          <Icon24Minus />
         </IconButton>
       </PropertyRow>
     </PropertySection>
@@ -475,6 +728,19 @@ function FillSection({ node }: { node: AppearanceNode }) {
 function StrokeSection({ node }: { node: AppearanceNode }) {
   const store = useSceneGraph();
   const stroke = node.strokes[0];
+
+  const addStroke = useCallback(() => {
+    const newStroke: Stroke = {
+      paint: { type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true },
+      weight: 1,
+      position: 'CENTER',
+    };
+    store.updateNode(node.id, { strokes: [...node.strokes, newStroke] });
+  }, [store, node.id, node.strokes]);
+
+  const removeStroke = useCallback(() => {
+    store.updateNode(node.id, { strokes: node.strokes.slice(1) });
+  }, [store, node.id, node.strokes]);
 
   const handleColorChange = useCallback(
     (hex: string) => {
@@ -509,19 +775,37 @@ function StrokeSection({ node }: { node: AppearanceNode }) {
     [store, node.id, node.strokes],
   );
 
-  if (!stroke) return <PlaceholderSection title="Stroke" actions />;
+  const toggleVisibility = useCallback(() => {
+    const newStrokes = [...node.strokes];
+    newStrokes[0] = {
+      ...newStrokes[0],
+      paint: { ...newStrokes[0].paint, visible: !newStrokes[0].paint.visible },
+    };
+    store.updateNode(node.id, { strokes: newStrokes });
+  }, [store, node.id, node.strokes]);
+
+  if (!stroke) {
+    return (
+      <PropertySection
+        title="Stroke"
+        headerActions={
+          <IconButton aria-label="Add stroke" onClick={addStroke}><Icon24Plus /></IconButton>
+        }
+      />
+    );
+  }
 
   return (
     <PropertySection
       title="Stroke"
       headerActions={(
         <>
-          <IconButton aria-label="Stroke settings"><Icon16Settings /></IconButton>
-          <IconButton aria-label="Add stroke"><Icon24Plus /></IconButton>
+          <IconButton aria-label="Stroke settings"><Icon24Styles /></IconButton>
+          <IconButton aria-label="Add stroke" onClick={addStroke}><Icon24Plus /></IconButton>
         </>
       )}
     >
-      <PropertyRow columns="1fr auto auto">
+      <PropertyRow columns="1fr 24px 24px" style={{ opacity: stroke.paint.visible ? 1 : 0.4 }}>
         <Input.Group columns="1fr 52px">
           <Input.Root>
             <ColorSwatch color={stroke.paint.color} onChange={handleColorChange} />
@@ -542,14 +826,14 @@ function StrokeSection({ node }: { node: AppearanceNode }) {
             <PercentSuffix />
           </Input.Root>
         </Input.Group>
-        <IconButton aria-label="Toggle visibility">
-          <Icon16Visible />
+        <IconButton aria-label="Toggle visibility" onClick={toggleVisibility}>
+          {stroke.paint.visible ? <Icon24Eye /> : <Icon24Hidden />}
         </IconButton>
-        <IconButton aria-label="Remove stroke">
-          <Icon16Remove />
+        <IconButton aria-label="Remove stroke" onClick={removeStroke}>
+          <Icon24Minus />
         </IconButton>
       </PropertyRow>
-      <PropertyRow>
+      <PropertyRow columns="1fr 1fr 24px 24px" style={{ opacity: stroke.paint.visible ? 1 : 0.4 }}>
         <Select.Root value={stroke.position} onChange={(v) => v && handlePositionChange(v)}>
           <Select.Trigger label={<HiddenLabel>Stroke position</HiddenLabel>} width="fill" />
           <Select.Container>
@@ -560,17 +844,27 @@ function StrokeSection({ node }: { node: AppearanceNode }) {
         </Select.Root>
         <NumericField
           label="Wt"
+          icon={<Icon24StrokeWeight />}
           value={stroke.weight}
           onChange={handleWeightChange}
           formatter={positiveFormatter}
         />
-        <div />
+        <IconButton aria-label="Toggle visibility">
+          <Icon24Adjust />
+        </IconButton>
+        <IconButton aria-label="Remove stroke" onClick={removeStroke}>
+          <Icon24Border />
+        </IconButton>
       </PropertyRow>
     </PropertySection>
   );
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+function isTextNode(node: SceneNode): node is TextNode {
+  return node.type === 'TEXT';
+}
 
 function isGeometryNode(node: SceneNode): node is GeometryNode {
   return 'x' in node && 'y' in node && 'width' in node && 'height' in node;

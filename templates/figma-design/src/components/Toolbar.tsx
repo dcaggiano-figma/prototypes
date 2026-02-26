@@ -68,6 +68,9 @@ function mapToolId(id: string): ToolType {
     case 'rectangle': return 'RECTANGLE';
     case 'ellipse': return 'ELLIPSE';
     case 'text': return 'TEXT';
+    case 'line': return 'LINE';
+    case 'polygon': return 'POLYGON';
+    case 'star': return 'STAR';
     case 'pen': case 'pencil': return 'PEN';
     case 'comment': case 'comment-draw': case 'comment-dev': return 'COMMENT';
     default: return 'MOVE';
@@ -255,7 +258,19 @@ interface ToolbarProps {
 export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpenChange }: ToolbarProps) {
   const [activeTool, setActiveTool] = useState('move');
   const [selectedByGroup, setSelectedByGroup] = useState<Record<string, string>>({});
-  const { setActiveTool: setProviderTool } = useActiveTool();
+  const { activeTool: providerTool, setActiveTool: setProviderTool } = useActiveTool();
+
+  // Sync local toolbar state when provider tool changes externally (e.g. after shape creation)
+  const prevProviderToolRef = useRef(providerTool);
+  useEffect(() => {
+    if (prevProviderToolRef.current !== providerTool) {
+      prevProviderToolRef.current = providerTool;
+      const mapped = providerTool.toLowerCase();
+      if (mapToolId(activeTool) !== providerTool) {
+        setActiveTool(mapped);
+      }
+    }
+  }, [providerTool, activeTool]);
 
   // Register tool keyboard shortcuts via the action system (V, F, R, O, T, P, H, C)
   useAction('tool.move', useCallback(() => { setActiveTool('move'); setProviderTool('MOVE'); }, [setProviderTool]));
@@ -266,6 +281,9 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
   useAction('tool.pen', useCallback(() => { setActiveTool('pen'); setProviderTool('PEN'); }, [setProviderTool]));
   useAction('tool.hand', useCallback(() => { setActiveTool('hand'); setProviderTool('HAND'); }, [setProviderTool]));
   useAction('tool.comment', useCallback(() => { setActiveTool('comment'); setProviderTool('COMMENT'); }, [setProviderTool]));
+  useAction('tool.line', useCallback(() => { setActiveTool('line'); setProviderTool('LINE'); }, [setProviderTool]));
+  useAction('tool.polygon', useCallback(() => { setActiveTool('polygon'); setProviderTool('POLYGON'); }, [setProviderTool]));
+  useAction('tool.star', useCallback(() => { setActiveTool('star'); setProviderTool('STAR'); }, [setProviderTool]));
 
   const [phase, setPhase] = useState<'idle' | 'sliding' | 'resizing'>('idle');
   const [measured, setMeasured] = useState(false);

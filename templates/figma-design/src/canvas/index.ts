@@ -17,6 +17,8 @@ export type {
   EllipseNode,
   TextNode,
   LineNode,
+  PolygonNode,
+  StarNode,
   VectorPath,
   VectorNode,
   GroupNode,
@@ -37,6 +39,9 @@ export type { SceneGraphStore } from './scene-graph/provider';
 
 // Selection
 export { SelectionProvider, useSelection } from './selection/provider';
+
+// Text editing
+export { TextEditingProvider, useTextEditing } from './text-editing/provider';
 
 // Viewport
 export { ViewportProvider, useViewport } from './viewport/provider';
