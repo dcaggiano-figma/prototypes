@@ -140,7 +140,7 @@ if gh auth status &>/dev/null; then
   # Ensure read:packages scope is present (needed for GitHub Packages)
   if ! gh auth status 2>&1 | grep -q "read:packages\|write:packages"; then
     info "Adding read:packages scope to GitHub CLI token..."
-    gh auth refresh -s read:packages
+    gh auth refresh -h github.com -s read:packages
     pass "read:packages scope added"
   fi
 elif [[ -n "${CI:-}" ]] || [[ ! -t 0 ]]; then
@@ -272,4 +272,8 @@ fi
 
 echo
 echo -e "${GREEN}Setup complete!${NC} Your development environment is ready."
+echo
+echo "To get started, open the AI Prototyping sidebar in Cursor:"
+echo "  Click the beaker icon in the left sidebar, or run:"
+echo "  Cmd+Shift+P → \"Design Prototyping: Focus on View\""
 echo
