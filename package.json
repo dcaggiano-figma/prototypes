@@ -9,9 +9,20 @@
     "npm": "please-use-pnpm",
     "yarn": "please-use-pnpm"
   },
+  "pnpm": {
+    "overrides": {
+      "@figma/fpl-tokens": "0.0.1-release-test.3",
+      "@figma/fpl-components": "0.0.2-release-test.3",
+      "@figma/fpl-icons": "0.0.1-release-test.3"
+    },
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "unrs-resolver"
+    ]
+  },
   "scripts": {
     "dev": "pnpm exec vite",
-    "build": "pnpm exec vite build",
+    "build": "pnpm -r --filter './templates/*' build",
     "lint": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "verify": "pnpm lint && pnpm typecheck"
