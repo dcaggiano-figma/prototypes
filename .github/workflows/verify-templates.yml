@@ -6,11 +6,13 @@ on:
     paths:
       - 'templates/**'
       - 'package.json'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/verify-templates.yml'
   pull_request:
     paths:
       - 'templates/**'
       - 'package.json'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/verify-templates.yml'
 
 permissions:
@@ -45,38 +47,24 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Copy template to workspace
-        run: |
-          shopt -s dotglob
-          cp -r templates/${{ matrix.template }}/* .
-          # Merge template deps into root package.json
-          node -e "
-            const fs = require('fs');
-            const root = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            const tmpl = JSON.parse(fs.readFileSync('templates/${{ matrix.template }}/package.json', 'utf8'));
-            root.dependencies = { ...root.dependencies, ...tmpl.dependencies };
-            root.devDependencies = { ...root.devDependencies, ...tmpl.devDependencies };
-            fs.writeFileSync('package.json', JSON.stringify(root, null, 2) + '\n');
-          "
-
       - name: Install dependencies
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm run typecheck
+        run: pnpm --filter @prototype/${{ matrix.template }} typecheck
 
       - name: Lint
-        run: pnpm run lint
+        run: pnpm --filter @prototype/${{ matrix.template }} lint
 
       - name: Build
-        run: pnpm run build
+        run: pnpm --filter @prototype/${{ matrix.template }} build
 
       - name: Verify dist output
         run: |
-          if [ ! -d "dist" ]; then
+          if [ ! -d "templates/${{ matrix.template }}/dist" ]; then
             echo "::error::Build produced no dist/ directory for template '${{ matrix.template }}'"
             exit 1
           fi
-          echo "dist/ contains $(find dist -type f | wc -l) files"
+          echo "dist/ contains $(find templates/${{ matrix.template }}/dist -type f | wc -l) files"
