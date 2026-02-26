@@ -1,0 +1,190 @@
+name: Template Checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'templates/**'
+      - '.github/workflows/share-templates.yml'
+
+permissions:
+  id-token: write
+  contents: read
+  packages: read
+  pull-requests: write
+
+jobs:
+  check-templates:
+    name: Check templates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate templates
+        run: |
+          FAIL=0
+          for dir in templates/*/; do
+            [ -f "$dir/package.json" ] || continue
+            name=$(basename "$dir")
+
+            if ! jq -e '.template' "$dir/package.json" > /dev/null 2>&1; then
+              echo "::error::$name is missing a \"template\" section in package.json"
+              FAIL=1
+              continue
+            fi
+
+            # Non-hidden templates must have a screenshot
+            hidden=$(jq -r '.template.hidden // false' "$dir/package.json")
+            if [ "$hidden" != "true" ] && [ ! -f "$dir/screenshot.png" ]; then
+              echo "::error::$name is missing screenshot.png. Run the /screenshot skill to generate one."
+              FAIL=1
+            fi
+          done
+          exit $FAIL
+
+      - name: Find changed templates
+        id: changed
+        run: |
+          WORKFLOW_CHANGED=$(git diff --name-only "${{ github.event.pull_request.base.sha }}"..."${{ github.event.pull_request.head.sha }}" -- '.github/workflows/share-templates.yml')
+
+          if [ -n "$WORKFLOW_CHANGED" ]; then
+            echo "Workflow file changed — deploying all templates"
+            DIRS=$(ls -d templates/*/ | xargs -n1 basename)
+          else
+            CHANGED_FILES=$(git diff --name-only --no-renames --diff-filter=d "${{ github.event.pull_request.base.sha }}"..."${{ github.event.pull_request.head.sha }}" -- 'templates/')
+
+            echo "Changed files (excluding deletions):"
+            echo "$CHANGED_FILES"
+
+            if [ -z "$CHANGED_FILES" ]; then
+              echo "No non-deletion changes found"
+              echo "templates=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            DIRS=$(echo "$CHANGED_FILES" | sed -n 's|^templates/\([^/]*\)/.*|\1|p' | sort -u)
+          fi
+
+          TEMPLATES=""
+          for name in $DIRS; do
+            if [ -f "templates/$name/package.json" ] && node -e "process.exit(require('./templates/$name/package.json').template ? 0 : 1)"; then
+              TEMPLATES="$TEMPLATES $name"
+              echo "Template detected: $name"
+            else
+              echo "Skipping $name (not a template)"
+            fi
+          done
+
+          TEMPLATES=$(echo "$TEMPLATES" | xargs)
+          echo "templates=$TEMPLATES" >> "$GITHUB_OUTPUT"
+          echo "Final template list: $TEMPLATES"
+
+      - name: Setup pnpm
+        if: steps.changed.outputs.templates != ''
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+
+      - name: Setup Node.js
+        if: steps.changed.outputs.templates != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.changed.outputs.templates != ''
+        run: pnpm install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure AWS credentials
+        if: steps.changed.outputs.templates != ''
+        uses: figma/actions-configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 #v4.0.2
+        with:
+          role-to-assume: arn:aws:iam::133326480594:role/protov2_playground_workflow_role
+          aws-region: us-east-1
+
+      - name: Build and deploy templates
+        if: steps.changed.outputs.templates != ''
+        run: |
+          SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-8)
+          BRANCH="${{ github.head_ref }}"
+          TEMPLATES="${{ steps.changed.outputs.templates }}"
+
+          mkdir -p /tmp/share-urls
+
+          for TEMPLATE_DIR in $TEMPLATES; do
+            PKG_NAME=$(node -p "require('./templates/$TEMPLATE_DIR/package.json').name")
+            echo "::group::Build $TEMPLATE_DIR ($PKG_NAME)"
+            pnpm -r --filter "$PKG_NAME^..." run build
+            BASE_PATH="/share/$BRANCH/$SHORT_SHA/$TEMPLATE_DIR/"
+            VITE_PROTO_BRANCH="$BRANCH" \
+            VITE_PROTO_COMMIT="${{ github.event.pull_request.head.sha }}" \
+            VITE_PROTO_APP_PATH="templates/$TEMPLATE_DIR" \
+            pnpm --filter "$PKG_NAME" run build --base "$BASE_PATH"
+            echo "::endgroup::"
+
+            echo "::group::Deploy $TEMPLATE_DIR"
+            aws s3 sync "templates/$TEMPLATE_DIR/dist/" \
+              "s3://figma-protov2/share/$BRANCH/$SHORT_SHA/$TEMPLATE_DIR/" \
+              --delete
+            echo "::endgroup::"
+
+            URL="https://protov2.figma.design/share/$BRANCH/$SHORT_SHA/$TEMPLATE_DIR/"
+            echo "$URL" > "/tmp/share-urls/$TEMPLATE_DIR"
+
+            echo "## Shared" >> "$GITHUB_STEP_SUMMARY"
+            echo "[$TEMPLATE_DIR]($URL)" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Post PR comment
+        if: steps.changed.outputs.templates != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const urlDir = '/tmp/share-urls';
+            const files = fs.readdirSync(urlDir);
+            if (files.length === 0) return;
+
+            let body = '## Template Previews\n\n';
+            body += 'The following templates were updated in this PR:\n\n';
+
+            for (const file of files.sort()) {
+              const url = fs.readFileSync(path.join(urlDir, file), 'utf8').trim();
+              body += `- **${file}**: ${url}\n`;
+            }
+
+            body += `\n_Auto-deployed from ${{ github.event.pull_request.head.sha }}_`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.user.login === 'github-actions[bot]' &&
+              c.body.includes('Template Previews')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
