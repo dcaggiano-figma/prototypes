@@ -49,7 +49,7 @@
       {
         "label": "Dev Server",
         "type": "shell",
-        "command": "export PATH=\"$HOME/.local/node/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"; pnpm --filter @apps/prototype dev",
+        "command": "export PATH=\"$HOME/.local/node/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"; BROWSER=none VITE_AUTO_OPEN=false pnpm --filter @apps/prototype dev",
         "runOptions": { "runOn": "folderOpen" },
         "presentation": { "reveal": "never", "panel": "dedicated" },
         "isBackground": true,
