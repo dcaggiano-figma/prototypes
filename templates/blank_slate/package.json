@@ -1,5 +1,5 @@
 {
-  "name": "@prototype/blank_slate",
+  "name": "@template/blank-slate",
   "version": "1.0.0",
   "private": true,
   "description": "Empty canvas with FPL components, tokens, and icons ready to go",
@@ -14,7 +14,7 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:file": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm lint && pnpm typecheck"
+    "verify": "pnpm build && pnpm lint && pnpm typecheck"
   },
   "dependencies": {
     "@figma/fpl-components": "0.0.2-release-test.4",

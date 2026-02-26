@@ -30,6 +30,7 @@ jobs:
           - browser-shell
           - eval-starter
           - figma-design
+          - figma-figjam
           - make
 
     name: ${{ matrix.template }}
@@ -52,14 +53,18 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm install --frozen-lockfile
 
+      - name: Resolve package name
+        id: pkg
+        run: echo "name=$(node -p "require('./templates/${{ matrix.template }}/package.json').name")" >> "$GITHUB_OUTPUT"
+
       - name: Build
-        run: pnpm --filter @prototype/${{ matrix.template }} build
+        run: pnpm --filter '${{ steps.pkg.outputs.name }}' build
 
       - name: Typecheck
-        run: pnpm --filter @prototype/${{ matrix.template }} typecheck
+        run: pnpm --filter '${{ steps.pkg.outputs.name }}' typecheck
 
       - name: Lint
-        run: pnpm --filter @prototype/${{ matrix.template }} lint
+        run: pnpm --filter '${{ steps.pkg.outputs.name }}' lint
 
       - name: Verify dist output
         run: |
