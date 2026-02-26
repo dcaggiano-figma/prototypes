@@ -6,12 +6,12 @@ description: |
   Trigger phrases: "take a screenshot", "screenshot", "what does it look like", "show me the app", "capture the screen", "visual check", "how does it look", "look at it"
 ---
 
-Take a headless screenshot of a running prototype app using the `@figma/proto-screenshot` package.
+Take a headless screenshot of a running prototype app using the `@figma/ppg-screenshot` package.
 
 ## Prerequisites
 
 - The prototype's dev server must already be running (via `pnpm dev` in the app directory)
-- Playwright's Chromium must be installed: `pnpm --filter @figma/proto-screenshot exec playwright install chromium`
+- Playwright's Chromium must be installed: `pnpm --filter @figma/ppg-screenshot exec playwright install chromium`
 
 ## Steps
 

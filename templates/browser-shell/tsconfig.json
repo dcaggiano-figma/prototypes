@@ -1,5 +1,5 @@
 {
-  "extends": "@figma/proto-tsconfig/react.json",
+  "extends": "@figma/ppg-tsconfig/react.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {

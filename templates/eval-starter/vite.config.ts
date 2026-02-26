@@ -1,4 +1,4 @@
-import { createViteConfig } from '@figma/proto-vite-config';
+import { createViteConfig } from '@figma/ppg-vite-config';
 
 export default createViteConfig({
   appDir: __dirname,

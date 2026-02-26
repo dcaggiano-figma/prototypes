@@ -23,8 +23,8 @@
   "scripts": {
     "dev": "pnpm exec vite",
     "build": "pnpm -r --filter './templates/*' build",
-    "lint": "eslint . --fix",
-    "typecheck": "tsc --noEmit",
-    "verify": "pnpm lint && pnpm typecheck"
+    "lint": "pnpm -r --filter './templates/*' lint",
+    "typecheck": "pnpm -r --filter './templates/*' typecheck",
+    "verify": "pnpm -r --filter './templates/*' verify"
   }
 }
