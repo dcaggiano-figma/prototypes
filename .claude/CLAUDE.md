@@ -1,5 +1,17 @@
 # Project Instructions
 
+## Related Repository: ai-prototyping-scaffold
+
+This repo (`prototype-playground`) is a lightweight prototyping monorepo that **consumes published packages** from the [`ai-prototyping-scaffold`](https://github.com/figma/ai-prototyping-scaffold) repo.
+
+The scaffold repo hosts most of our shared packages:
+- **FPL packages** (`fpl/packages/`): `components`, `tokens`, `icons`, `eslint-config`, `fpl-cli`, `docgen`, `tsconfig`
+- **Proto packages** (`proto/packages/`): `dev-tools`, `element-inspector`, `eslint-config`, `eval-runner`, `screenshot`, `tailwind-config`, `vite-config`, `worktree-manager`, `ui`, and more
+
+These are published to GitHub Packages under the `@figma` scope and consumed here via `.npmrc`. The auth token for GitHub Packages must be set in `~/.npmrc` (the setup script handles this). When debugging dependency issues or understanding package APIs, the scaffold repo is the source of truth.
+
+---
+
 ## FPL (Figma Platform Library) - MANDATORY
 
 **BEFORE writing any code that uses FPL components, you MUST:**
