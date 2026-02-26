@@ -42,9 +42,7 @@ import { useController } from 'react-hook-form';
 import { z } from 'zod';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
-import { useResizablePanel } from '../helpers/useResizablePanel';
-import Avatar from '../components/Avatar';
-import { ResizeHandle } from '../components/ResizeHandle';
+import { useResizablePanel, Avatar, ResizeHandle } from '@prototype/shared';
 
 /* ------------------------------------------------------------------ */
 /*  Form-connected Textarea (no built-in Form.Textarea exists)          */

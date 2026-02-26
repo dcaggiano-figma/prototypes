@@ -30,10 +30,8 @@ import {
 } from '@figma/fpl-icons';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
-import { useResizablePanel } from '../helpers/useResizablePanel';
-import Avatar from '../components/Avatar';
+import { useResizablePanel, Avatar, ResizeHandle } from '@prototype/shared';
 import { ChatPanel } from '../components/ChatPanel';
-import { ResizeHandle } from '../components/ResizeHandle';
 import { LoadingView } from '../components/LoadingView';
 import { CodeView } from '../components/CodeView';
 import { PreviewView } from '../components/PreviewView';

@@ -1,0 +1,19 @@
+{
+  "name": "@prototype/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "@figma/fpl-components": "*"
+  }
+}

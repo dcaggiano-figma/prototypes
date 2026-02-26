@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, ButtonPrimitive, Chip, HiddenLabel, Input, Modal, Select } from '@figma/fpl-components';
 import { Icon24ChevronRight, Icon24CodeBlock, Icon24Dev, Icon24Link, Icon24Play, Icon24Plus, Icon24Settings } from '@figma/fpl-icons';
-import Avatar from './avatar';
+import { Avatar } from '@prototype/shared';
 
 const MOCK_USERS = [
   { name: 'Wren Yeung', email: 'wren@figma.com', initial: 'W', permission: 'Owner' },

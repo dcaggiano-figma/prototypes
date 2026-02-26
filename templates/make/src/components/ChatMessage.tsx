@@ -4,7 +4,7 @@ import {
 import { ButtonPrimitive, Chip, LoadingSpinner } from '@figma/fpl-components';
 import { Icon16ChevronRight } from '@figma/fpl-icons';
 import type { Attachment, InspectedElement } from '../types';
-import Avatar from './Avatar';
+import { Avatar } from '@prototype/shared';
 import { AttachmentThumbnail } from './AttachmentThumbnail';
 import { getElementIcon } from '../helpers/elementIcons';
 import styles from './CollapsibleSection.module.css';

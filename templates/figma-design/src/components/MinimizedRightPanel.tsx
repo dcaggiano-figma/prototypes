@@ -3,7 +3,7 @@ import { Icon16ChevronDown, Icon24PlayLarge } from '@figma/fpl-icons';
 import { useActiveTool, useSelection } from '../canvas';
 import { DesignModeContent, DevModeContent, DrawModeContent, CommentsPanelContent, PanelHeader } from './modes';
 import type { Mode } from './menuTypes';
-import Avatar from './avatar';
+import { Avatar } from '@prototype/shared';
 
 import { useViewport } from '../canvas';
 

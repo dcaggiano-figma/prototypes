@@ -1,7 +1,6 @@
 import { useActiveTool } from '../canvas';
-import { useResizablePanel } from '../helpers/useResizablePanel';
+import { useResizablePanel, ResizeHandle } from '@prototype/shared';
 import type { Mode } from './menuTypes';
-import { ResizeHandle } from './ResizeHandle';
 import { PanelHeader, DesignModeContent, DevModeContent, DrawModeContent, CommentsPanelContent } from './modes';
 
 interface RightPanelProps {

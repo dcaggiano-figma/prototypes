@@ -1,6 +1,7 @@
 packages:
   - templates/*
   - apps/*
+  - packages/*
 
 catalog:
   react-hook-form: 7.62.0

@@ -5,12 +5,14 @@ on:
     branches: [main]
     paths:
       - 'templates/**'
+      - 'packages/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/verify-templates.yml'
   pull_request:
     paths:
       - 'templates/**'
+      - 'packages/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/verify-templates.yml'

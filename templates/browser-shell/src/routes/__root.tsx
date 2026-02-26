@@ -32,7 +32,7 @@ import {
   Icon24Signout,
 } from '@figma/fpl-icons';
 import { ThemeProvider } from '@figma/fpl-tokens';
-import Avatar from '../components/Avatar';
+import { Avatar } from '@prototype/shared';
 
 /* ------------------------------------------------------------------ */
 /*  Nav data                                                           */

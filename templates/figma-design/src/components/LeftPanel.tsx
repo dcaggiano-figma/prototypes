@@ -1,5 +1,4 @@
-import { useResizablePanel } from '../helpers/useResizablePanel';
-import { ResizeHandle } from './ResizeHandle';
+import { useResizablePanel, ResizeHandle } from '@prototype/shared';
 import { FilePanel, SearchPanel, AiChatPanel, AssetsPanel } from './panels';
 import { VariablesPanel } from './variables';
 

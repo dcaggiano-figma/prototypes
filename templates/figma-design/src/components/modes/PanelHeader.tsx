@@ -1,6 +1,6 @@
 import { ButtonPrimitive, ButtonGroup, IconButton, Button } from '@figma/fpl-components';
 import { Icon16ChevronDown, Icon24PlayLarge } from '@figma/fpl-icons';
-import Avatar from '../../components/avatar';
+import { Avatar } from '@prototype/shared';
 import { ShareModal } from '../ShareModal';
 
 export function PanelHeader() {

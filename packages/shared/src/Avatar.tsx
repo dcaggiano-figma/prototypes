@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 
-type AvatarSize = 'sm' | 'md' | 'lg';
+type AvatarSize = 'sm' | 'md' | 'lg' | 'xlg';
 
 interface AvatarProps {
   size?: AvatarSize;
@@ -9,11 +9,12 @@ interface AvatarProps {
   initial?: string;
 }
 
-function Avatar({ size = 'md', src, alt = '', initial }: AvatarProps) {
+export function Avatar({ size = 'md', src, alt = '', initial }: AvatarProps) {
   const sizeClasses = clsx(
     size === 'sm' && 'w-16px h-16px text-bodySm',
     size === 'md' && 'w-24px h-24px text-bodyMd',
     size === 'lg' && 'w-32px h-32px text-bodyMd',
+    size === 'xlg' && 'w-48px h-48px text-bodyLg',
   );
 
   if (src) {
@@ -55,5 +56,3 @@ function Avatar({ size = 'md', src, alt = '', initial }: AvatarProps) {
     />
   );
 }
-
-export default Avatar;

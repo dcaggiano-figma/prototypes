@@ -1,0 +1,4 @@
+{
+  "extends": "@figma/ppg-tsconfig/react.json",
+  "include": ["src"]
+}
