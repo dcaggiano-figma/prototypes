@@ -52,14 +52,14 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm install --frozen-lockfile
 
+      - name: Build
+        run: pnpm --filter @prototype/${{ matrix.template }} build
+
       - name: Typecheck
         run: pnpm --filter @prototype/${{ matrix.template }} typecheck
 
       - name: Lint
         run: pnpm --filter @prototype/${{ matrix.template }} lint
-
-      - name: Build
-        run: pnpm --filter @prototype/${{ matrix.template }} build
 
       - name: Verify dist output
         run: |
