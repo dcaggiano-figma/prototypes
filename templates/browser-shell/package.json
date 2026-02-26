@@ -1,5 +1,5 @@
 {
-  "name": "@prototype/browser-shell",
+  "name": "@template/browser-shell",
   "version": "1.0.0",
   "private": true,
   "description": "A starter template with a sidebar navigation and main content area — use for dashboards, admin panels, or any app that needs a persistent shell layout.",
@@ -14,7 +14,7 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:file": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm lint && pnpm typecheck"
+    "verify": "pnpm build && pnpm lint && pnpm typecheck"
   },
   "dependencies": {
     "@figma/fpl-components": "0.0.2-release-test.4",

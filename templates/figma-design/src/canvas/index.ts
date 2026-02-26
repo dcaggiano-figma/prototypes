@@ -13,6 +13,7 @@ export type {
   GeometryMixin,
   AppearanceMixin,
   FrameNode,
+  SectionNode,
   RectangleNode,
   EllipseNode,
   TextNode,

@@ -1,5 +1,5 @@
 {
-  "name": "@prototype/figma-design",
+  "name": "@template/figma-design",
   "version": "1.0.0",
   "private": true,
   "template": {
@@ -13,7 +13,7 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:file": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm lint && pnpm typecheck"
+    "verify": "pnpm build && pnpm lint && pnpm typecheck"
   },
   "dependencies": {
     "@figma/fpl-components": "0.0.2-release-test.4",

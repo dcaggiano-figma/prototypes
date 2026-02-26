@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prototype - Figma design</title>
+    <script>
+      /**
+       * Prevent browser zoom on pinch/ctrl+wheel so the canvas viewport handles it.
+       * Add in the index.html so that zoom is prevented as early as possible.
+       */
+      document.addEventListener(
+        'wheel',
+        (e) => {
+          if (e.ctrlKey || e.metaKey) e.preventDefault()
+        },
+        { passive: false },
+      )
+    </script>
+  </head>
+  <body data-preferred-theme="light" data-editor-theme="whiteboard">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

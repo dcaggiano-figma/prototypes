@@ -11,6 +11,7 @@ import {
   Icon16Line,
   Icon16Polygon,
   Icon16Rectangle,
+  Icon16Section,
   Icon16Star,
   Icon16Text,
   Icon16Visible,
@@ -414,6 +415,8 @@ function NodeTypeIcon({ node }: { node: SceneNode }) {
       return <Icon16Ellipse />;
     case 'FRAME':
       return <Icon16Frame />;
+    case 'SECTION':
+      return <Icon16Section />;
     case 'TEXT':
       return <Icon16Text />;
     case 'LINE':

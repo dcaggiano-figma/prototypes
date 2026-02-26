@@ -1,5 +1,5 @@
 {
-  "name": "@prototype/make",
+  "name": "@template/make",
   "version": "1.0.0",
   "private": true,
   "template": {
@@ -13,7 +13,7 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:file": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm lint && pnpm typecheck"
+    "verify": "pnpm build && pnpm lint && pnpm typecheck"
   },
   "dependencies": {
     "@figma/fpl-components": "0.0.2-release-test.4",
@@ -23,9 +23,9 @@
     "clsx": "^2.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-hook-form": "^7.62.0",
+    "react-hook-form": "catalog:",
     "react-router-dom": "^7.13.0",
-    "zod": "^3.25.58"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@figma/ppg-eslint-config": "^0.1.0",

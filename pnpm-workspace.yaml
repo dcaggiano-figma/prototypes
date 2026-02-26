@@ -1,3 +1,7 @@
 packages:
   - templates/*
   - apps/*
+
+catalog:
+  react-hook-form: 7.62.0
+  zod: 3.25.58
