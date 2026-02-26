@@ -1,0 +1,22 @@
+/* Enter: fade in + slide up 16px */
+.enter {
+  animation: toast-enter var(--duration-md) cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* Exit: fade out quickly */
+.exit {
+  animation: toast-exit var(--duration-sm) cubic-bezier(0.32, 0, 0.67, 0) forwards;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes toast-exit {
+  to {
+    opacity: 0;
+  }
+}

@@ -11,20 +11,42 @@ import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
 import { useTextEditing } from '../text-editing/provider';
+import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from '../tools/path-smoothing';
+import type { Point } from '../tools/path-smoothing';
+import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
 import { CanvasRenderer } from './canvas-renderer';
 
 /** Shape tools that support click-drag-to-create */
-const CREATION_TOOLS = new Set(['FRAME', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
+const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
 
 /** Default fills for newly created shapes */
 const SHAPE_FILL = { type: 'SOLID' as const, color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true };
 const FRAME_FILL = { type: 'SOLID' as const, color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true };
+const SECTION_FILL = { type: 'SOLID' as const, color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true };
+const SECTION_STROKE = {
+  paint: { type: 'SOLID' as const, color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true },
+  weight: 1,
+  position: 'INSIDE' as const,
+};
 const TEXT_FILL = { type: 'SOLID' as const, color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true };
 const DEFAULT_STROKE = {
   paint: { type: 'SOLID' as const, color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true },
   weight: 1,
   position: 'CENTER' as const,
 };
+
+/** Default stroke for pencil-drawn paths */
+const PENCIL_STROKE = {
+  paint: { type: 'SOLID' as const, color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true },
+  weight: 2,
+  position: 'CENTER' as const,
+};
+
+/** Minimum distance (world-space px) between recorded pencil points */
+const PENCIL_MIN_DISTANCE = 2;
+
+/** RDP simplification epsilon (world-space px) */
+const PENCIL_RDP_EPSILON = 2.0;
 
 export function Canvas() {
   const viewport = useViewport();
@@ -74,10 +96,30 @@ export function Canvas() {
   /** Skip the click-away text editing exit on the pointerup that follows text creation */
   const skipTextExitRef = useRef(false);
 
+  /** Tracks pencil freehand drawing state */
+  const pencilRef = useRef<{
+    points: Point[]
+    pathEl: SVGPathElement
+  } | null>(null);
+
+  /** SVG overlay for pencil live preview (in world-space) */
+  const pencilOverlayRef = useRef<SVGSVGElement>(null);
+
   // Cancel any in-progress creation drag when the tool switches away
   useEffect(() => {
     if (!CREATION_TOOLS.has(effectiveTool)) {
       creationRef.current = null;
+    }
+  }, [effectiveTool]);
+
+  // Clean up pencil preview when tool switches away from PENCIL
+  useEffect(() => {
+    if (effectiveTool !== 'PENCIL') {
+      const pencil = pencilRef.current;
+      if (pencil) {
+        pencil.pathEl.remove();
+        pencilRef.current = null;
+      }
     }
   }, [effectiveTool]);
 
@@ -219,6 +261,29 @@ export function Canvas() {
       const localY = e.clientY - rect.top;
       const world = screenToWorld(localX, localY);
 
+      // Pencil tool: start freehand drawing
+      if (effectiveTool === 'PENCIL') {
+        const overlay = pencilOverlayRef.current;
+        if (!overlay) return;
+
+        const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        pathEl.setAttribute('d', `M${world.x},${world.y}`);
+        pathEl.setAttribute('fill', 'none');
+        pathEl.setAttribute('stroke', 'rgb(0,0,0)');
+        pathEl.setAttribute('stroke-width', String(PENCIL_STROKE.weight));
+        pathEl.setAttribute('stroke-linecap', 'round');
+        pathEl.setAttribute('stroke-linejoin', 'round');
+        overlay.appendChild(pathEl);
+
+        pencilRef.current = {
+          points: [{ x: world.x, y: world.y }],
+          pathEl,
+        };
+
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        return;
+      }
+
       // Text tool: click-to-place a text node and enter editing
       if (effectiveTool === 'TEXT') {
         const node = store.createNode('TEXT', {
@@ -239,9 +304,11 @@ export function Canvas() {
       if (CREATION_TOOLS.has(effectiveTool)) {
         const nodeType = effectiveTool as NodeType;
         const isLine = nodeType === 'LINE';
-        const fills = isLine ? [] : nodeType === 'FRAME' ? [FRAME_FILL] : [SHAPE_FILL];
+        const isSection = nodeType === 'SECTION';
+        const fills = isLine ? [] : isSection ? [SECTION_FILL] : nodeType === 'FRAME' ? [FRAME_FILL] : [SHAPE_FILL];
         const extra: Record<string, unknown> = {};
         if (nodeType === 'FRAME') extra.clipsContent = true;
+        if (isSection) { extra.strokes = [SECTION_STROKE]; extra.cornerRadius = 8; }
         if (isLine) extra.strokes = [DEFAULT_STROKE];
         const node = store.createNode(nodeType, {
           x: world.x,
@@ -333,6 +400,37 @@ export function Canvas() {
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
+      // Pencil drawing — append points to live preview
+      const pencil = pencilRef.current;
+      if (pencil) {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        // Use coalesced events for high-fidelity input when available
+        const events = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent];
+        let updated = false;
+
+        for (const evt of events) {
+          const lx = evt.clientX - rect.left;
+          const ly = evt.clientY - rect.top;
+          const world = screenToWorld(lx, ly);
+          const last = pencil.points[pencil.points.length - 1];
+          const dx = world.x - last.x;
+          const dy = world.y - last.y;
+
+          // Distance filter: skip if too close to last point
+          if (dx * dx + dy * dy < PENCIL_MIN_DISTANCE * PENCIL_MIN_DISTANCE) continue;
+
+          pencil.points.push({ x: world.x, y: world.y });
+          updated = true;
+        }
+
+        if (updated) {
+          pencil.pathEl.setAttribute('d', pointsToPolyline(pencil.points));
+        }
+        return;
+      }
+
       // Shape creation drag — resize the new node
       const creation = creationRef.current;
       if (creation) {
@@ -450,6 +548,48 @@ export function Canvas() {
 
   const onPointerUp = useCallback(
     (e: React.PointerEvent) => {
+      // Finalize pencil drawing
+      const pencil = pencilRef.current;
+      if (pencil) {
+        pencil.pathEl.remove();
+        pencilRef.current = null;
+
+        // Discard if too few points (click without drag)
+        if (pencil.points.length < 2) return;
+
+        // Compute bounding box, normalize points to local coords
+        const bounds = computeBounds(pencil.points);
+        // Add small padding to avoid zero-dimension nodes
+        const minSize = PENCIL_STROKE.weight;
+        const w = Math.max(bounds.width, minSize);
+        const h = Math.max(bounds.height, minSize);
+
+        const normalized = pencil.points.map((p) => ({
+          x: p.x - bounds.x,
+          y: p.y - bounds.y,
+        }));
+
+        // Simplify and smooth
+        const simplified = simplifyRDP(normalized, PENCIL_RDP_EPSILON);
+        const d = pointsToBezierPath(simplified);
+
+        // Create the VectorNode
+        const node = store.createNode('VECTOR', {
+          x: bounds.x,
+          y: bounds.y,
+          width: w,
+          height: h,
+          fills: [],
+          strokes: [PENCIL_STROKE],
+          paths: [{ d }],
+        });
+
+        selection.select(node.id);
+        applyNodeReparenting(store, [node.id]);
+        // Pencil stays active for consecutive draws — do NOT switch to MOVE
+        return;
+      }
+
       // Click-away exits text editing (skip on the pointerup from text creation)
       if (skipTextExitRef.current) {
         skipTextExitRef.current = false;
@@ -477,8 +617,8 @@ export function Canvas() {
                 rotation: 0,
               });
             } else {
-              const defaultW = creation.nodeType === 'FRAME' ? 200 : 100;
-              const defaultH = creation.nodeType === 'FRAME' ? 150 : 100;
+              const defaultW = creation.nodeType === 'FRAME' ? 200 : creation.nodeType === 'SECTION' ? 300 : 100;
+              const defaultH = creation.nodeType === 'FRAME' ? 150 : creation.nodeType === 'SECTION' ? 200 : 100;
               store.updateNode(creation.nodeId, {
                 x: creation.startWorldX,
                 y: creation.startWorldY,
@@ -489,6 +629,11 @@ export function Canvas() {
           }
         }
         selection.select(creation.nodeId);
+        if (creation.nodeType === 'SECTION') {
+          applySectionReparenting(store, creation.nodeId);
+        } else {
+          applyNodeReparenting(store, [creation.nodeId]);
+        }
         setActiveTool('MOVE');
         return;
       }
@@ -506,9 +651,13 @@ export function Canvas() {
 
       if (!drag) return;
 
-      // If we were dragging, don't do click-to-select
+      // If we were dragging, apply reparenting and don't do click-to-select
       if (drag.dragging) {
         lastClickRef.current = null;
+        const sectionIds = drag.nodeIds.filter((id) => store.getNode(id)?.type === 'SECTION');
+        const nonSectionIds = drag.nodeIds.filter((id) => store.getNode(id)?.type !== 'SECTION');
+        for (const sid of sectionIds) applySectionReparenting(store, sid);
+        applyNodeReparenting(store, nonSectionIds);
         return;
       }
 
@@ -550,7 +699,7 @@ export function Canvas() {
             const node = store.getNode(hitId);
             if (node?.type === 'TEXT') {
               textEditing.startEditing(hitId);
-            } else if (node?.type === 'FRAME') {
+            } else if (node?.type === 'FRAME' || node?.type === 'SECTION') {
               selection.enterFrame(hitId);
               const childId = resolveHitNode(e.target as HTMLElement, hitId);
               selection.select(childId && childId !== hitId ? childId : hitId);
@@ -570,6 +719,8 @@ export function Canvas() {
       case 'HAND': return isPanning ? CURSORS.grabbing : CURSORS.grab;
       case 'FRAME': return CURSORS.frame;
       case 'PEN': return CURSORS.pen;
+      case 'PENCIL': return CURSORS.pencil;
+      case 'SECTION': return CURSORS.crosshair;
       case 'TEXT':
       case 'RECTANGLE':
       case 'ELLIPSE':
@@ -616,6 +767,10 @@ export function Canvas() {
         }}
       >
         <CanvasRenderer />
+        <svg
+          ref={pencilOverlayRef}
+          className="absolute top-0 left-0 overflow-visible pointer-events-none"
+        />
       </div>
       {showPixelGrid && <div style={pixelGridStyle} />}
       <SelectionOverlay dragBox={dragBox} />
@@ -710,7 +865,9 @@ function pointInRect(px: number, py: number, r: Rect): boolean {
   return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
 }
 
-/** Collect IDs of all selected geometry nodes for dragging */
+/** Collect IDs of all selected geometry nodes for dragging.
+ *  Excludes nodes whose ancestor is also in the selection set
+ *  (prevents double-moving children when parent+child are both selected). */
 function collectDraggableIds(
   store: ReturnType<typeof useSceneGraph>,
   selectedIds: Set<string>,
@@ -718,7 +875,9 @@ function collectDraggableIds(
   const ids: string[] = [];
   for (const id of selectedIds) {
     const node = store.getNode(id);
-    if (node && isGeometryNode(node)) ids.push(id);
+    if (!node || !isGeometryNode(node)) continue;
+    const hasSelectedAncestor = store.getAncestors(id).some((a) => selectedIds.has(a.id));
+    if (!hasSelectedAncestor) ids.push(id);
   }
   return ids;
 }

@@ -8,6 +8,7 @@ import { useActiveTool } from '../tools/provider';
 import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
+import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
 import { useSelection } from './provider';
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
@@ -403,10 +404,21 @@ export function ResizeHandles() {
   }
 
   function onHandlePointerUp(e: React.PointerEvent) {
-    if (!dragState.current) return;
+    const drag = dragState.current;
+    if (!drag) return;
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     dragState.current = null;
     setRotationDisplay(null);
+
+    // After resize, check for section reparenting (not for rotation)
+    if (drag.handle !== 'rotate') {
+      const resizedNode = store.getNode(drag.nodeId);
+      if (resizedNode?.type === 'SECTION') {
+        applySectionReparenting(store, drag.nodeId);
+      } else {
+        applyNodeReparenting(store, [drag.nodeId]);
+      }
+    }
   }
 
   const sharedProps = {

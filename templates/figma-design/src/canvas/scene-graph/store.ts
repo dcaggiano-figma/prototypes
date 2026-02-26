@@ -1,6 +1,7 @@
 import type {
   AppearanceMixin, GeometryMixin, NodeType, Paint, SceneNode,
 } from '../types';
+import { getWorldPosition, isGeometryNode } from './world-position';
 
 // ── Defaults ──────────────────────────────────────────────────────────
 
@@ -78,6 +79,18 @@ function getTypeDefaults(type: NodeType): Partial<SceneNode> {
       return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, points: 5, innerRadius: 0.382 };
     case 'VECTOR':
       return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, paths: [] };
+    case 'SECTION':
+      return {
+        ...GEOMETRY_DEFAULTS,
+        ...APPEARANCE_DEFAULTS,
+        fills: [{ type: 'SOLID', color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true }],
+        strokes: [{
+          paint: { type: 'SOLID', color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true },
+          weight: 1,
+          position: 'INSIDE' as const,
+        }],
+        cornerRadius: 8,
+      };
     case 'GROUP':
       return {};
   }
@@ -112,6 +125,9 @@ export interface SceneGraphStore {
 
   /** Move a node to a new parent at a given index */
   reparentNode(id: string, newParentId: string | null, index: number): void
+
+  /** Reparent a node while preserving its world position (adjusts local coords) */
+  reparentNodeAdjusted(id: string, newParentId: string | null): void
 
   /** Reorder a node within its siblings */
   reorderNode(id: string, newIndex: number): void
@@ -216,7 +232,7 @@ export function createSceneGraph(initialNodes?: SceneNode[]): SceneGraphStore {
       const num = id.match(/\d+$/)?.[0] ?? id;
       const node = {
         id,
-        name: props.name ?? `${type.charAt(0)}${type.slice(1).toLowerCase()} ${num}`,
+        name: props.name ?? (type === 'SECTION' ? 'Section' : `${type.charAt(0)}${type.slice(1).toLowerCase()} ${num}`),
         type,
         parentId: props.parentId ?? null,
         children: [],
@@ -296,6 +312,59 @@ export function createSceneGraph(initialNodes?: SceneNode[]): SceneGraphStore {
       } else {
         rootIds.splice(index, 0, id);
       }
+
+      notify();
+    },
+
+    reparentNodeAdjusted(id, newParentId) {
+      const node = nodes.get(id);
+      if (!node || !isGeometryNode(node)) return;
+
+      // Already at the target parent — nothing to do
+      if (node.parentId === newParentId) return;
+
+      // Snapshot world position before reparenting
+      const worldPos = getWorldPosition(store, node);
+
+      // Remove from old parent
+      if (node.parentId) {
+        const oldParent = nodes.get(node.parentId);
+        if (oldParent) {
+          oldParent.children = oldParent.children.filter((cid) => cid !== id);
+        }
+      } else {
+        rootIds = rootIds.filter((rid) => rid !== id);
+      }
+
+      // Compute new parent's world position
+      let newParentWorldX = 0;
+      let newParentWorldY = 0;
+      if (newParentId) {
+        const newParent = nodes.get(newParentId);
+        if (newParent && isGeometryNode(newParent)) {
+          const parentWorld = getWorldPosition(store, newParent);
+          newParentWorldX = parentWorld.x;
+          newParentWorldY = parentWorld.y;
+        }
+      }
+
+      // Attach to new parent
+      node.parentId = newParentId;
+      if (newParentId) {
+        const newParent = nodes.get(newParentId);
+        if (newParent) {
+          newParent.children.push(id);
+        }
+      } else {
+        rootIds.push(id);
+      }
+
+      // Adjust local coords to preserve world position
+      node.x = worldPos.x - newParentWorldX;
+      node.y = worldPos.y - newParentWorldY;
+
+      // Update the map entry so React sees the change
+      nodes.set(id, { ...node } as SceneNode);
 
       notify();
     },

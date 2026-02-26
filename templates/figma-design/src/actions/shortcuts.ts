@@ -15,9 +15,11 @@ export const SHORTCUT_MAP: Record<string, string> = {
   o: 'tool.ellipse',
   t: 'tool.text',
   p: 'tool.pen',
+  'Shift+p': 'tool.pencil',
   h: 'tool.hand',
   c: 'tool.comment',
   l: 'tool.line',
+  'Shift+s': 'tool.section',
 
   // Selection
   'Mod+a': 'select-all',

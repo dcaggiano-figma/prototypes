@@ -140,6 +140,19 @@ function EditorContent() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Escape resets nav to file
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      setActiveRailItem('file');
+      setVariablesViewMode('hidden');
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Derive what to show based on active nav item
   const viewConfig = NAV_VIEW_CONFIG[activeRailItem];
   const MainContent = viewConfig?.mainContent;

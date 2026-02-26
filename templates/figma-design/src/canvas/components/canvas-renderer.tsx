@@ -11,6 +11,7 @@ import type {
   PolygonNode,
   RectangleNode,
   SceneNode,
+  SectionNode,
   StarNode,
   Stroke,
   TextNode,
@@ -66,6 +67,13 @@ function SceneNodeRenderer({
         <>
           {isRoot && <FrameLabel node={node} />}
           <FrameRenderer node={node} store={store} />
+        </>
+      );
+    case 'SECTION':
+      return (
+        <>
+          <SectionLabel node={node as SectionNode} />
+          <SectionRenderer node={node as SectionNode} store={store} />
         </>
       );
     default:
@@ -285,22 +293,125 @@ function FrameRenderer({
   );
 }
 
-function VectorRenderer({ node }: { node: VectorNode }) {
+function SectionRenderer({
+  node,
+  store,
+}: {
+  node: SectionNode
+  store: ReturnType<typeof useSceneGraph>
+}) {
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
+
   return (
-    <svg
+    <div
       data-node-id={node.id}
-      viewBox={`0 0 ${node.width} ${node.height}`}
       style={{
         position: 'absolute',
         width: node.width,
         height: node.height,
         opacity: node.opacity,
+        borderRadius: node.cornerRadius,
         overflow: 'visible',
         transform: nodeTransform(node.x, node.y, node.rotation),
+        backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
+        ...strokeStyles(stroke),
+      }}
+    >
+      {childNodes.map((child) => (
+        <SceneNodeRenderer key={child.id} node={child} store={store} />
+      ))}
+    </div>
+  );
+}
+
+/** Label rendered above sections as a colored pill with section icon */
+function SectionLabel({ node }: { node: SectionNode }) {
+  const { state } = useViewport();
+  const { isSelected } = useSelection();
+  const selected = isSelected(node.id);
+  const fontSize = 11 / state.scale;
+  const iconSize = 10 / state.scale;
+  const pillPadY = 2 / state.scale;
+  const pillPadX = 4 / state.scale;
+  const gap = 3 / state.scale;
+  const pillRadius = 3 / state.scale;
+
+  // Use section's first fill color for pill background, fallback to light gray
+  const fill = getFirstVisibleFill(node.fills);
+  const pillBg = fill ? colorToCSS(fill.color, Math.min(fill.opacity, 0.6)) : 'rgba(255,255,255,0.6)';
+
+  return (
+    <div
+      data-node-id={node.id}
+      style={{
+        position: 'absolute',
+        transform: `translate(${node.x}px, ${node.y - fontSize - 12 / state.scale}px)`,
+        display: 'flex',
+        alignItems: 'center',
+        gap,
+        backgroundColor: pillBg,
+        borderRadius: pillRadius,
+        padding: `${pillPadY}px ${pillPadX}px`,
+        fontSize,
+        lineHeight: 1,
+        color: selected ? 'var(--color-fsTextSelectedOnLightCanvas)' : 'var(--color-fsTextOnLightCanvasSecondary)',
+        whiteSpace: 'nowrap',
+        cursor: CURSORS.default,
+        userSelect: 'none',
+      }}
+    >
+      <svg
+        width={iconSize}
+        height={iconSize}
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeDasharray="2 2"
+      >
+        <rect x="1" y="1" width="14" height="14" rx="2" />
+      </svg>
+      {node.name}
+    </div>
+  );
+}
+
+function VectorRenderer({ node }: { node: VectorNode }) {
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const fill = getFirstVisibleFill(node.fills);
+  const hasStroke = !!stroke;
+  const strokeWeight = stroke ? stroke.weight : 0;
+
+  // Expand the SVG viewport to accommodate stroke that extends beyond bounds
+  const padding = hasStroke ? strokeWeight / 2 : 0;
+  const svgWidth = node.width + padding * 2;
+  const svgHeight = node.height + padding * 2;
+
+  return (
+    <svg
+      data-node-id={node.id}
+      viewBox={`${-padding} ${-padding} ${svgWidth} ${svgHeight}`}
+      style={{
+        position: 'absolute',
+        width: svgWidth,
+        height: svgHeight,
+        opacity: node.opacity,
+        overflow: 'visible',
+        transform: nodeTransform(node.x - padding, node.y - padding, node.rotation),
       }}
     >
       {node.paths.map((p, i) => (
-        <path key={i} d={p.d} fill={p.fill ?? 'currentColor'} />
+        <path
+          key={i}
+          d={p.d}
+          fill={p.fill ?? (fill ? colorToCSS(fill.color, fill.opacity) : 'none')}
+          stroke={hasStroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
+          strokeWidth={hasStroke ? strokeWeight : undefined}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       ))}
     </svg>
   );

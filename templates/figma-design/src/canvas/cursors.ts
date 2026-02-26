@@ -10,6 +10,7 @@ export const CURSORS = {
   text: cursor('cursor-text.svg', 15, 16, 'text'),
   frame: cursor('cursor-frame-ui3.svg', 4, 2, 'crosshair'),
   pen: cursor('cursor-pen-ui3.svg', 4, 2, 'crosshair'),
+  pencil: cursor('cursor-pencil-ui3.svg', 4, 27, 'crosshair'),
 
   // Handle cursors
   rotateNW: cursor('cursor-rotate-sw-ui3.svg', 16, 16, 'grab'),

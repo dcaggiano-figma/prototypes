@@ -1,5 +1,5 @@
 /** Discriminator for node behavior */
-export type NodeType = 'FRAME' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'LINE' | 'GROUP' | 'VECTOR' | 'POLYGON' | 'STAR'
+export type NodeType = 'FRAME' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'LINE' | 'GROUP' | 'VECTOR' | 'POLYGON' | 'STAR'
 
 /** RGB color with channels 0-255 */
 export interface Color {
@@ -85,6 +85,11 @@ export interface FrameNode extends BaseNode, GeometryMixin, AppearanceMixin {
   paddingLeft: number
 }
 
+/** Section node — container like frames but with no clipping and no layout */
+export interface SectionNode extends BaseNode, GeometryMixin, AppearanceMixin {
+  type: 'SECTION'
+}
+
 /** Rectangle node */
 export interface RectangleNode extends BaseNode, GeometryMixin, AppearanceMixin {
   type: 'RECTANGLE'
@@ -149,10 +154,10 @@ export interface GroupNode extends BaseNode {
 }
 
 /** Union of all scene node types */
-export type SceneNode = FrameNode | RectangleNode | EllipseNode | TextNode | LineNode | GroupNode | VectorNode | PolygonNode | StarNode
+export type SceneNode = FrameNode | SectionNode | RectangleNode | EllipseNode | TextNode | LineNode | GroupNode | VectorNode | PolygonNode | StarNode
 
 /** Nodes that have geometry (position/size) */
-export type GeometryNode = FrameNode | RectangleNode | EllipseNode | TextNode | LineNode | VectorNode | PolygonNode | StarNode
+export type GeometryNode = FrameNode | SectionNode | RectangleNode | EllipseNode | TextNode | LineNode | VectorNode | PolygonNode | StarNode
 
 /** Nodes that have appearance (fills/strokes) */
-export type AppearanceNode = FrameNode | RectangleNode | EllipseNode | TextNode | VectorNode | PolygonNode | StarNode
+export type AppearanceNode = FrameNode | SectionNode | RectangleNode | EllipseNode | TextNode | VectorNode | PolygonNode | StarNode

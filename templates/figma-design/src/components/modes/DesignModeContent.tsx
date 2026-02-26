@@ -230,6 +230,7 @@ function nodeTypeLabel(node: SceneNode): string {
     case 'RECTANGLE': return 'Rectangle';
     case 'ELLIPSE': return 'Ellipse';
     case 'FRAME': return 'Frame';
+    case 'SECTION': return 'Section';
     case 'TEXT': return 'Text';
     case 'LINE': return 'Line';
     case 'GROUP': return 'Group';

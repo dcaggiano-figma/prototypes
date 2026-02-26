@@ -71,7 +71,9 @@ function mapToolId(id: string): ToolType {
     case 'line': return 'LINE';
     case 'polygon': return 'POLYGON';
     case 'star': return 'STAR';
-    case 'pen': case 'pencil': return 'PEN';
+    case 'pen': return 'PEN';
+    case 'pencil': return 'PENCIL';
+    case 'section': return 'SECTION';
     case 'comment': case 'comment-draw': case 'comment-dev': return 'COMMENT';
     default: return 'MOVE';
   }
@@ -279,11 +281,13 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
   useAction('tool.ellipse', useCallback(() => { setActiveTool('ellipse'); setProviderTool('ELLIPSE'); }, [setProviderTool]));
   useAction('tool.text', useCallback(() => { setActiveTool('text'); setProviderTool('TEXT'); }, [setProviderTool]));
   useAction('tool.pen', useCallback(() => { setActiveTool('pen'); setProviderTool('PEN'); }, [setProviderTool]));
+  useAction('tool.pencil', useCallback(() => { setActiveTool('pencil'); setProviderTool('PENCIL'); }, [setProviderTool]));
   useAction('tool.hand', useCallback(() => { setActiveTool('hand'); setProviderTool('HAND'); }, [setProviderTool]));
   useAction('tool.comment', useCallback(() => { setActiveTool('comment'); setProviderTool('COMMENT'); }, [setProviderTool]));
   useAction('tool.line', useCallback(() => { setActiveTool('line'); setProviderTool('LINE'); }, [setProviderTool]));
   useAction('tool.polygon', useCallback(() => { setActiveTool('polygon'); setProviderTool('POLYGON'); }, [setProviderTool]));
   useAction('tool.star', useCallback(() => { setActiveTool('star'); setProviderTool('STAR'); }, [setProviderTool]));
+  useAction('tool.section', useCallback(() => { setActiveTool('section'); setProviderTool('SECTION'); }, [setProviderTool]));
 
   const [phase, setPhase] = useState<'idle' | 'sliding' | 'resizing'>('idle');
   const [measured, setMeasured] = useState(false);
