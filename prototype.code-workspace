@@ -1,0 +1,75 @@
+{
+  "folders": [
+    { "path": "." }
+  ],
+
+  "settings": {
+    // Formatting via ESLint (ESLint is the single formatting path)
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    },
+
+    // Editor experience
+    "editor.minimap.enabled": false,
+    "editor.wordWrap": "on",
+    "editor.fontSize": 14,
+
+    // Auto-save
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 500,
+
+    // Reduce friction
+    "explorer.confirmDelete": false,
+    "explorer.confirmDragAndDrop": false,
+
+    // Hide noisy files from explorer (NOT from agents — agents index independently)
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/.git": true,
+      "**/dist": true,
+      "**/pnpm-lock.yaml": true,
+      "templates": true
+    },
+
+    // Required for auto-start tasks
+    "task.allowAutomaticTasks": "on"
+  },
+
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Open App.tsx",
+        "type": "shell",
+        "command": "cursor -r apps/prototype/src/App.tsx",
+        "runOptions": { "runOn": "folderOpen" },
+        "presentation": { "reveal": "never" }
+      },
+      {
+        "label": "Dev Server",
+        "type": "shell",
+        "command": "export PATH=\"$HOME/.local/node/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"; pnpm --filter @apps/prototype dev",
+        "runOptions": { "runOn": "folderOpen" },
+        "presentation": { "reveal": "never", "panel": "dedicated" },
+        "isBackground": true,
+        "problemMatcher": {
+          "pattern": { "regexp": "." },
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "VITE",
+            "endsPattern": "Local:"
+          }
+        }
+      }
+    ]
+  },
+
+  "extensions": {
+    "recommendations": [
+      "figma.design-prototyping",
+      "dbaeumer.vscode-eslint",
+      "bradlc.vscode-tailwindcss"
+    ]
+  }
+}
