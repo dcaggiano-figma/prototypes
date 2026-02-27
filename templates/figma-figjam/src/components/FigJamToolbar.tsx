@@ -1,7 +1,10 @@
-import { type ComponentType, useEffect, useState } from 'react';
+import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { ButtonPrimitive, IconButton } from '@figma/fpl-components';
+import { Button, ButtonPrimitive, IconButton } from '@figma/fpl-components';
+import { Toolbar as SharedToolbar } from '@prototype/shared';
+import { useAction } from '../actions/provider';
 import {
+  Icon16ChevronDown,
   Icon24MoveLarge,
   Icon24HandLarge,
   Icon24RectangleLarge,
@@ -10,7 +13,6 @@ import {
   Icon24TableLarge,
   Icon24StampLarge,
   Icon24CommentLarge,
-  Icon24WidgetLarge,
   Icon24PlusLarge,
   Icon24EllipseLarge,
   Icon24PolygonLarge,
@@ -24,12 +26,14 @@ import {
 } from '@figma/fpl-icons';
 import { useActiveTool, useSelection, useSceneGraph } from '../canvas';
 import type { ToolType, Color } from '../canvas';
-import { IllustrationToolButton } from './IllustrationToolButton';
 import { MarkerIllustration, HighlighterIllustration, TapeIllustration } from './toolbar-illustrations';
 import { StickyToolButton } from './StickyToolButton';
 import { ShapesToolButton } from './ShapesToolButton';
 import type { ShapeType } from './ShapesToolButton';
 import { MarkerSecondaryToolbar } from './MarkerSecondaryToolbar';
+import { QUICK_ACTIONS_TABS } from './quickActionsData';
+
+const { FlatToolButton, IllustrationToolButton, QuickActions } = SharedToolbar;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,14 +52,11 @@ interface ShapeOption {
 // Shape & connector options for secondary toolbar
 // ---------------------------------------------------------------------------
 
-const CONNECTOR_OPTIONS: ShapeOption[] = [
+const ALL_SHAPE_OPTIONS: ShapeOption[] = [
   { id: 'connector-curve', label: 'Curve', Icon: Icon24ConnectorCurveLarge, toolType: 'LINE' },
   { id: 'connector-elbow', label: 'Elbow', Icon: Icon24ConnectorElbowLarge, toolType: 'LINE' },
   { id: 'connector-straight', label: 'Straight', Icon: Icon24ConnectorStraightLarge, toolType: 'LINE' },
   { id: 'connector-line', label: 'Line', Icon: Icon24FigjamLineLarge, toolType: 'LINE' },
-];
-
-const SHAPE_OPTIONS: ShapeOption[] = [
   { id: 'shape-rect', label: 'Rectangle', Icon: Icon24RectangleLarge, toolType: 'RECTANGLE' },
   { id: 'shape-ellipse', label: 'Circle', Icon: Icon24EllipseLarge, toolType: 'ELLIPSE' },
   { id: 'shape-diamond', label: 'Diamond', Icon: Icon24DiamondLarge, toolType: 'POLYGON' },
@@ -100,6 +101,11 @@ export function FigJamToolbar() {
     highlighterColor, setHighlighterColor,
     markerSubType, setMarkerSubType,
   } = useActiveTool();
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  // Register quick-actions action so it can be triggered from the main menu
+  useAction('quick-actions', useCallback(() => setIsActionsOpen(true), []));
 
   /** The active pen color based on the current sub-type */
   const activePenColor = markerSubType === 'highlighter' ? highlighterColor : markerColor;
@@ -107,8 +113,7 @@ export function FigJamToolbar() {
   const selection = useSelection();
   const store = useSceneGraph();
   const [activeRaised, setActiveRaised] = useState<RaisedTool | null>(null);
-  const [activeShape, setActiveShape] = useState('shape-rect');
-  const [activeConnector, setActiveConnector] = useState('connector-curve');
+  const [activeShapeOption, setActiveShapeOption] = useState('shape-rect');
 
   // Derive active sticky color CSS from the shared tool provider state
   const activeStickyColor = STICKY_COLORS.find(
@@ -142,8 +147,8 @@ export function FigJamToolbar() {
       if (tool === 'marker') setActiveTool('PEN');
       if (tool === 'sticky') setActiveTool('STICKY_NOTE');
       if (tool === 'shapes') {
-        const shape = SHAPE_OPTIONS.find((s) => s.id === activeShape);
-        if (shape?.toolType) setActiveTool(shape.toolType);
+        const opt = ALL_SHAPE_OPTIONS.find((s) => s.id === activeShapeOption);
+        if (opt?.toolType) setActiveTool(opt.toolType);
       }
     }
   };
@@ -153,42 +158,28 @@ export function FigJamToolbar() {
     setActiveTool(tool);
   };
 
-  const handleShapeSelect = (shapeId: string) => {
-    setActiveShape(shapeId);
-    const shape = SHAPE_OPTIONS.find((s) => s.id === shapeId);
-    if (shape?.toolType) setActiveTool(shape.toolType);
-  };
-
-  const handleConnectorSelect = (connectorId: string) => {
-    setActiveConnector(connectorId);
-    setActiveTool('LINE');
+  const handleShapeOptionSelect = (optionId: string) => {
+    setActiveShapeOption(optionId);
+    const opt = ALL_SHAPE_OPTIONS.find((s) => s.id === optionId);
+    if (opt?.toolType) setActiveTool(opt.toolType);
   };
 
   // Handle direct shape clicks from the ShapesToolButton
   const handleShapeTypeSelect = (shapeType: ShapeType) => {
-    const shapeId = SHAPE_TYPE_MAP[shapeType];
-    if (shapeType === 'connector') {
-      setActiveConnector(shapeId);
-      setActiveTool('LINE');
-    } else {
-      setActiveShape(shapeId);
-      const shape = SHAPE_OPTIONS.find((s) => s.id === shapeId);
-      if (shape?.toolType) setActiveTool(shape.toolType);
-    }
+    const optionId = SHAPE_TYPE_MAP[shapeType];
+    setActiveShapeOption(optionId);
+    const opt = ALL_SHAPE_OPTIONS.find((s) => s.id === optionId);
+    if (opt?.toolType) setActiveTool(opt.toolType);
     setActiveRaised('shapes');
   };
 
-  const hasSelection = selection.selectedIds.size > 0;
-
   return (
     <div className="flex flex-col items-center gap-2">
-      {/* Secondary toolbar — hidden when floating toolbar is visible (nodes selected) */}
-      {!hasSelection && activeRaised === 'shapes' && (
+      {/* Secondary toolbar */}
+      {activeRaised === 'shapes' && (
         <ShapesSecondaryToolbar
-          activeShape={activeShape}
-          activeConnector={activeConnector}
-          onShapeSelect={handleShapeSelect}
-          onConnectorSelect={handleConnectorSelect}
+          activeOption={activeShapeOption}
+          onOptionSelect={handleShapeOptionSelect}
         />
       )}
       {activeRaised === 'sticky' && (
@@ -221,7 +212,7 @@ export function FigJamToolbar() {
       )}
 
       {/* Main toolbar */}
-      <div className="flex items-end bg-bg rounded-lg shadow-300">
+      <div ref={toolbarRef} className="flex items-end bg-bg rounded-lg shadow-300">
         {/* Section 1: Move + Hand */}
         <div className="flex items-center p-2 gap-2">
           <FlatToolButton
@@ -247,6 +238,10 @@ export function FigJamToolbar() {
             label="Marker"
             isActive={activeRaised === 'marker'}
             onSelect={() => handleRaisedClick('marker')}
+            widthClass="w-auto min-w-40px"
+            restTranslate="-translate-y-0"
+            hoverTranslate="group-hover:-translate-y-1"
+            activeTranslate="-translate-y-1 group-hover:-translate-y-1"
           >
             {markerSubType === 'highlighter' ? (
               <HighlighterIllustration color={activePenColor} className="w-5 h-[52px]" />
@@ -304,16 +299,17 @@ export function FigJamToolbar() {
             isActive={activeTool === 'COMMENT' && activeRaised === null}
             onClick={() => handleToolClick('COMMENT')}
           />
-          <FlatToolButton
-            icon={Icon24WidgetLarge}
-            label="Widget"
-            isActive={false}
-            onClick={() => {}}
+          <QuickActions
+            tabs={QUICK_ACTIONS_TABS}
+            isOpen={isActionsOpen}
+            onOpenChange={setIsActionsOpen}
+            toolbarRef={toolbarRef}
           />
           <FlatToolButton
             icon={Icon24PlusLarge}
             label="More"
             isActive={false}
+            secondary
             onClick={() => {}}
           />
         </div>
@@ -323,104 +319,127 @@ export function FigJamToolbar() {
 }
 
 // ---------------------------------------------------------------------------
-// Flat tool button (icon-only, no sub-menu)
-// ---------------------------------------------------------------------------
-
-function FlatToolButton({
-  icon: Icon,
-  label,
-  isActive,
-  onClick,
-}: {
-  icon: ComponentType;
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <IconButton
-      size="lg"
-      aria-label={label}
-      variant={isActive ? 'primary' : 'ghost'}
-      onClick={onClick}
-    >
-      <Icon />
-    </IconButton>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Shapes & Connectors secondary toolbar
 // ---------------------------------------------------------------------------
 
 function ShapesSecondaryToolbar({
-  activeShape,
-  activeConnector,
-  onShapeSelect,
-  onConnectorSelect,
+  activeOption,
+  onOptionSelect,
 }: {
-  activeShape: string;
-  activeConnector: string;
-  onShapeSelect: (id: string) => void;
-  onConnectorSelect: (id: string) => void;
+  activeOption: string;
+  onOptionSelect: (id: string) => void;
 }) {
-  // Find the active shape's icon to show as the indicator
-  const ActiveShapeIcon =
-    SHAPE_OPTIONS.find((s) => s.id === activeShape)?.Icon ??
-    CONNECTOR_OPTIONS.find((c) => c.id === activeConnector)?.Icon ??
-    Icon24EllipseLarge;
+  const { shapeColor, setShapeColor } = useActiveTool();
+  const selection = useSelection();
+  const store = useSceneGraph();
+  const [showColors, setShowColors] = useState(false);
+  const colorPopoverRef = useRef<HTMLDivElement>(null);
+  const colorTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // Close color popover on click outside
+  useEffect(() => {
+    if (!showColors) return undefined;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        colorPopoverRef.current?.contains(target) ||
+        colorTriggerRef.current?.contains(target)
+      ) return;
+      setShowColors(false);
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [showColors]);
+
+  const swatchBg = `rgb(${shapeColor.r}, ${shapeColor.g}, ${shapeColor.b})`;
+  const activeColorId = STICKY_COLORS.find(
+    (c) => c.rgb.r === shapeColor.r && c.rgb.g === shapeColor.g && c.rgb.b === shapeColor.b,
+  )?.id;
+
+  const handleColorChange = (colorId: string) => {
+    const entry = STICKY_COLORS.find((c) => c.id === colorId);
+    if (!entry) return;
+    setShapeColor(entry.rgb);
+    // Also update any selected shape nodes
+    for (const nodeId of selection.selectedIds) {
+      const node = store.getNode(nodeId);
+      if (node && 'fills' in node) {
+        store.updateNode(nodeId, {
+          fills: [{ type: 'SOLID', color: entry.rgb, opacity: 1, visible: true }],
+        });
+      }
+    }
+  };
 
   return (
-    <div className="flex items-center bg-bg rounded-lg shadow-300 px-1 py-1 gap-1">
-      {/* Active shape indicator with dropdown chevron */}
-      <div className="flex items-center rounded-md p-1 bg-bg-selected ring-1 ring-border-brand">
-        <ActiveShapeIcon />
-        <svg width="8" height="8" viewBox="0 0 8 8" className="ml-px opacity-60">
-          <path d="M2 3L4 5L6 3" stroke="currentColor" strokeWidth="1.25" fill="none" />
-        </svg>
+    <div className="flex items-center bg-bg rounded-lg shadow-300 px-1 gap-1">
+      {/* Color picker button — same pattern as floating object toolbar */}
+      <div className="relative">
+        <ButtonPrimitive
+          ref={colorTriggerRef}
+          className={clsx(
+            'flex items-center gap-1 rounded-md px-2 py-2 hover:bg-bg-hover active:bg-bg-pressed',
+            showColors && 'bg-bg-secondary',
+          )}
+          onClick={() => setShowColors((v) => !v)}
+        >
+          <div
+            className="w-16px h-16px rounded-full border border-solid border-border"
+            style={{ backgroundColor: swatchBg }}
+          />
+          <Icon16ChevronDown />
+        </ButtonPrimitive>
+
+        {/* Color popover — positioned above, centered on trigger */}
+        {showColors && (
+          <div
+            ref={colorPopoverRef}
+            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-2 gap-2"
+          >
+            {STICKY_COLORS.map((c) => (
+              <ButtonPrimitive
+                key={c.id}
+                aria-label={c.label}
+                aria-pressed={activeColorId === c.id}
+                onClick={() => handleColorChange(c.id)}
+                className={clsx(
+                  'rounded-full w-4 h-4 shrink-0',
+                  activeColorId === c.id
+                    ? 'ring-2 ring-border-selected ring-offset-2 ring-offset-bg'
+                    : '',
+                )} style={{ backgroundColor: c.css }}
+              >
+                <span className="sr-only">{c.label}</span>
+              </ButtonPrimitive>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Connector options */}
-      {CONNECTOR_OPTIONS.map((opt) => (
-        <ButtonPrimitive
+      <div className="flex items-center gap-1 py-1 px-2 border-x border-border">
+      {ALL_SHAPE_OPTIONS.map((opt) => (
+        <IconButton
           key={opt.id}
           aria-label={opt.label}
-          aria-pressed={activeConnector === opt.id}
-          onClick={() => onConnectorSelect(opt.id)}
-          className={clsx(
-            'rounded-md p-1 hover:bg-bg-hover active:bg-bg-pressed',
-            activeConnector === opt.id && 'bg-bg-selected ring-1 ring-border-brand',
-          )}
+          aria-pressed={activeOption === opt.id}
+          onClick={() => onOptionSelect(opt.id)}
+          variant={activeOption === opt.id ? 'highlighted' : 'ghost'}
+          size="lg"
         >
           <opt.Icon />
-        </ButtonPrimitive>
+        </IconButton>
       ))}
-
-      <div className="w-px h-6 bg-border" />
-
-      {/* Shape options */}
-      {SHAPE_OPTIONS.map((opt) => (
-        <ButtonPrimitive
-          key={opt.id}
-          aria-label={opt.label}
-          aria-pressed={activeShape === opt.id}
-          onClick={() => onShapeSelect(opt.id)}
-          className={clsx(
-            'rounded-md p-1 hover:bg-bg-hover active:bg-bg-pressed',
-            activeShape === opt.id && 'bg-bg-selected ring-1 ring-border-brand',
-          )}
-        >
-          <opt.Icon />
-        </ButtonPrimitive>
-      ))}
+      </div>
 
       {/* More shapes button */}
-      <ButtonPrimitive
-        aria-label="More shapes"
-        className="flex items-center gap-1 rounded-md px-2 py-1 hover:bg-bg-hover active:bg-bg-pressed whitespace-nowrap text-text-secondary text-bodySmStrong"
-      >
-        More shapes
-      </ButtonPrimitive>
+      <div className="p-1">
+        <Button
+          variant="secondary"
+          aria-label="More shapes"
+        >
+          More shapes
+        </Button>
+      </div>
     </div>
   );
 }

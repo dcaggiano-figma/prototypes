@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { CardPrimitive, Window, Slider, IconButton } from '@figma/fpl-components';
+import { Window, Slider, IconButton } from '@figma/fpl-components';
 import { Icon24PlayLarge, Icon24SoundMid } from '@figma/fpl-icons';
+import { Card } from '@prototype/shared';
 
 const SECTIONS = [
   {
@@ -58,27 +59,21 @@ export function TimerPanel({ onClose }: TimerPanelProps) {
           {/* Cards */}
           <div className="flex flex-col gap-1 -mx-2">
             {SECTIONS.map((section) => (
-              <CardPrimitive.Root
+              <Card
                 key={section.id}
-                className="relative flex flex-col gap-2 p-2"
+                label={section.name}
+                subtext={section.description}
+                onClick={() => console.log(`Section clicked: ${section.name}`)}
+                trailing={
+                  <IconButton aria-label="button" variant="primaryCircle" size="lg">
+                    <Icon24PlayLarge />
+                  </IconButton>
+                }
               >
-                <CardPrimitive.MainButton
-                  onClick={() => console.log(`Section clicked: ${section.name}`)}
-                  className="absolute inset-0 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-border-selected"
-                />
                 <div className="overflow-hidden border border-border rounded-md aspect-[16/9] bg-bg-secondary flex items-center justify-center">
                   <span className="text-bodyMd text-text-tertiary">{section.name}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-bodyMd text-text">{section.name}</span>
-                    <span className="text-bodyMd text-text-secondary">{section.description}</span>
-                  </div>
-                  <IconButton aria-label="button" variant="primaryCircle" size="lg">
-                      <Icon24PlayLarge />
-                    </IconButton>
-                </div>
-              </CardPrimitive.Root>
+              </Card>
             ))}
           </div>
         </Window.Body>

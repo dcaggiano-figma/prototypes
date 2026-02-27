@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { useSceneGraph } from '../scene-graph/provider';
+import { computeGroupScreenBBox } from '../scene-graph/selection-utils';
 import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
 import { useViewport } from '../viewport/provider';
 
@@ -55,6 +56,8 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
     const selectionColor = styles.getPropertyValue('--color-border-selected').trim() || '#0d99ff';
     const labelTextColor = styles.getPropertyValue('--color-text-fs-ondesign').trim() || '#ffffff';
 
+    const isMultiSelect = selectedIds.size > 1;
+
     for (const id of selectedIds) {
       const node = store.getNode(id);
       if (!node || !isGeometryNode(node)) continue;
@@ -69,9 +72,9 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
       const sw = node.width * viewport.scale;
       const sh = node.height * viewport.scale;
 
-      // Blue outline (rotated if node has rotation)
+      // Blue outline — 40% opacity for multi-select, full for single
       const nodeRotation = node.rotation ?? 0;
-      ctx.strokeStyle = selectionColor;
+      ctx.strokeStyle = isMultiSelect ? `${selectionColor}66` : selectionColor;
       ctx.lineWidth = 1;
 
       if (nodeRotation !== 0) {
@@ -84,58 +87,75 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
         ctx.strokeRect(sx, sy, sw, sh);
       }
 
-      // Dimension label below selection
-      // For rotated nodes, position below the rotated bounding box
-      const label = `${Math.round(node.width)} \u00D7 ${Math.round(node.height)}`;
-      const fontSize = 11;
-      ctx.font = `${fontSize}px "Inter", system-ui, sans-serif`;
-      const textMetrics = ctx.measureText(label);
-      const textW = textMetrics.width + 8;
-      const textH = fontSize + 6;
+      // Dimension label — only for single selection
+      if (!isMultiSelect) {
+        // For rotated nodes, position below the rotated bounding box
+        const label = `${Math.round(node.width)} \u00D7 ${Math.round(node.height)}`;
+        const fontSize = 11;
+        ctx.font = `${fontSize}px "Inter", system-ui, sans-serif`;
+        const textMetrics = ctx.measureText(label);
+        const textW = textMetrics.width + 8;
+        const textH = fontSize + 6;
 
-      let labelCenterX: number;
-      let labelTopY: number;
+        let labelCenterX: number;
+        let labelTopY: number;
 
-      if (nodeRotation !== 0) {
-        // Compute the lowest point of the rotated rectangle to position label below it
-        const rad = nodeRotation * Math.PI / 180;
-        const cos = Math.cos(rad);
-        const sin = Math.sin(rad);
-        const hw = sw / 2;
-        const hh = sh / 2;
-        // The 4 corners relative to center
-        const cornerOffsets = [
-          { dx: -hw, dy: -hh },
-          { dx: hw, dy: -hh },
-          { dx: hw, dy: hh },
-          { dx: -hw, dy: hh },
-        ];
-        let maxY = -Infinity;
-        for (const c of cornerOffsets) {
-          const ry = c.dx * sin + c.dy * cos;
-          if (ry > maxY) maxY = ry;
+        if (nodeRotation !== 0) {
+          // Compute the lowest point of the rotated rectangle to position label below it
+          const rad = nodeRotation * Math.PI / 180;
+          const cos = Math.cos(rad);
+          const sin = Math.sin(rad);
+          const hw = sw / 2;
+          const hh = sh / 2;
+          // The 4 corners relative to center
+          const cornerOffsets = [
+            { dx: -hw, dy: -hh },
+            { dx: hw, dy: -hh },
+            { dx: hw, dy: hh },
+            { dx: -hw, dy: hh },
+          ];
+          let maxY = -Infinity;
+          for (const c of cornerOffsets) {
+            const ry = c.dx * sin + c.dy * cos;
+            if (ry > maxY) maxY = ry;
+          }
+          labelCenterX = sx + sw / 2;
+          labelTopY = sy + sh / 2 + maxY + 8;
+        } else {
+          labelCenterX = sx + sw / 2;
+          labelTopY = sy + sh + 8;
         }
-        labelCenterX = sx + sw / 2;
-        labelTopY = sy + sh / 2 + maxY + 8;
-      } else {
-        labelCenterX = sx + sw / 2;
-        labelTopY = sy + sh + 8;
+
+        const textX = labelCenterX - textW / 2;
+        const textY = labelTopY;
+
+        // Label background
+        ctx.fillStyle = selectionColor;
+        ctx.beginPath();
+        ctx.roundRect(textX, textY, textW, textH, 3);
+        ctx.fill();
+
+        // Label text
+        ctx.fillStyle = labelTextColor;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, labelCenterX, textY + textH / 2);
       }
+    }
 
-      const textX = labelCenterX - textW / 2;
-      const textY = labelTopY;
-
-      // Label background
-      ctx.fillStyle = selectionColor;
-      ctx.beginPath();
-      ctx.roundRect(textX, textY, textW, textH, 3);
-      ctx.fill();
-
-      // Label text
-      ctx.fillStyle = labelTextColor;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, labelCenterX, textY + textH / 2);
+    // Draw group bounding box for multi-selection
+    if (isMultiSelect) {
+      const groupBBox = computeGroupScreenBBox(store, selectedIds, viewport);
+      if (groupBBox) {
+        ctx.strokeStyle = selectionColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(
+          groupBBox.minX,
+          groupBBox.minY,
+          groupBBox.maxX - groupBBox.minX,
+          groupBBox.maxY - groupBBox.minY,
+        );
+      }
     }
 
     // Draw box selection rectangle

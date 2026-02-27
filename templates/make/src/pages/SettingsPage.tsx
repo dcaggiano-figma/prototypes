@@ -42,7 +42,7 @@ import { useController } from 'react-hook-form';
 import { z } from 'zod';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
-import { useResizablePanel, Avatar, ResizeHandle } from '@prototype/shared';
+import { useResizablePanel, UserAvatar, ResizeHandle } from '@prototype/shared';
 
 /* ------------------------------------------------------------------ */
 /*  Form-connected Textarea (no built-in Form.Textarea exists)          */
@@ -710,7 +710,7 @@ export function SettingsPage() {
 
           {/* Trailing */}
           <div className="flex items-center gap-8px">
-            <Avatar size="md" src="/assets/avatar.jpg" />
+            <UserAvatar size="md" />
             <Menu.Root manager={settingsMenu.manager}>
               <IconButton
                 size="lg"

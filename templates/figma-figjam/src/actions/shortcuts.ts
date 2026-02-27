@@ -28,6 +28,9 @@ export const SHORTCUT_MAP: Record<string, string> = {
   Backspace: 'delete',
   Delete: 'delete',
 
+  // Quick actions
+  'Mod+k': 'quick-actions',
+
   // Clipboard
   'Mod+c': 'copy',
   'Mod+v': 'paste',

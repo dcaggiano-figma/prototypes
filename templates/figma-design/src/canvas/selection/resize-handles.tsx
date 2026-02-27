@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAction } from '../../actions/provider';
 import { useSceneGraph } from '../scene-graph/provider';
+import { computeGroupScreenBBox } from '../scene-graph/selection-utils';
 import type { GeometryNode } from '../types';
 import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
 import { useActiveTool } from '../tools/provider';
@@ -159,8 +160,45 @@ export function ResizeHandles() {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [pointEditingId]);
 
-  // Only render for single selection with MOVE tool
-  if (selectedIds.size !== 1 || effectiveTool !== 'MOVE') return null;
+  // Nothing to render when no selection or not using MOVE tool
+  if (selectedIds.size === 0 || effectiveTool !== 'MOVE') return null;
+
+  // Multi-select: render visual-only corner indicators at group bbox
+  if (selectedIds.size > 1) {
+    const groupBBox = computeGroupScreenBBox(store, selectedIds, viewport);
+    if (!groupBBox) return null;
+
+    const { minX, minY, maxX, maxY } = groupBBox;
+    const indicatorSize = 8;
+    const half = indicatorSize / 2;
+    const corners = [
+      { key: 'nw', x: minX, y: minY },
+      { key: 'ne', x: maxX, y: minY },
+      { key: 'sw', x: minX, y: maxY },
+      { key: 'se', x: maxX, y: maxY },
+    ];
+
+    return (
+      <>
+        {corners.map((c) => (
+          <div
+            key={c.key}
+            style={{
+              position: 'absolute',
+              left: c.x - half,
+              top: c.y - half,
+              width: indicatorSize,
+              height: indicatorSize,
+              backgroundColor: '#ffffff',
+              border: `1px solid ${SELECTION_COLOR}`,
+              pointerEvents: 'none',
+              zIndex: 11,
+            }}
+          />
+        ))}
+      </>
+    );
+  }
 
   const nodeId = selectedIds.values().next().value;
   if (!nodeId) return null;

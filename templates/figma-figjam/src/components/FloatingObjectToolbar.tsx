@@ -11,9 +11,20 @@ import {
   Icon24Eye,
   Icon24LockOpen,
   Icon24AlLayoutGrid,
+  Icon24TextAlignLeft,
+  Icon24TextAlignCenter,
+  Icon24TextAlignRight,
+  Icon24LayoutAlignLeft,
+  Icon24LayoutAlignHorizontalCenter,
+  Icon24LayoutAlignRight,
+  Icon24LayoutAlignTop,
+  Icon24LayoutAlignVerticalCenter,
+  Icon24LayoutAlignBottom,
+  Icon24LayoutDistributeHorizontalSpacing,
+  Icon24Section,
 } from '@figma/fpl-icons';
-import { useSelection, useSceneGraph, useViewport, useActiveTool } from '../canvas';
-import type { AppearanceNode, StickyNoteNode } from '../canvas';
+import { useSelection, useSceneGraph, useViewport, useActiveTool, isShapeWithText, isTextCapableNode, alignNodes, distributeNodes, wrapInSection } from '../canvas';
+import type { AppearanceNode, ShapeWithTextNode, TextCapableNode } from '../canvas';
 import { isGeometryNode, getWorldPosition } from '../canvas/scene-graph/world-position';
 import { STICKY_COLORS } from './FigJamToolbar';
 
@@ -65,6 +76,9 @@ export function FloatingObjectToolbar() {
   const [showColors, setShowColors] = useState(false);
   const colorPopoverRef = useRef<HTMLDivElement>(null);
   const colorTriggerRef = useRef<HTMLButtonElement>(null);
+  const [showAlign, setShowAlign] = useState(false);
+  const alignPopoverRef = useRef<HTMLDivElement>(null);
+  const alignTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Close color popover on click outside
   useEffect(() => {
@@ -80,6 +94,20 @@ export function FloatingObjectToolbar() {
     document.addEventListener('pointerdown', handler);
     return () => document.removeEventListener('pointerdown', handler);
   }, [showColors]);
+
+  useEffect(() => {
+    if (!showAlign) return undefined;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        alignPopoverRef.current?.contains(target) ||
+        alignTriggerRef.current?.contains(target)
+      ) return;
+      setShowAlign(false);
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [showAlign]);
 
   // Show section toolbar when section tool is active but nothing placed yet
   if (activeTool === 'SECTION' && selection.selectedIds.size === 0) {
@@ -132,10 +160,36 @@ export function FloatingObjectToolbar() {
     ? `rgb(${swatchColor.r}, ${swatchColor.g}, ${swatchColor.b})`
     : 'rgb(196, 196, 196)';
 
+  const allSameType = (() => {
+    if (selection.selectedIds.size <= 1) return true;
+    const firstType = firstNode?.type;
+    if (!firstType) return false;
+    for (const id of selection.selectedIds) {
+      if (store.getNode(id)?.type !== firstType) return false;
+    }
+    return true;
+  })();
+  const isMultiSelect = selection.selectedIds.size >= 2;
+
   const isStickySelected = firstNode?.type === 'STICKY_NOTE';
+  const isShapeSelected = firstNode ? isShapeWithText(firstNode) : false;
+  const isTextSelected = firstNode?.type === 'TEXT';
+  const isTextCapable = isStickySelected || isShapeSelected || isTextSelected;
   const isSectionSelected = firstNode?.type === 'SECTION';
 
   const topY = minY - 48;
+
+  // Render mixed-type multi-selection toolbar
+  if (isMultiSelect && !allSameType) {
+    return (
+      <MixedSelectionToolbar
+        centerX={centerX}
+        topY={topY}
+        selection={selection}
+        store={store}
+      />
+    );
+  }
 
   // Render section-specific toolbar
   if (isSectionSelected) {
@@ -161,17 +215,20 @@ export function FloatingObjectToolbar() {
       c.rgb.g === swatchColor.g &&
       c.rgb.b === swatchColor.b,
   )?.id;
-  const currentFontFamily = isStickySelected
-    ? (firstNode as StickyNoteNode).fontFamily
+  const currentFontFamily = isTextCapable
+    ? (firstNode as TextCapableNode).fontFamily
     : 'Inter';
-  const currentFontSize = isStickySelected
-    ? (firstNode as StickyNoteNode).fontSize
+  const currentFontSize = isTextCapable
+    ? (firstNode as TextCapableNode).fontSize
     : 16;
+  const currentAlign = isShapeSelected
+    ? (firstNode as ShapeWithTextNode).textAlignHorizontal
+    : 'CENTER';
 
   const handleFontFamilyChange = (value: string) => {
     for (const id of selection.selectedIds) {
       const node = store.getNode(id);
-      if (node?.type === 'STICKY_NOTE') {
+      if (node && isTextCapableNode(node)) {
         store.updateNode(id, { fontFamily: value });
       }
     }
@@ -181,8 +238,13 @@ export function FloatingObjectToolbar() {
     const size = Number(value);
     for (const id of selection.selectedIds) {
       const node = store.getNode(id);
-      if (node?.type === 'STICKY_NOTE') {
-        store.updateNode(id, { fontSize: size });
+      if (node && isTextCapableNode(node)) {
+        const updates: Record<string, unknown> = { fontSize: size };
+        // TEXT nodes use absolute lineHeight (px), so scale it with fontSize
+        if (node.type === 'TEXT') {
+          updates.lineHeight = Math.round(size * 1.25);
+        }
+        store.updateNode(id, updates);
       }
     }
   };
@@ -203,6 +265,16 @@ export function FloatingObjectToolbar() {
     }
   };
 
+  const handleAlignChange = (align: 'LEFT' | 'CENTER' | 'RIGHT') => {
+    for (const id of selection.selectedIds) {
+      const node = store.getNode(id);
+      if (node && isShapeWithText(node)) {
+        store.updateNode(id, { textAlignHorizontal: align });
+      }
+    }
+    setShowAlign(false);
+  };
+
   return (
     <div
       className="fixed z-nav pointer-events-auto"
@@ -215,20 +287,20 @@ export function FloatingObjectToolbar() {
       {/* Main toolbar */}
       <div
         data-preferred-theme="dark"
-        className="flex items-center gap-1 bg-bg rounded-lg shadow-300 p-1"
+        className="flex items-center bg-bg rounded-lg shadow-300"
       >
         {/* Color swatch — toggles color popover */}
-        <div className="relative">
+        <div className="relative p-1 flex items-center">
           <ButtonPrimitive
             ref={colorTriggerRef}
             className={clsx(
-              'flex items-center gap-1 rounded-md p-2 hover:bg-bg-hover active:bg-bg-pressed',
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed',
               colorsOpen && 'bg-bg-secondary',
             )}
             onClick={() => setShowColors((v) => !v)}
           >
             <div
-              className="w-16px h-16px rounded-full border border-solid border-border"
+              className="w-3 h-3 rounded-full border border-solid border-border"
               style={{ backgroundColor: swatchBg }}
             />
             <Icon16ChevronDown />
@@ -261,14 +333,15 @@ export function FloatingObjectToolbar() {
           )}
         </div>
 
-        {/* Font dropdown — functional for STICKY_NOTE */}
-        {isStickySelected ? (
+        <div className="flex items-center gap-1 p-1 border-l border-border">
+        {/* Font dropdown — functional for text-capable nodes */}
+        {isTextCapable ? (
           <>
             <ButtonPrimitive
               {...getFontTriggerProps()}
-              className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap"
+              className="flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-headingMd text-text whitespace-nowrap"
             >
-              Aa
+              <span style={{ fontFamily: FONT_FAMILY_PRESETS.find((p) => p.value === currentFontFamily)?.fontFamily }} className="w-3 text-center">Aa</span>
               <Icon16ChevronDown />
             </ButtonPrimitive>
             <Menu.Root manager={fontMenuManager}>
@@ -288,20 +361,21 @@ export function FloatingObjectToolbar() {
             </Menu.Root>
           </>
         ) : (
-          <ButtonPrimitive className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap">
+          <ButtonPrimitive className="flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap">
             Aa
             <Icon16ChevronDown />
           </ButtonPrimitive>
         )}
+        
 
-        {/* Size dropdown — functional for STICKY_NOTE */}
-        {isStickySelected ? (
+        {/* Size dropdown — functional for text-capable nodes */}
+        {isTextCapable ? (
           <>
             <ButtonPrimitive
               {...getSizeTriggerProps()}
               className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap"
             >
-              {getFontSizeLabel(currentFontSize)}
+              <span className="w-[120px]">{getFontSizeLabel(currentFontSize)}</span>
               <Icon16ChevronDown />
             </ButtonPrimitive>
             <Menu.Root manager={sizeMenuManager}>
@@ -326,8 +400,9 @@ export function FloatingObjectToolbar() {
             <Icon16ChevronDown />
           </ButtonPrimitive>
         )}
+        </div>
 
-        <div className="w-px h-5 bg-border" />
+        <div className="flex items-center gap-1 p-1 border-l border-border">
 
         {/* Formatting buttons */}
         <IconButton size="lg" aria-label="Bold" variant="ghost">
@@ -342,6 +417,54 @@ export function FloatingObjectToolbar() {
         <IconButton size="lg" aria-label="List" variant="ghost">
           <Icon24ListView />
         </IconButton>
+        </div>
+
+        <div className="flex items-center p-1 border-l border-border">
+
+        {/* Text alignment — shapes only */}
+        {isShapeSelected && (
+          <>
+            <div className="relative">
+              <ButtonPrimitive
+                ref={alignTriggerRef}
+                aria-label="Text alignment"
+                className="flex items-center justify-center w-32px h-32px rounded-md hover:bg-bg-hover active:bg-bg-pressed text-text"
+                onClick={() => setShowAlign((v) => !v)}
+              >
+                {currentAlign === 'LEFT' ? <Icon24TextAlignLeft /> : currentAlign === 'RIGHT' ? <Icon24TextAlignRight /> : <Icon24TextAlignCenter />}
+              </ButtonPrimitive>
+              {showAlign && (
+                <div
+                  ref={alignPopoverRef}
+                  data-preferred-theme="dark"
+                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1"
+                >
+                  {([
+                    { value: 'LEFT' as const, Icon: Icon24TextAlignLeft },
+                    { value: 'CENTER' as const, Icon: Icon24TextAlignCenter },
+                    { value: 'RIGHT' as const, Icon: Icon24TextAlignRight },
+                  ]).map(({ value, Icon }) => (
+                    <ButtonPrimitive
+                      key={value}
+                      aria-label={`Align ${value.toLowerCase()}`}
+                      aria-pressed={currentAlign === value}
+                      onClick={() => handleAlignChange(value)}
+                      className={clsx(
+                        'flex items-center justify-center w-32px h-32px rounded-md',
+                        currentAlign === value
+                          ? 'bg-bg-brand text-text-onbrand'
+                          : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                      )}
+                    >
+                      <Icon />
+                    </ButtonPrimitive>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+        </div>
       </div>
     </div>
   );
@@ -580,6 +703,130 @@ function SectionToolbar({
             </Menu.Root>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Mixed-Selection Toolbar ─────────────────────────────────────────
+
+interface MixedSelectionToolbarProps {
+  centerX: number;
+  topY: number;
+  selection: ReturnType<typeof useSelection>;
+  store: ReturnType<typeof useSceneGraph>;
+}
+
+/**
+ * Floating toolbar for multi-selection with mixed node types.
+ * Shows alignment trigger, distribute, and wrap-in-section buttons.
+ * Clicking the alignment button opens a popover with 6 alignment options.
+ */
+function MixedSelectionToolbar({ centerX, topY, selection, store }: MixedSelectionToolbarProps) {
+  const { manager: distributeMenuManager, getTriggerProps: getDistributeTriggerProps } = Menu.useMenu();
+  const [showAlign, setShowAlign] = useState(false);
+  const alignPopoverRef = useRef<HTMLDivElement>(null);
+  const alignTriggerRef = useRef<HTMLButtonElement>(null);
+
+  // Close alignment popover on click outside
+  useEffect(() => {
+    if (!showAlign) return undefined;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        alignPopoverRef.current?.contains(target) ||
+        alignTriggerRef.current?.contains(target)
+      ) return;
+      setShowAlign(false);
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [showAlign]);
+
+  return (
+    <div
+      className="fixed z-nav pointer-events-auto flex flex-col items-center gap-2"
+      style={{ left: centerX, top: topY, transform: 'translateX(-50%)' }}
+    >
+      {/* Alignment popover — shown above the toolbar when triggered */}
+      {showAlign && (
+        <div
+          ref={alignPopoverRef}
+          data-preferred-theme="dark"
+          className="flex items-center gap-1 bg-bg rounded-lg shadow-300 p-1"
+        >
+          <IconButton size="lg" aria-label="Align left" variant="ghost"
+            onClick={() => alignNodes(store, selection.selectedIds, 'left')}>
+            <Icon24LayoutAlignLeft />
+          </IconButton>
+          <IconButton size="lg" aria-label="Align horizontal center" variant="ghost"
+            onClick={() => alignNodes(store, selection.selectedIds, 'center-h')}>
+            <Icon24LayoutAlignHorizontalCenter />
+          </IconButton>
+          <IconButton size="lg" aria-label="Align right" variant="ghost"
+            onClick={() => alignNodes(store, selection.selectedIds, 'right')}>
+            <Icon24LayoutAlignRight />
+          </IconButton>
+          <IconButton size="lg" aria-label="Align top" variant="ghost"
+            onClick={() => alignNodes(store, selection.selectedIds, 'top')}>
+            <Icon24LayoutAlignTop />
+          </IconButton>
+          <IconButton size="lg" aria-label="Align vertical center" variant="ghost"
+            onClick={() => alignNodes(store, selection.selectedIds, 'center-v')}>
+            <Icon24LayoutAlignVerticalCenter />
+          </IconButton>
+          <IconButton size="lg" aria-label="Align bottom" variant="ghost"
+            onClick={() => alignNodes(store, selection.selectedIds, 'bottom')}>
+            <Icon24LayoutAlignBottom />
+          </IconButton>
+        </div>
+      )}
+
+      {/* Main toolbar: alignment trigger + distribute + wrap in section */}
+      <div
+        data-preferred-theme="dark"
+        className="flex items-center gap-1 bg-bg rounded-lg shadow-300 p-1"
+      >
+        {/* Alignment trigger */}
+        <ButtonPrimitive
+          ref={alignTriggerRef}
+          className={clsx(
+            'flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text',
+            showAlign && 'bg-bg-secondary',
+          )}
+          onClick={() => setShowAlign((v) => !v)}
+        >
+          <Icon24LayoutAlignHorizontalCenter />
+          <Icon16ChevronDown />
+        </ButtonPrimitive>
+
+        <div className="w-px h-5 bg-border" />
+
+        {/* Distribute dropdown */}
+        <ButtonPrimitive
+          {...getDistributeTriggerProps()}
+          className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text"
+        >
+          <Icon24LayoutDistributeHorizontalSpacing />
+          <Icon16ChevronDown />
+        </ButtonPrimitive>
+        <Menu.Root manager={distributeMenuManager}>
+          <Menu.Container>
+            <Menu.Item onClick={() => distributeNodes(store, selection.selectedIds, 'horizontal')}>
+              Distribute horizontal spacing
+            </Menu.Item>
+            <Menu.Item onClick={() => distributeNodes(store, selection.selectedIds, 'vertical')}>
+              Distribute vertical spacing
+            </Menu.Item>
+          </Menu.Container>
+        </Menu.Root>
+
+        <div className="w-px h-5 bg-border" />
+
+        <IconButton size="lg" aria-label="Wrap in section" variant="ghost"
+          onClick={() => wrapInSection(store, selection)}>
+          <Icon24Section />
+        </IconButton>
       </div>
     </div>
   );

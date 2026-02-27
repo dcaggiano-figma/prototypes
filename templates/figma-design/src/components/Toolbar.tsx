@@ -48,16 +48,18 @@ import {
   Icon24CommentNewLarge,
   Icon24ConnectorElbowLarge,
 } from '@figma/fpl-icons';
+import { Toolbar as SharedToolbar, type SubTool } from '@prototype/shared';
 import styles from './Toolbar.module.css';
 import { ModeSwitcher } from './ModeSwitcher';
-import { ToolButton, type SubTool } from './ToolButton';
-import { IllustrationToolButton } from './IllustrationToolButton';
 import { PenIllustration, BrushIllustration, PencilIllustration } from './ToolIllustrations';
-import { QuickActions } from './QuickActions';
+import { QUICK_ACTIONS_TABS } from './quickActionsData';
 import type { Mode } from './menuTypes';
 import { MODE_TO_BRAND } from '../helpers/theme';
 import { useActiveTool, type ToolType } from '../canvas';
 import { useAction } from '../actions/provider';
+import { DrawToolSecondaryToolbar } from './DrawToolSecondaryToolbar';
+
+const { ToolButton, IllustrationToolButton, QuickActions } = SharedToolbar;
 
 /** Map editor-shell toolbar tool IDs to figma-design ToolProvider types */
 function mapToolId(id: string): ToolType {
@@ -73,6 +75,9 @@ function mapToolId(id: string): ToolType {
     case 'star': return 'STAR';
     case 'pen': return 'PEN';
     case 'pencil': return 'PENCIL';
+    case 'draw-pen': return 'PEN';
+    case 'draw-pencil': return 'PENCIL';
+    case 'draw-brush': return 'PENCIL';
     case 'section': return 'SECTION';
     case 'comment': case 'comment-draw': case 'comment-dev': return 'COMMENT';
     default: return 'MOVE';
@@ -101,7 +106,7 @@ const ILLUSTRATION_TOOLS = [
   { id: 'draw-pencil', label: 'Pencil', Illustration: PencilIllustration },
 ] as const;
 
-const ILLUSTRATION_IDS = ILLUSTRATION_TOOLS.map((t) => t.id);
+const ILLUSTRATION_IDS: string[] = ILLUSTRATION_TOOLS.map((t) => t.id);
 
 interface ToolbarConfigs {
   move: Record<Mode, ToolConfig>;
@@ -260,7 +265,10 @@ interface ToolbarProps {
 export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpenChange }: ToolbarProps) {
   const [activeTool, setActiveTool] = useState('move');
   const [selectedByGroup, setSelectedByGroup] = useState<Record<string, string>>({});
-  const { activeTool: providerTool, setActiveTool: setProviderTool } = useActiveTool();
+  const {
+    activeTool: providerTool, setActiveTool: setProviderTool,
+    drawColor, setDrawColor, drawStrokeWeight, setDrawStrokeWeight,
+  } = useActiveTool();
 
   // Sync local toolbar state when provider tool changes externally (e.g. after shape creation)
   const prevProviderToolRef = useRef(providerTool);
@@ -444,6 +452,16 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
   const slideOffset = -visualIndex * rowHeight;
 
   return (
+    <div className="flex flex-col items-center gap-2">
+      {/* Secondary toolbar — only in draw mode when a draw tool is active */}
+      {activeMode === 'draw' && ILLUSTRATION_IDS.includes(activeTool) && (
+        <DrawToolSecondaryToolbar
+          color={drawColor}
+          onColorChange={setDrawColor}
+          strokeWeight={drawStrokeWeight}
+          onStrokeWeightChange={setDrawStrokeWeight}
+        />
+      )}
     <div ref={toolbarRef} className="bg-bg flex items-end rounded-lg shadow-300">
         {/* Tools viewport — clips via clip-path, animates width */}
         <div
@@ -530,10 +548,11 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
                         ))}
                         {mode === activeMode && (
                           <QuickActions
+                            tabs={QUICK_ACTIONS_TABS}
                             isOpen={isActionsOpen}
                             onOpenChange={onActionsOpenChange}
                             isActive={isActionsOpen}
-                            triggerWidth={toolbarWidth}
+                            width={toolbarWidth}
                             toolbarRef={toolbarRef}
                           />
                         )}
@@ -565,10 +584,11 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
                       ))}
                       {mode === activeMode && mode !== 'dev' && (
                         <QuickActions
+                          tabs={QUICK_ACTIONS_TABS}
                           isOpen={isActionsOpen}
                           onOpenChange={onActionsOpenChange}
                           isActive={isActionsOpen}
-                          triggerWidth={toolbarWidth}
+                          width={toolbarWidth}
                           toolbarRef={toolbarRef}
                         />
                       )}
@@ -594,6 +614,7 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
             </ModeSwitcher.Option>
           </ModeSwitcher>
         </div>
+    </div>
     </div>
   );
 }

@@ -14,7 +14,9 @@ import { useTextEditing } from '../text-editing/provider';
 import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from '../tools/path-smoothing';
 import type { Point } from '../tools/path-smoothing';
 import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
+import { findNodeAtWorldPoint } from '../scene-graph/selection-utils';
 import { CanvasRenderer } from './canvas-renderer';
+import { CommentPinLayer, useComments } from '@prototype/shared';
 
 /** Shape tools that support click-drag-to-create */
 const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
@@ -35,27 +37,35 @@ const DEFAULT_STROKE = {
   position: 'CENTER' as const,
 };
 
-/** Default stroke for pencil-drawn paths */
-const PENCIL_STROKE = {
-  paint: { type: 'SOLID' as const, color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true },
-  weight: 2,
-  position: 'CENTER' as const,
-};
-
 /** Minimum distance (world-space px) between recorded pencil points */
 const PENCIL_MIN_DISTANCE = 2;
 
 /** RDP simplification epsilon (world-space px) */
 const PENCIL_RDP_EPSILON = 2.0;
 
-export function Canvas() {
+interface CanvasProps {
+  onOpenContextMenu?: (type: 'node' | 'canvas', x: number, y: number) => void;
+}
+
+export function Canvas({ onOpenContextMenu }: CanvasProps) {
   const viewport = useViewport();
   const { containerRef, transform, screenToWorld } = viewport;
   const selection = useSelection();
   const store = useSceneGraph();
   const pageBg = usePageBackground();
-  const { effectiveTool, setActiveTool } = useActiveTool();
+  const { effectiveTool, setActiveTool, drawColor, drawStrokeWeight, drawOpacity } = useActiveTool();
   const textEditing = useTextEditing();
+  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
+
+  /** Resolve the world position of a node by ID (for comment node-attachment) */
+  const getNodePosition = useCallback(
+    (nodeId: string): { x: number; y: number } | undefined => {
+      const node = store.getNode(nodeId);
+      if (!node || !isGeometryNode(node)) return undefined;
+      return getWorldPosition(store, node);
+    },
+    [store],
+  );
 
   /** Whether the hand tool is actively dragging (for cursor styling) */
   const [isPanning, setIsPanning] = useState(false);
@@ -77,6 +87,8 @@ export function Canvas() {
     lastWorld: { x: number; y: number }
     /** IDs being dragged */
     nodeIds: string[]
+    /** Whether the hit node was already selected before this pointerdown */
+    wasAlreadySelected?: boolean
   } | null>(null);
 
   /** Tracks hand-tool panning state (screen-space) */
@@ -244,8 +256,31 @@ export function Canvas() {
     });
   }, [store, containerRef, viewport]);
 
+  const onContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+
+      // Hit-test to determine if a node was right-clicked
+      const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
+
+      if (hitId) {
+        if (!selection.isSelected(hitId)) {
+          selection.select(hitId);
+        }
+        onOpenContextMenu?.('node', e.clientX, e.clientY);
+      } else {
+        selection.clear();
+        onOpenContextMenu?.('canvas', e.clientX, e.clientY);
+      }
+    },
+    [selection, onOpenContextMenu],
+  );
+
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
+      // Only handle left-click (button 0) — right-clicks use the context menu
+      if (e.button !== 0) return;
+
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
 
@@ -261,16 +296,44 @@ export function Canvas() {
       const localY = e.clientY - rect.top;
       const world = screenToWorld(localX, localY);
 
+      // Comment tool: click-to-place a comment pin
+      if (effectiveTool === 'COMMENT') {
+        const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
+        if (hitId) {
+          const node = store.getNode(hitId);
+          if (node && isGeometryNode(node)) {
+            const nodeWorldPos = getWorldPosition(store, node);
+            setInteraction({
+              type: 'placing',
+              worldX: world.x,
+              worldY: world.y,
+              nodeId: hitId,
+              nodeOffsetX: world.x - nodeWorldPos.x,
+              nodeOffsetY: world.y - nodeWorldPos.y,
+            });
+          }
+        } else {
+          setInteraction({
+            type: 'placing',
+            worldX: world.x,
+            worldY: world.y,
+          });
+        }
+        return;
+      }
+
       // Pencil tool: start freehand drawing
       if (effectiveTool === 'PENCIL') {
         const overlay = pencilOverlayRef.current;
         if (!overlay) return;
 
+        const rgb = parseHexColor(drawColor);
         const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         pathEl.setAttribute('d', `M${world.x},${world.y}`);
         pathEl.setAttribute('fill', 'none');
-        pathEl.setAttribute('stroke', 'rgb(0,0,0)');
-        pathEl.setAttribute('stroke-width', String(PENCIL_STROKE.weight));
+        pathEl.setAttribute('stroke', `rgb(${rgb.r},${rgb.g},${rgb.b})`);
+        pathEl.setAttribute('stroke-width', String(drawStrokeWeight));
+        pathEl.setAttribute('opacity', String(drawOpacity / 100));
         pathEl.setAttribute('stroke-linecap', 'round');
         pathEl.setAttribute('stroke-linejoin', 'round');
         overlay.appendChild(pathEl);
@@ -349,8 +412,11 @@ export function Canvas() {
         // DOM hit-test with Figma-style frame resolution
         const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
         if (hitId) {
+          // Track whether the node was already selected (for click-to-edit behavior)
+          const wasAlreadySelected = selection.isSelected(hitId);
+
           // If the hit node isn't selected, select it now
-          if (!selection.isSelected(hitId)) {
+          if (!wasAlreadySelected) {
             if (e.shiftKey) {
               selection.toggle(hitId);
             } else {
@@ -372,6 +438,7 @@ export function Canvas() {
             dragging: false,
             lastWorld: world,
             nodeIds,
+            wasAlreadySelected,
           };
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
           return;
@@ -395,7 +462,7 @@ export function Canvas() {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       }
     },
-    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool],
+    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, interaction, setInteraction, drawColor, drawStrokeWeight, drawOpacity],
   );
 
   const onPointerMove = useCallback(
@@ -560,7 +627,7 @@ export function Canvas() {
         // Compute bounding box, normalize points to local coords
         const bounds = computeBounds(pencil.points);
         // Add small padding to avoid zero-dimension nodes
-        const minSize = PENCIL_STROKE.weight;
+        const minSize = drawStrokeWeight;
         const w = Math.max(bounds.width, minSize);
         const h = Math.max(bounds.height, minSize);
 
@@ -573,6 +640,14 @@ export function Canvas() {
         const simplified = simplifyRDP(normalized, PENCIL_RDP_EPSILON);
         const d = pointsToBezierPath(simplified);
 
+        // Build stroke from draw tool state
+        const rgb = parseHexColor(drawColor);
+        const stroke = {
+          paint: { type: 'SOLID' as const, color: rgb, opacity: drawOpacity / 100, visible: true },
+          weight: drawStrokeWeight,
+          position: 'CENTER' as const,
+        };
+
         // Create the VectorNode
         const node = store.createNode('VECTOR', {
           x: bounds.x,
@@ -580,7 +655,7 @@ export function Canvas() {
           width: w,
           height: h,
           fills: [],
-          strokes: [PENCIL_STROKE],
+          strokes: [stroke],
           paths: [{ d }],
         });
 
@@ -647,6 +722,48 @@ export function Canvas() {
 
       const drag = dragRef.current;
       dragRef.current = null;
+
+      // Finalize box selection: select all nodes fully enclosed by the drag box
+      if (dragBox && drag && drag.nodeIds.length === 0) {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          // Convert screen-space drag box to world-space
+          const boxMinX = Math.min(dragBox.startX, dragBox.currentX);
+          const boxMinY = Math.min(dragBox.startY, dragBox.currentY);
+          const boxMaxX = Math.max(dragBox.startX, dragBox.currentX);
+          const boxMaxY = Math.max(dragBox.startY, dragBox.currentY);
+
+          const wMinX = (boxMinX - viewport.state.origin.x) / viewport.state.scale;
+          const wMinY = (boxMinY - viewport.state.origin.y) / viewport.state.scale;
+          const wMaxX = (boxMaxX - viewport.state.origin.x) / viewport.state.scale;
+          const wMaxY = (boxMaxY - viewport.state.origin.y) / viewport.state.scale;
+
+          // Only finalize if the box has meaningful size
+          if (boxMaxX - boxMinX > 2 || boxMaxY - boxMinY > 2) {
+            // Get the candidate nodes: root-level, or children of entered frame
+            const candidates = selection.enteredFrameId
+              ? (store.getNode(selection.enteredFrameId)?.children ?? []).map((id) => store.getNode(id)).filter(Boolean)
+              : store.getRootNodes();
+
+            if (!e.shiftKey) {
+              selection.clear();
+            }
+
+            for (const candidate of candidates) {
+              if (!candidate || !isGeometryNode(candidate)) continue;
+              const world = getWorldPosition(store, candidate);
+              const nodeMaxX = world.x + candidate.width;
+              const nodeMaxY = world.y + candidate.height;
+
+              // Check if the node is fully enclosed
+              if (world.x >= wMinX && world.y >= wMinY && nodeMaxX <= wMaxX && nodeMaxY <= wMaxY) {
+                selection.add(candidate.id);
+              }
+            }
+          }
+        }
+      }
+
       setDragBox(null);
 
       if (!drag) return;
@@ -669,10 +786,15 @@ export function Canvas() {
       const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
 
       if (hitId) {
-        if (e.shiftKey) {
-          selection.toggle(hitId);
-        } else {
-          selection.select(hitId);
+        // Skip shift+click toggle if we already toggled this node on mouse down
+        // (otherwise we'd double-toggle: add on down, remove on up)
+        const alreadyHandled = e.shiftKey && !drag.wasAlreadySelected;
+        if (!alreadyHandled) {
+          if (e.shiftKey) {
+            selection.toggle(hitId);
+          } else {
+            selection.select(hitId);
+          }
         }
       } else if (selection.enteredFrameId !== null) {
         // Click outside entered frame → exit frame
@@ -710,7 +832,53 @@ export function Canvas() {
         lastClickRef.current = { time: now, clientX: e.clientX, clientY: e.clientY };
       }
     },
-    [selection, effectiveTool, store, setActiveTool, textEditing],
+    [selection, effectiveTool, store, setActiveTool, textEditing, dragBox, containerRef, viewport, drawColor, drawStrokeWeight, drawOpacity],
+  );
+
+  // ── Comment pin drag handlers ──────────────────────────────────────────
+
+  const handleCommentDragStart = useCallback(
+    (threadId: string) => {
+      setSelectedThreadId(null);
+      setInteraction({ type: 'dragging', threadId, worldX: 0, worldY: 0 });
+    },
+    [setSelectedThreadId, setInteraction],
+  );
+
+  const handleCommentDragMove = useCallback(
+    (threadId: string, worldX: number, worldY: number) => {
+      setInteraction({ type: 'dragging', threadId, worldX, worldY });
+    },
+    [setInteraction],
+  );
+
+  const handleCommentDragEnd = useCallback(
+    (threadId: string, worldX: number, worldY: number) => {
+      const hitNodeId = findNodeAtWorldPoint(store, worldX, worldY);
+      if (hitNodeId) {
+        const node = store.getNode(hitNodeId);
+        if (node && isGeometryNode(node)) {
+          const nodeWorldPos = getWorldPosition(store, node);
+          commentsStore.updateAnchor(threadId, {
+            worldX,
+            worldY,
+            nodeId: hitNodeId,
+            nodeOffsetX: worldX - nodeWorldPos.x,
+            nodeOffsetY: worldY - nodeWorldPos.y,
+          });
+        }
+      } else {
+        commentsStore.updateAnchor(threadId, {
+          worldX,
+          worldY,
+          nodeId: undefined,
+          nodeOffsetX: undefined,
+          nodeOffsetY: undefined,
+        });
+      }
+      setInteraction({ type: 'none' });
+    },
+    [store, commentsStore, setInteraction],
   );
 
   // Cursor style based on active tool
@@ -727,6 +895,7 @@ export function Canvas() {
       case 'LINE':
       case 'POLYGON':
       case 'STAR': return CURSORS.crosshair;
+      case 'COMMENT': return CURSORS.comment;
       default: return CURSORS.default;
     }
   })();
@@ -756,6 +925,7 @@ export function Canvas() {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onContextMenu={onContextMenu}
     >
       <div
         style={{
@@ -770,6 +940,34 @@ export function Canvas() {
         <svg
           ref={pencilOverlayRef}
           className="absolute top-0 left-0 overflow-visible pointer-events-none"
+        />
+        <CommentPinLayer
+          commentsStore={commentsStore}
+          interaction={interaction}
+          selectedThreadId={selectedThreadId}
+          zoom={scale}
+          getNodePosition={getNodePosition}
+          onPinClick={(threadId) => {
+            setSelectedThreadId(threadId);
+            setInteraction({ type: 'viewing', threadId });
+          }}
+          onPinHoverStart={(threadId) => {
+            if (interaction.type !== 'viewing' && interaction.type !== 'dragging') {
+              setInteraction({ type: 'hovering', threadId });
+            }
+          }}
+          onPinHoverEnd={() => {
+            if (interaction.type === 'hovering') {
+              setInteraction({ type: 'none' });
+            }
+          }}
+          onDragStart={handleCommentDragStart}
+          onDragMove={handleCommentDragMove}
+          onDragEnd={handleCommentDragEnd}
+          screenToWorld={screenToWorld}
+          containerRef={containerRef}
+          nodeStoreSubscribe={store.subscribe}
+          nodeStoreGetSnapshot={store.getSnapshot}
         />
       </div>
       {showPixelGrid && <div style={pixelGridStyle} />}
@@ -880,4 +1078,21 @@ function collectDraggableIds(
     if (!hasSelectedAncestor) ids.push(id);
   }
   return ids;
+}
+
+/** Parse a CSS hex color (#RRGGBB or #RGB) to {r, g, b} (0–255) */
+function parseHexColor(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '');
+  if (h.length === 3) {
+    return {
+      r: parseInt(h[0] + h[0], 16),
+      g: parseInt(h[1] + h[1], 16),
+      b: parseInt(h[2] + h[2], 16),
+    };
+  }
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
 }

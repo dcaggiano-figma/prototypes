@@ -1,6 +1,6 @@
 import { ButtonPrimitive, ButtonGroup, IconButton, Button } from '@figma/fpl-components';
 import { Icon16ChevronDown, Icon24PlayLarge } from '@figma/fpl-icons';
-import { Avatar } from '@prototype/shared';
+import { UserAvatar } from '@prototype/shared';
 import { ShareModal } from '../ShareModal';
 
 export function PanelHeader() {
@@ -9,7 +9,7 @@ export function PanelHeader() {
   return (
     <div className="flex items-center justify-between pr-2 pl-12px py-8px">
       <ButtonPrimitive aria-label="User menu" className="flex items-center rounded-full hover:bg-bg-hover active:bg-bg-pressed">
-        <Avatar initial="W" size="md" />
+        <UserAvatar size="md" />
         <Icon16ChevronDown />
       </ButtonPrimitive>
 

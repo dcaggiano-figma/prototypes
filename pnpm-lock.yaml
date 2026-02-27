@@ -97,6 +97,9 @@ importers:
       '@figma/fpl-components':
         specifier: 0.0.2-release-test.4
         version: 0.0.2-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+      '@figma/fpl-icons':
+        specifier: 0.0.1-release-test.4
+        version: 0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -393,6 +396,9 @@ importers:
       '@figma/ppg-ui':
         specifier: ^0.1.0
         version: 0.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+      '@prototype/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@tanstack/react-router':
         specifier: ^1.114.0
         version: 1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

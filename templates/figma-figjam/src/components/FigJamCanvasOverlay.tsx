@@ -10,9 +10,7 @@ import { ToastContainer } from './toast';
 export function FigJamCanvasOverlay() {
   return (
     <div className="absolute inset-0 pointer-events-none">
-      <div className="pointer-events-auto">
-        <Outlet />
-      </div>
+      <Outlet />
       {/* Toolbar area — positioned at bottom center */}
       <div className="absolute bottom-12px left-1/2 -translate-x-1/2 z-nav pointer-events-auto">
         <ToastContainer />

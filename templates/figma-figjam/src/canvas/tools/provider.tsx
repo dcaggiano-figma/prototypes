@@ -37,10 +37,15 @@ export interface ToolAPI {
   sectionFillColor: Color
   /** Set the active section fill color */
   setSectionFillColor(color: Color): void
+  /** Active shape fill color for creation */
+  shapeColor: Color
+  /** Set the active shape fill color */
+  setShapeColor(color: Color): void
 }
 
 const DEFAULT_STICKY_COLOR: Color = { r: 255, g: 226, b: 153 };
 const DEFAULT_SECTION_COLOR: Color = { r: 255, g: 255, b: 255 };
+const DEFAULT_SHAPE_COLOR: Color = { r: 217, g: 217, b: 217 };
 
 const ToolContext = createContext<ToolAPI | null>(null);
 
@@ -55,6 +60,7 @@ export function ToolProvider({ children }: { children: React.ReactNode }) {
   const [highlighterColor, setHighlighterColor] = useState('#FFF000');
   const [markerSubType, setMarkerSubType] = useState<MarkerSubType>('marker');
   const [sectionFillColor, setSectionFillColor] = useState<Color>(DEFAULT_SECTION_COLOR);
+  const [shapeColor, setShapeColor] = useState<Color>(DEFAULT_SHAPE_COLOR);
 
   const setActiveTool = useCallback((tool: ToolType) => {
     setActiveToolState(tool);
@@ -93,8 +99,9 @@ export function ToolProvider({ children }: { children: React.ReactNode }) {
       highlighterColor, setHighlighterColor,
       markerSubType, setMarkerSubType,
       sectionFillColor, setSectionFillColor,
+      shapeColor, setShapeColor,
     }),
-    [activeTool, effectiveTool, isSpacePanning, setActiveTool, stickyColor, markerColor, highlighterColor, markerSubType, sectionFillColor],
+    [activeTool, effectiveTool, isSpacePanning, setActiveTool, stickyColor, markerColor, highlighterColor, markerSubType, sectionFillColor, shapeColor],
   );
 
   return <ToolContext.Provider value={api}>{children}</ToolContext.Provider>;

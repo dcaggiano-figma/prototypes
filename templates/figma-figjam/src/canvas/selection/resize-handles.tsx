@@ -8,11 +8,12 @@ import { useActiveTool } from '../tools/provider';
 import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
+import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
 import { useSelection } from './provider';
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
-const HANDLE_SIZE = 8;
+const HANDLE_SIZE = 12;
 const EDGE_THICKNESS = 4;
 const SELECTION_COLOR = '#0d99ff';
 const ROTATION_ZONE_SIZE = 16;
@@ -166,8 +167,80 @@ export function ResizeHandles() {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [pointEditingId]);
 
-  // Only render for single selection with MOVE tool
-  if (selectedIds.size !== 1 || effectiveTool !== 'MOVE') return null;
+  // Only render for MOVE tool with at least one selected node
+  if (effectiveTool !== 'MOVE' || selectedIds.size === 0) return null;
+
+  // --- Multi-select group handles (visual-only corner indicators) ---
+  if (selectedIds.size >= 2) {
+    let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+
+    for (const id of selectedIds) {
+      const n = store.getNode(id);
+      if (!n || !isGeometryNode(n)) continue;
+      const w = getWorldPosition(store, n);
+
+      if (n.type === 'LINE') {
+        const rad = (n.rotation ?? 0) * Math.PI / 180;
+        const endWX = w.x + n.width * Math.cos(rad);
+        const endWY = w.y + n.width * Math.sin(rad);
+        gMinX = Math.min(gMinX, Math.min(w.x, endWX) * viewport.scale + viewport.origin.x);
+        gMinY = Math.min(gMinY, Math.min(w.y, endWY) * viewport.scale + viewport.origin.y);
+        gMaxX = Math.max(gMaxX, Math.max(w.x, endWX) * viewport.scale + viewport.origin.x);
+        gMaxY = Math.max(gMaxY, Math.max(w.y, endWY) * viewport.scale + viewport.origin.y);
+      } else {
+        const rot = n.rotation ?? 0;
+        const sxN = w.x * viewport.scale + viewport.origin.x;
+        const syN = w.y * viewport.scale + viewport.origin.y;
+        const swN = n.width * viewport.scale;
+        const shN = n.height * viewport.scale;
+
+        if (rot !== 0) {
+          const cx = sxN + swN / 2, cy = syN + shN / 2;
+          const rad = rot * Math.PI / 180;
+          const cosA = Math.abs(Math.cos(rad)), sinA = Math.abs(Math.sin(rad));
+          const aabbW = swN * cosA + shN * sinA;
+          const aabbH = swN * sinA + shN * cosA;
+          gMinX = Math.min(gMinX, cx - aabbW / 2); gMinY = Math.min(gMinY, cy - aabbH / 2);
+          gMaxX = Math.max(gMaxX, cx + aabbW / 2); gMaxY = Math.max(gMaxY, cy + aabbH / 2);
+        } else {
+          gMinX = Math.min(gMinX, sxN); gMinY = Math.min(gMinY, syN);
+          gMaxX = Math.max(gMaxX, sxN + swN); gMaxY = Math.max(gMaxY, syN + shN);
+        }
+      }
+    }
+
+    if (!isFinite(gMinX)) return null;
+
+    const half = HANDLE_SIZE / 2;
+    const groupCorners = [
+      { key: 'g-nw', cx: gMinX, cy: gMinY },
+      { key: 'g-ne', cx: gMaxX, cy: gMinY },
+      { key: 'g-sw', cx: gMinX, cy: gMaxY },
+      { key: 'g-se', cx: gMaxX, cy: gMaxY },
+    ];
+
+    return (
+      <>
+        {groupCorners.map(({ key, cx, cy }) => (
+          <div
+            key={key}
+            style={{
+              position: 'absolute',
+              left: cx - half,
+              top: cy - half,
+              width: HANDLE_SIZE,
+              height: HANDLE_SIZE,
+              backgroundColor: '#ffffff',
+              border: `2px solid ${SELECTION_COLOR}`,
+              borderRadius: 2,
+              pointerEvents: 'none',
+              zIndex: 11,
+            }}
+          />
+        ))}
+      </>
+    );
+  }
 
   const nodeId = selectedIds.values().next().value;
   if (!nodeId) return null;
@@ -400,22 +473,25 @@ export function ResizeHandles() {
       newH = 1;
     }
 
-    // Sticky note: snap width during drag and auto-set height
+    // Sticky note: enforce minimum square during drag (snap happens on release)
     if (node?.type === 'STICKY_NOTE') {
-      const snapped = snapStickyWidth(newW);
-      if (movesLeft) {
-        newX = original.x + original.width - snapped;
-      }
-      newW = snapped;
-      newH = Math.max(snapped, newH); // Minimum square
+      newH = Math.max(newW, newH); // Minimum square
     }
 
-    store.updateNode(drag.nodeId, {
+    const updates: Partial<GeometryNode> & Record<string, unknown> = {
       x: newX,
       y: newY,
       width: newW,
       height: newH,
-    });
+    };
+
+    // When a TEXT node is manually resized, switch from WIDTH_AND_HEIGHT to HEIGHT
+    // so the width stays fixed and only height auto-grows to fit content.
+    if (node?.type === 'TEXT') {
+      updates.textAutoResize = 'HEIGHT';
+    }
+
+    store.updateNode(drag.nodeId, updates);
 
     forceUpdate((n) => n + 1);
   }
@@ -437,6 +513,15 @@ export function ResizeHandles() {
             ...(movesLeft ? { x: current.x + dx } : {}),
           });
         }
+      }
+    }
+    // Reparent after resize: sections adopt/release children, others check containment
+    if (dragState.current.handle !== 'rotate') {
+      const resizedNode = store.getNode(dragState.current.nodeId);
+      if (resizedNode?.type === 'SECTION') {
+        applySectionReparenting(store, dragState.current.nodeId);
+      } else {
+        applyNodeReparenting(store, [dragState.current.nodeId]);
       }
     }
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -551,7 +636,8 @@ export function ResizeHandles() {
     : edges;
 
   // Rotation zone positions: just outside each corner diagonally
-  const rotationZones = !isLine ? [
+  const canRotate = node.type === 'FRAME' || node.type === 'SECTION';
+  const rotationZones = canRotate ? [
     { key: 'rot-nw', cx: hx - ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNW },
     { key: 'rot-ne', cx: hx + sw + ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNE },
     { key: 'rot-sw', cx: hx - ROTATION_ZONE_OFFSET, cy: hy + sh + ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateSW },
@@ -586,7 +672,8 @@ export function ResizeHandles() {
             width: HANDLE_SIZE,
             height: HANDLE_SIZE,
             backgroundColor: '#ffffff',
-            border: `1px solid ${SELECTION_COLOR}`,
+            border: `2px solid ${SELECTION_COLOR}`,
+            borderRadius: 2,
             cursor: CORNER_CURSORS[pos],
             zIndex: 11,
           }}
@@ -626,7 +713,7 @@ export function ResizeHandles() {
               top: sy,
               width: sw,
               height: sh,
-              border: `1px solid ${SELECTION_COLOR}`,
+              border: `2px solid ${SELECTION_COLOR}`,
               pointerEvents: 'none',
               zIndex: 10,
             }}

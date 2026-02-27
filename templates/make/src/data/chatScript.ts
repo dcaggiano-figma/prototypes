@@ -1,32 +1,5 @@
 import { APP_TSX_CONTENT } from '../components/CodeView';
-
-/* ------------------------------------------------------------------ */
-/*  Script step types                                                   */
-/* ------------------------------------------------------------------ */
-
-export type ScriptStep =
-  /** Show a progress spinner, auto-advance after duration (ms) */
-  | { type: 'progress'; label: string; duration: number }
-  /** CollapsibleSection that streams content, advances on stream complete */
-  | { type: 'reasoning'; content: string }
-  /** AI ChatMessage with streaming text, advances on stream complete */
-  | { type: 'ai-message'; content: string }
-  /** FileCard (viewing), auto-advance after duration (ms) */
-  | { type: 'view-file'; fileName: string; duration: number }
-  /** Show todo list with "Start tasks" button, advances on button click */
-  | { type: 'todo-list'; tasks: string[] }
-  /** Mark a task as in_progress, advances immediately */
-  | { type: 'start-task'; taskIndex: number }
-  /** FileCard (writing) with streaming code, advances on stream complete */
-  | { type: 'write-file'; fileName: string; code: string }
-  /** Mark task complete, remove FileCard, add work log, advances immediately */
-  | { type: 'complete-task'; taskIndex: number; files: string[] }
-  /** Show VersionCard, advances immediately */
-  | { type: 'version'; label: string }
-  /** Show rating buttons, advances immediately */
-  | { type: 'rating' }
-  /** Set isWorking=false (terminal step) */
-  | { type: 'done' };
+import type { ScriptStep } from '@prototype/shared';
 
 /* ------------------------------------------------------------------ */
 /*  Mock code content for write-file steps                              */

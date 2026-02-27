@@ -3,7 +3,7 @@ import { Icon16ChevronDown, Icon24PlayLarge } from '@figma/fpl-icons';
 import { useActiveTool, useSelection } from '../canvas';
 import { DesignModeContent, DevModeContent, DrawModeContent, CommentsPanelContent, PanelHeader } from './modes';
 import type { Mode } from './menuTypes';
-import { Avatar } from '@prototype/shared';
+import { UserAvatar } from '@prototype/shared';
 
 import { useViewport } from '../canvas';
 
@@ -57,7 +57,7 @@ function FloatingCompactHeader() {
     <div className="absolute top-12px right-12px z-nav pointer-events-auto">
       <div className="bg-bg-elevated rounded-lg shadow-300 flex items-center gap-8px p-2 pl-2.5">
         <ButtonPrimitive aria-label="User menu" className="flex items-center rounded-full hover:bg-bg-hover active:bg-bg-pressed">
-          <Avatar initial="W" size="md" />
+          <UserAvatar size="md" />
           <Icon16ChevronDown />
         </ButtonPrimitive>
 

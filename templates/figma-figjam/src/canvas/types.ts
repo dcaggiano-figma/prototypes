@@ -85,13 +85,22 @@ export interface FrameNode extends BaseNode, GeometryMixin, AppearanceMixin {
   paddingLeft: number
 }
 
+/** Text properties for shape nodes (rectangle, ellipse, polygon, star) */
+export interface ShapeTextMixin {
+  characters: string
+  fontFamily: string
+  fontSize: number
+  fontWeight: number
+  textAlignHorizontal: 'LEFT' | 'CENTER' | 'RIGHT'
+}
+
 /** Rectangle node */
-export interface RectangleNode extends BaseNode, GeometryMixin, AppearanceMixin {
+export interface RectangleNode extends BaseNode, GeometryMixin, AppearanceMixin, ShapeTextMixin {
   type: 'RECTANGLE'
 }
 
 /** Ellipse node */
-export interface EllipseNode extends BaseNode, GeometryMixin, AppearanceMixin {
+export interface EllipseNode extends BaseNode, GeometryMixin, AppearanceMixin, ShapeTextMixin {
   type: 'ELLIPSE'
 }
 
@@ -131,13 +140,13 @@ export interface VectorNode extends BaseNode, GeometryMixin, AppearanceMixin {
 }
 
 /** Polygon node */
-export interface PolygonNode extends BaseNode, GeometryMixin, AppearanceMixin {
+export interface PolygonNode extends BaseNode, GeometryMixin, AppearanceMixin, ShapeTextMixin {
   type: 'POLYGON'
   sides: number
 }
 
 /** Star node */
-export interface StarNode extends BaseNode, GeometryMixin, AppearanceMixin {
+export interface StarNode extends BaseNode, GeometryMixin, AppearanceMixin, ShapeTextMixin {
   type: 'STAR'
   points: number
   innerRadius: number
@@ -172,3 +181,22 @@ export type GeometryNode = FrameNode | SectionNode | RectangleNode | EllipseNode
 
 /** Nodes that have appearance (fills/strokes) */
 export type AppearanceNode = FrameNode | SectionNode | RectangleNode | EllipseNode | TextNode | VectorNode | PolygonNode | StarNode | StickyNoteNode
+
+/** Shape nodes that support editable text */
+export type ShapeWithTextNode = RectangleNode | EllipseNode | PolygonNode | StarNode
+
+/** All nodes that support text editing (shapes + sticky notes + text nodes) */
+export type TextCapableNode = ShapeWithTextNode | StickyNoteNode | TextNode
+
+/** Shape types that have editable text */
+const SHAPE_WITH_TEXT_TYPES = new Set(['RECTANGLE', 'ELLIPSE', 'POLYGON', 'STAR'])
+
+/** Check if a node is a shape with text properties */
+export function isShapeWithText(node: SceneNode): node is ShapeWithTextNode {
+  return SHAPE_WITH_TEXT_TYPES.has(node.type)
+}
+
+/** Check if a node supports text editing (shapes + sticky notes + text nodes) */
+export function isTextCapableNode(node: SceneNode): node is TextCapableNode {
+  return SHAPE_WITH_TEXT_TYPES.has(node.type) || node.type === 'STICKY_NOTE' || node.type === 'TEXT'
+}

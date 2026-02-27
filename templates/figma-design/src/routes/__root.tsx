@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { createRootRoute } from '@tanstack/react-router';
-import { LeftRail } from '../components/LeftRail';
-import { LeftPanel } from '../components/LeftPanel';
+import {
+  Icon24Page,
+  Icon24Add,
+  Icon24Search,
+  Icon24AiAssistant,
+  Icon24Variable,
+  Icon24Library,
+  Icon24Help,
+  Icon24Star,
+} from '@figma/fpl-icons';
 import { RightPanel } from '../components/RightPanel';
-import { Canvas } from '../canvas';
+import { Canvas, useViewport } from '../canvas';
 import { CanvasOverlay } from '../components/CanvasOverlay';
 import { VariablesView, VariablesWindow } from '../components/variables';
 import type { Mode } from '../components/menuTypes';
+import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
 import {
   DEFAULT_MODE,
   MODE_TO_BRAND,
@@ -16,15 +25,41 @@ import {
   readStoredTheme,
   type ThemeSetting,
 } from '../helpers/theme';
-import { ButtonPrimitive, Menu } from '@figma/fpl-components';
-import { Icon24Help, Icon24Star } from '@figma/fpl-icons';
+import { ButtonPrimitive, IconButton, Menu } from '@figma/fpl-components';
 import { showToast } from '../components/toast';
+import { CommentOverlay, ContextMenuRenderer, LeftSidebar, useComments, useContextMenu } from '@prototype/shared';
 import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
 import { Providers } from '../providers';
 import { useAction } from '../actions/provider';
 import { MinimizeUIProvider } from '../components/MinimizeUIContext';
 import { FloatingFileHeader } from '../components/FloatingFileHeader';
 import { MinimizedRightPanel } from '../components/MinimizedRightPanel';
+import { DesignMainMenu } from '../components/DesignMainMenu';
+import { FilePanel, SearchPanel, AiChatPanel, AssetsPanel } from '../components/panels';
+import { VariablesPanel } from '../components/variables';
+
+// ---------------------------------------------------------------------------
+// Panel content per nav item
+// ---------------------------------------------------------------------------
+
+const PANELS: Record<string, React.ComponentType> = {
+  file: FilePanel,
+  assets: AssetsPanel,
+  search: SearchPanel,
+  ai: AiChatPanel,
+  variables: VariablesPanel,
+};
+
+// ---------------------------------------------------------------------------
+// Nav item definitions
+// ---------------------------------------------------------------------------
+
+const mainNavItems = [
+  { Icon: Icon24Page, label: 'File', id: 'file' },
+  { Icon: Icon24Add, label: 'Assets', id: 'assets' },
+  { Icon: Icon24Search, label: 'Find', id: 'search' },
+  { Icon: Icon24AiAssistant, label: 'AI Chat', id: 'ai' },
+];
 
 // ---------------------------------------------------------------------------
 // Generic main content switching per nav item
@@ -60,6 +95,7 @@ function EditorLayout() {
 function EditorContent() {
   const helpMenu = Menu.useMenu();
   const featuresModal = PrototypeFeaturesModal();
+  const contextMenu = useContextMenu();
   const [activeRailItem, setActiveRailItem] = useState('file');
   const [activeMode, setActiveMode] = useState<Mode>(DEFAULT_MODE);
   const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => readStoredTheme());
@@ -68,6 +104,8 @@ function EditorContent() {
 
   // Minimize UI state
   const [isMinimized, setIsMinimized] = useState(false);
+  const viewport = useViewport();
+  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore, threads: commentThreads } = useComments();
   const [fileName, setFileName] = useState('Untitled');
   const toggleMinimized = useCallback(() => setIsMinimized((v) => !v), []);
 
@@ -115,6 +153,22 @@ function EditorContent() {
     setVariablesViewMode('hidden');
   };
 
+  const contextMenuItems = contextMenu.lastMenuType === 'node'
+    ? getNodeMenuItems(contextMenu.close)
+    : getCanvasMenuItems(contextMenu.close);
+
+  // Filter nav items based on mode
+  const filteredNavItems = useMemo(() => {
+    switch (activeMode) {
+      case 'draw':
+        return mainNavItems.filter((item) => item.id !== 'ai');
+      case 'dev':
+        return mainNavItems.filter((item) => item.id !== 'assets');
+      default:
+        return mainNavItems;
+    }
+  }, [activeMode]);
+
   // Apply theme attributes whenever mode or color setting changes
   useEffect(() => {
     applyTheme(themeSetting, MODE_TO_BRAND[activeMode]);
@@ -159,27 +213,45 @@ function EditorContent() {
   const showRightPanel = viewConfig?.showRightPanel ?? true;
 
   return (
+    <LeftSidebar.Provider activeItem={activeRailItem} onItemChange={handleRailItemChange}>
     <MinimizeUIProvider value={minimizeCtx}>
     <div className="h-screen flex overflow-hidden">
       {/* Canvas — fixed behind everything */}
-      <Canvas />
+      <Canvas onOpenContextMenu={contextMenu.handleOpen} />
 
       {/* Left icon rail — hidden when minimized */}
       {!isMinimized && (
-        <LeftRail
-          activeItem={activeRailItem}
-          onItemChange={handleRailItemChange}
-          labelsVisible={false}
-          activeMode={activeMode}
-          themeSetting={themeSetting}
-          onThemeChange={handleThemeChange}
-          onOpenActions={() => setIsActionsOpen(true)}
-          onToggleMinimize={toggleMinimized}
-        />
+        <LeftSidebar.Rail>
+          <DesignMainMenu
+            themeSetting={themeSetting}
+            onThemeChange={handleThemeChange}
+            onOpenActions={() => setIsActionsOpen(true)}
+            onToggleMinimize={toggleMinimized}
+          />
+          <LeftSidebar.Divider />
+          <LeftSidebar.NavGroup>
+            {filteredNavItems.map((item) => (
+              <LeftSidebar.NavItem key={item.id} id={item.id} icon={item.Icon} label={item.label} />
+            ))}
+          </LeftSidebar.NavGroup>
+          <LeftSidebar.Divider />
+          <LeftSidebar.NavGroup>
+            <LeftSidebar.NavItem id="variables" icon={Icon24Variable} label="Variables" />
+          </LeftSidebar.NavGroup>
+          <LeftSidebar.Footer>
+            <IconButton
+              size="lg"
+              aria-label="Library"
+              onClick={() => console.log('Clicked')}
+            >
+              <Icon24Library />
+            </IconButton>
+          </LeftSidebar.Footer>
+        </LeftSidebar.Rail>
       )}
 
       {/* Left panel — hidden when minimized */}
-      {!isMinimized && <LeftPanel activeItem={activeRailItem} />}
+      {!isMinimized && <LeftSidebar.Panel panels={PANELS} fallback={FilePanel} />}
 
       {/* Canvas / main area */}
       <main className={clsx('flex-1 relative', MainContent ? 'bg-bg' : 'pointer-events-none')}>
@@ -210,6 +282,9 @@ function EditorContent() {
         />
       )}
 
+      {/* Context menu — always mounted, visibility managed by FPL */}
+      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} />
+
       {/* Floating Help Button */}
       <Menu.Root manager={helpMenu.manager}>
         <ButtonPrimitive aria-label="Help" className="bg-bg-elevated border-solid active:bg-bg-elevated-hover shadow-300 rounded-full p-1 absolute bottom-4 right-4 z-nav" {...helpMenu.getTriggerProps()}>
@@ -229,8 +304,18 @@ function EditorContent() {
         </Menu.Container>
       </Menu.Root>
       {featuresModal.modal}
+      <CommentOverlay
+        interaction={interaction}
+        setInteraction={setInteraction}
+        selectedThreadId={selectedThreadId}
+        setSelectedThreadId={setSelectedThreadId}
+        store={commentsStore}
+        threads={commentThreads}
+        worldToScreen={viewport.worldToScreen}
+      />
     </div>
     </MinimizeUIProvider>
+    </LeftSidebar.Provider>
   );
 }
 

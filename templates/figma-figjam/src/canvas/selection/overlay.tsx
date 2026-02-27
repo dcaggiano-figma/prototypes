@@ -54,6 +54,8 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
     const styles = getComputedStyle(document.documentElement);
     const selectionColor = styles.getPropertyValue('--color-border-selected').trim() || '#0d99ff';
 
+    const isMultiSelect = selectedIds.size >= 2;
+
     for (const id of selectedIds) {
       const node = store.getNode(id);
       if (!node || !isGeometryNode(node)) continue;
@@ -69,9 +71,10 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
       const sh = node.height * viewport.scale;
 
       // Blue outline (rotated if node has rotation)
+      // Use 40% opacity for individual outlines during multi-select
       const nodeRotation = node.rotation ?? 0;
-      ctx.strokeStyle = selectionColor;
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = isMultiSelect ? `${selectionColor}66` : selectionColor;
+      ctx.lineWidth = 2;
 
       if (nodeRotation !== 0) {
         ctx.save();
@@ -84,6 +87,55 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
       }
 
       // Dimension labels hidden for FigJam
+    }
+
+    // Draw group bounding box for multi-selection
+    if (isMultiSelect) {
+      let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+
+      for (const id of selectedIds) {
+        const node = store.getNode(id);
+        if (!node || !isGeometryNode(node)) continue;
+        const world = getWorldPosition(store, node);
+
+        if (node.type === 'LINE') {
+          // Lines: compute AABB from endpoints
+          const rad = (node.rotation ?? 0) * Math.PI / 180;
+          const endWX = world.x + node.width * Math.cos(rad);
+          const endWY = world.y + node.width * Math.sin(rad);
+          const sMinX = Math.min(world.x, endWX) * viewport.scale + viewport.origin.x;
+          const sMinY = Math.min(world.y, endWY) * viewport.scale + viewport.origin.y;
+          const sMaxX = Math.max(world.x, endWX) * viewport.scale + viewport.origin.x;
+          const sMaxY = Math.max(world.y, endWY) * viewport.scale + viewport.origin.y;
+          gMinX = Math.min(gMinX, sMinX); gMinY = Math.min(gMinY, sMinY);
+          gMaxX = Math.max(gMaxX, sMaxX); gMaxY = Math.max(gMaxY, sMaxY);
+        } else {
+          const nodeRotation = node.rotation ?? 0;
+          const sx = world.x * viewport.scale + viewport.origin.x;
+          const sy = world.y * viewport.scale + viewport.origin.y;
+          const sw = node.width * viewport.scale;
+          const sh = node.height * viewport.scale;
+
+          if (nodeRotation !== 0) {
+            const cx = sx + sw / 2, cy = sy + sh / 2;
+            const rad = nodeRotation * Math.PI / 180;
+            const cosA = Math.abs(Math.cos(rad)), sinA = Math.abs(Math.sin(rad));
+            const aabbW = sw * cosA + sh * sinA;
+            const aabbH = sw * sinA + sh * cosA;
+            gMinX = Math.min(gMinX, cx - aabbW / 2); gMinY = Math.min(gMinY, cy - aabbH / 2);
+            gMaxX = Math.max(gMaxX, cx + aabbW / 2); gMaxY = Math.max(gMaxY, cy + aabbH / 2);
+          } else {
+            gMinX = Math.min(gMinX, sx); gMinY = Math.min(gMinY, sy);
+            gMaxX = Math.max(gMaxX, sx + sw); gMaxY = Math.max(gMaxY, sy + sh);
+          }
+        }
+      }
+
+      if (isFinite(gMinX)) {
+        ctx.strokeStyle = selectionColor;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(gMinX, gMinY, gMaxX - gMinX, gMaxY - gMinY);
+      }
     }
 
     // Draw box selection rectangle
