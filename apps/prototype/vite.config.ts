@@ -8,4 +8,10 @@ export default createViteConfig({
   portEnvVar: 'PROTOTYPE_PORT',
   wsPortEnvVar: 'PROTOTYPE_WS_PORT',
   plugins: [TanStackRouterVite()],
+  configOverrides: {
+    build: {
+      outDir: path.resolve(__dirname, '../../dist'),
+      emptyOutDir: true,
+    },
+  },
 });
