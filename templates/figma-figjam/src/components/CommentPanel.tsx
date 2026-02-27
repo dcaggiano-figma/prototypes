@@ -35,7 +35,7 @@ export function CommentPanel({ onClose }: CommentPanelProps) {
             </div>
           </Window.ActionStrip>
         </Window.Header>
-        <Window.Body>
+        <Window.Body className="p-2">
           <ScrollContainer scroll="y" fill>
             {threads.length === 0 ? (
               <div className="flex items-start justify-center gap-2 py-2">

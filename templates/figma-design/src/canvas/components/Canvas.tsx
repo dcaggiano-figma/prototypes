@@ -15,7 +15,7 @@ import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from
 import type { Point } from '../tools/path-smoothing';
 import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
 import { CanvasRenderer } from './canvas-renderer';
-import { useComments } from '@prototype/shared';
+import { CommentPinLayer, useComments } from '@prototype/shared';
 
 /** Shape tools that support click-drag-to-create */
 const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
@@ -57,7 +57,7 @@ export function Canvas() {
   const pageBg = usePageBackground();
   const { effectiveTool, setActiveTool } = useActiveTool();
   const textEditing = useTextEditing();
-  const { interaction, setInteraction } = useComments();
+  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
 
   /** Whether the hand tool is actively dragging (for cursor styling) */
   const [isPanning, setIsPanning] = useState(false);
@@ -853,6 +853,26 @@ export function Canvas() {
         <svg
           ref={pencilOverlayRef}
           className="absolute top-0 left-0 overflow-visible pointer-events-none"
+        />
+        <CommentPinLayer
+          commentsStore={commentsStore}
+          interaction={interaction}
+          selectedThreadId={selectedThreadId}
+          zoom={scale}
+          onPinClick={(threadId) => {
+            setSelectedThreadId(threadId);
+            setInteraction({ type: 'viewing', threadId });
+          }}
+          onPinHoverStart={(threadId) => {
+            if (interaction.type !== 'viewing') {
+              setInteraction({ type: 'hovering', threadId });
+            }
+          }}
+          onPinHoverEnd={() => {
+            if (interaction.type === 'hovering') {
+              setInteraction({ type: 'none' });
+            }
+          }}
         />
       </div>
       {showPixelGrid && <div style={pixelGridStyle} />}

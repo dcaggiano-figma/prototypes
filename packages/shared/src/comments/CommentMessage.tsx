@@ -26,15 +26,15 @@ export function CommentMessage({
         <Avatar size="md" initial={authorInitial} src={avatarUrl} alt={authorName} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
-            <span className="text-bodyMdStrong text-text truncate">{authorName}</span>
-            <span className="text-bodySm text-text-tertiary whitespace-nowrap">{formatRelativeTime(createdAt)}</span>
+            <span className="text-bodyLgStrong text-text truncate">{authorName}</span>
+            <span className="text-bodyLg text-text-tertiary whitespace-nowrap">{formatRelativeTime(createdAt)}</span>
             <div className="ml-auto">
               <IconButton aria-label="More options">
                 <Icon24More />
               </IconButton>
             </div>
           </div>
-          <p className="text-bodyMd text-text mt-0.5 whitespace-pre-wrap break-words">{body}</p>
+          <p className="text-bodyLg text-text mt-2 mb-2 whitespace-pre-wrap break-words">{body}</p>
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@ import { useActiveTool } from '../tools/provider';
 import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
-import { useComments } from '@prototype/shared';
+import { CommentPinLayer, useComments } from '@prototype/shared';
 import { useTextEditing } from '../text-editing/provider';
 import { CanvasRenderer } from './canvas-renderer';
 import type { Point } from '../tools/path-smoothing';
@@ -64,7 +64,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   const pageBg = usePageBackground();
   const { effectiveTool, setActiveTool, stickyColor, sectionFillColor, shapeColor, markerColor, highlighterColor, markerSubType } = useActiveTool();
   const textEditing = useTextEditing();
-  const { interaction, setInteraction } = useComments();
+  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
 
   /** Screen-space mouse position for sticky note ghost preview */
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
@@ -944,6 +944,26 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         }}
       >
         <CanvasRenderer />
+        <CommentPinLayer
+          commentsStore={commentsStore}
+          interaction={interaction}
+          selectedThreadId={selectedThreadId}
+          zoom={scale}
+          onPinClick={(threadId) => {
+            setSelectedThreadId(threadId);
+            setInteraction({ type: 'viewing', threadId });
+          }}
+          onPinHoverStart={(threadId) => {
+            if (interaction.type !== 'viewing') {
+              setInteraction({ type: 'hovering', threadId });
+            }
+          }}
+          onPinHoverEnd={() => {
+            if (interaction.type === 'hovering') {
+              setInteraction({ type: 'none' });
+            }
+          }}
+        />
       </div>
       {showPixelGrid && <div style={pixelGridStyle} />}
       {/* Sticky note ghost preview */}

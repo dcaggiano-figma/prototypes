@@ -7,6 +7,7 @@ interface CommentPinLayerProps {
   commentsStore: CommentsStoreAPI;
   interaction: CommentInteraction;
   selectedThreadId: string | null;
+  zoom?: number;
   onPinClick: (threadId: string) => void;
   onPinHoverStart: (threadId: string) => void;
   onPinHoverEnd: () => void;
@@ -17,6 +18,7 @@ export function CommentPinLayer({
   commentsStore,
   interaction,
   selectedThreadId,
+  zoom = 1,
   onPinClick,
   onPinHoverStart,
   onPinHoverEnd,
@@ -41,8 +43,10 @@ export function CommentPinLayer({
             key={thread.id}
             className="absolute pointer-events-auto"
             style={{
-              left: pos.worldX - 6,
-              top: pos.worldY - 40,
+              left: pos.worldX,
+              top: pos.worldY - 32 / zoom,
+              transform: `scale(${1 / zoom})`,
+              transformOrigin: 'bottom left',
             }}
           >
             <CommentPin

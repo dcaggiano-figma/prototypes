@@ -16,18 +16,18 @@ export function CommentListItem({ thread, onClick, selected = false }: CommentLi
   return (
     <button
       type="button"
-      className={`w-full text-left px-3 py-2 flex gap-2 hover:bg-bg-hover cursor-pointer border-none bg-transparent ${selected ? 'bg-bg-selected' : ''} ${thread.resolved ? 'opacity-50' : ''}`}
+      className={`rounded-md w-full text-left px-2 py-2 flex flex-col gap-2 hover:bg-bg-hover cursor-pointer border-none bg-transparent ${selected ? 'bg-bg-selected' : ''} ${thread.resolved ? 'opacity-50' : ''}`}
       onClick={onClick}
     >
       <Avatar size="md" initial={firstComment.authorInitial} src={firstComment.avatarUrl} alt={firstComment.authorName} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">
-          <span className="text-bodySmStrong text-text truncate">{firstComment.authorName}</span>
-          <span className="text-bodySm text-text-tertiary">{formatRelativeTime(lastComment.createdAt)}</span>
+          <span className="text-bodyMd text-text truncate">{firstComment.authorName}</span>
+          <span className="text-bodyMd text-text-tertiary">{formatRelativeTime(lastComment.createdAt)}</span>
         </div>
-        <p className="text-bodySm text-text-secondary truncate mt-0.5">{lastComment.body}</p>
+        <p className="text-bodyMd text-text-secondary truncate mt-0.5">{lastComment.body}</p>
         {thread.comments.length > 1 && (
-          <span className="text-bodySm text-text-tertiary">{thread.comments.length} replies</span>
+          <span className="text-bodyMd text-text-tertiary mt-2 flex">{thread.comments.length} replies</span>
         )}
       </div>
     </button>

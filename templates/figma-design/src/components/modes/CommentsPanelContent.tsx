@@ -60,13 +60,15 @@ export function CommentsPanelContent() {
             </p>
           </div>
         ) : (
-          threads.map((thread) => (
+          <div className="p-2">
+          {threads.map((thread) => (
             <CommentListItem
               key={thread.id}
               thread={thread}
               onClick={() => handleThreadClick(thread.id)}
             />
-          ))
+          ))}
+          </div>
         )}
       </ScrollContainer>
     </>
