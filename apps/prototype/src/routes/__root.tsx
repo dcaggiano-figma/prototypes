@@ -8,7 +8,6 @@ import {
 import {
   Menu,
   IconButton,
-  Button,
   ButtonPrimitive,
   Input,
 } from '@figma/fpl-components';
@@ -30,6 +29,11 @@ import {
   Icon16Plus,
   Icon24Template,
   Icon24Signout,
+  Icon24DesignBrandicon,
+  Icon24FigjamBrandicon,
+  Icon24SlidesBrandicon,
+  Icon24SitesBrandicon,
+  Icon24DrawBrandicon,
 } from '@figma/fpl-icons';
 import { ThemeProvider } from '@figma/fpl-tokens';
 import { Avatar } from '@prototype/shared';
@@ -76,6 +80,7 @@ function applyTheme(setting: ThemeSetting) {
 function Shell() {
   const [theme, setTheme] = useState<ThemeSetting>('light');
   const { getTriggerProps, manager } = Menu.useMenu();
+  const { getTriggerProps: getCreateTriggerProps, manager: createManager } = Menu.useMenu();
   const location = useLocation();
 
   useEffect(() => {
@@ -213,13 +218,50 @@ function Shell() {
             <h1 className="text-bodyLg text-text pl-12px">{currentLabel}</h1>
           </div>
           <div className="flex items-center gap-8px">
-            <Button size="lg" variant="secondary" aria-label="Create new">
-              <div className="flex items-center">
+            <Menu.Root manager={createManager}>
+              <ButtonPrimitive
+                {...getCreateTriggerProps()}
+                className="flex items-center gap-4px h-32px px-12px rounded-md bg-bg border border-border text-bodyMd text-text hover:bg-bg-hover active:bg-bg-pressed cursor-default"
+              >
                 <Icon16Plus />
-                <span className="pl-8px pr-4px">Create new</span>
+                <span className="pl-4px pr-2px">Create new</span>
                 <Icon16ChevronDown />
-              </div>
-            </Button>
+              </ButtonPrimitive>
+              <Menu.Container>
+                <Menu.Group>
+                  <Menu.Item onClick={() => console.log('New design file')}>
+                    <Menu.ItemLead>
+                      <Icon24DesignBrandicon />
+                    </Menu.ItemLead>
+                    <span>Design file</span>
+                  </Menu.Item>
+                  <Menu.Item onClick={() => console.log('New FigJam board')}>
+                    <Menu.ItemLead>
+                      <Icon24FigjamBrandicon />
+                    </Menu.ItemLead>
+                    <span>FigJam board</span>
+                  </Menu.Item>
+                  <Menu.Item onClick={() => console.log('New Slides deck')}>
+                    <Menu.ItemLead>
+                      <Icon24SlidesBrandicon />
+                    </Menu.ItemLead>
+                    <span>Slides deck</span>
+                  </Menu.Item>
+                  <Menu.Item onClick={() => console.log('New site')}>
+                    <Menu.ItemLead>
+                      <Icon24SitesBrandicon />
+                    </Menu.ItemLead>
+                    <span>Figma site</span>
+                  </Menu.Item>
+                  <Menu.Item onClick={() => console.log('New drawing')}>
+                    <Menu.ItemLead>
+                      <Icon24DrawBrandicon />
+                    </Menu.ItemLead>
+                    <span>Drawing</span>
+                  </Menu.Item>
+                </Menu.Group>
+              </Menu.Container>
+            </Menu.Root>
             <IconButton size="lg" aria-label="Import">
               <Icon24Import />
             </IconButton>
