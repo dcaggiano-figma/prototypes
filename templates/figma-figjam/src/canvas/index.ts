@@ -61,10 +61,10 @@ export type { ToolType, MarkerSubType } from './tools/provider';
 export { Canvas } from './components/Canvas';
 
 // Utilities needed by external consumers
-export { isGeometryNode } from './scene-graph/world-position';
+export { getWorldPosition, isGeometryNode } from './scene-graph/world-position';
 
 // Selection utilities
-export { getSelectionBBox, collectDraggableIds, pointInRect } from './scene-graph/selection-utils';
+export { getSelectionBBox, collectDraggableIds, pointInRect, findNodeAtWorldPoint } from './scene-graph/selection-utils';
 export type { Rect } from './scene-graph/selection-utils';
 
 // Alignment & layout utilities

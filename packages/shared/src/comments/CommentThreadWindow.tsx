@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { IconButton, ScrollContainer, TextareaPrimitive, InputPrimitive } from '@figma/fpl-components';
+import { IconButton, TextareaPrimitive, InputPrimitive } from '@figma/fpl-components';
 import { Icon24More, Icon24Resolve, Icon24Emoji, Icon24Mention, Icon24Image, Icon24Close, Icon24ArrowUp } from '@figma/fpl-icons';
-import { Avatar } from '../Avatar';
+import { UserAvatar } from '../user-config';
 import { CommentMessage } from './CommentMessage';
 import type { CommentThread } from './types';
 import styles from './comments.module.css';
@@ -92,19 +92,17 @@ export function CommentThreadWindow({
       </div>
 
       {/* Body */}
-      <div className="flex-1 min-h-0">
-        <ScrollContainer scroll="y" fill>
-          {thread.comments.map((comment, i) => (
-            <CommentMessage
-              key={comment.id}
-              authorName={comment.authorName}
-              authorInitial={comment.authorInitial}
-              avatarUrl={comment.avatarUrl}
-              body={comment.body}
-              createdAt={comment.createdAt}
-            />
-          ))}
-        </ScrollContainer>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {thread.comments.map((comment) => (
+          <CommentMessage
+            key={comment.id}
+            authorName={comment.authorName}
+            authorInitial={comment.authorInitial}
+            avatarUrl={comment.avatarUrl}
+            body={comment.body}
+            createdAt={comment.createdAt}
+          />
+        ))}
       </div>
 
       {/* Reply footer */}
@@ -114,7 +112,7 @@ export function CommentThreadWindow({
       >
         {!expanded ? (
           <div className="flex items-center gap-2">
-            <Avatar size="md" initial="Y" alt="You" />
+            <UserAvatar size="md" />
             <div className="flex-1 gap-2 flex py-2 pl-3 pr-2 items-center bg-bg-secondary rounded-lg">
               <InputPrimitive
                 aria-label="Reply"
@@ -136,7 +134,7 @@ export function CommentThreadWindow({
           </div>
         ) : (
           <div className="flex gap-2">
-            <div className="flex-shrink-0 py-2"><Avatar size="md" initial="Y" alt="You" /></div>
+            <div className="flex-shrink-0 py-2"><UserAvatar size="md" /></div>
             <div className="flex-1">
               <div className="bg-bg-secondary rounded-lg overflow-hidden">
                 <TextareaPrimitive.Root className="w-full bg-bg-secondary">
@@ -145,10 +143,11 @@ export function CommentThreadWindow({
                     placeholder="Reply"
                     value={replyText}
                     onChange={setReplyText}
+                    autoFocus
                     rows={2}
                     expandable
                     maxHeight={100}
-                    className="text-bodyLg text-text flex w-full bg-bg-secondary rounded-lg px-3 py-2.5 resize-none border-none outline-none"
+                    className="text-bodyLg text-text flex w-full bg-bg-secondary rounded-lg px-3 py-2 resize-none border-none outline-none"
                   />
                   <div className="flex items-center mt-2 p-2 border-t border-border">
                   <div className="flex gap-1">

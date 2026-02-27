@@ -34,7 +34,8 @@ export type CommentInteraction =
   | { type: 'none' }
   | { type: 'placing'; worldX: number; worldY: number; nodeId?: string; nodeOffsetX?: number; nodeOffsetY?: number }
   | { type: 'hovering'; threadId: string }
-  | { type: 'viewing'; threadId: string };
+  | { type: 'viewing'; threadId: string }
+  | { type: 'dragging'; threadId: string; worldX: number; worldY: number };
 
 /** The comments store interface (mirrors SceneGraphStore pattern) */
 export interface CommentsStoreAPI {

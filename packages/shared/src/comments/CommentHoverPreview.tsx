@@ -17,14 +17,14 @@ export function CommentHoverPreview({ thread, style }: CommentHoverPreviewProps)
       className={`${styles.previewEnter} bg-bg-elevated rounded-lg shadow-300 pointer-events-auto`}
       style={{ width: 240, ...style }}
     >
-      <div className="flex gap-2 p-3">
-        <Avatar size="sm" initial={lastComment.authorInitial} src={lastComment.avatarUrl} alt={lastComment.authorName} />
+      <div className="flex gap-2 p-2.5">
+        <Avatar size="md" initial={lastComment.authorInitial} src={lastComment.avatarUrl} alt={lastComment.authorName} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
-            <span className="text-bodySmStrong text-text truncate">{lastComment.authorName}</span>
-            <span className="text-bodySm text-text-tertiary">{formatRelativeTime(lastComment.createdAt)}</span>
+            <span className="text-bodyMd text-text truncate">{lastComment.authorName}</span>
+            <span className="text-bodyMd text-text-tertiary">{formatRelativeTime(lastComment.createdAt)}</span>
           </div>
-          <p className="text-bodySm text-text mt-0.5 line-clamp-3">{lastComment.body}</p>
+          <p className="text-bodyMd text-text mt-0.5 line-clamp-3">{lastComment.body}</p>
         </div>
       </div>
     </div>

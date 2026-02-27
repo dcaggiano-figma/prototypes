@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ButtonPrimitive, InputPrimitive } from '@figma/fpl-components';
 
 import { useRootNodes, useSceneGraph } from '../scene-graph/provider';
 import { useTextEditing } from '../text-editing/provider';
@@ -687,7 +688,7 @@ function SectionLabel({ node }: { node: SectionNode }) {
   const store = useSceneGraph();
   const selected = isSelected(node.id);
   const [isEditing, setIsEditing] = useState(false);
-  const labelRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLInputElement>(null);
   const fontSize = 13 / state.scale;
   const iconSize = 12 / state.scale;
   const iconPad = 3 / state.scale;
@@ -702,7 +703,7 @@ function SectionLabel({ node }: { node: SectionNode }) {
 
   const commitRename = useCallback(() => {
     if (!labelRef.current) return;
-    const newName = labelRef.current.textContent?.trim() || node.name;
+    const newName = labelRef.current.value.trim() || node.name;
     store.updateNode(node.id, { name: newName });
     setIsEditing(false);
   }, [node.id, node.name, store]);
@@ -710,15 +711,10 @@ function SectionLabel({ node }: { node: SectionNode }) {
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setIsEditing(true);
-    // Select all text after the element becomes contentEditable
     requestAnimationFrame(() => {
       if (!labelRef.current) return;
       labelRef.current.focus();
-      const range = document.createRange();
-      range.selectNodeContents(labelRef.current);
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      sel?.addRange(range);
+      labelRef.current.select();
     });
   }, []);
 
@@ -728,10 +724,9 @@ function SectionLabel({ node }: { node: SectionNode }) {
       commitRename();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      if (labelRef.current) labelRef.current.textContent = node.name;
       setIsEditing(false);
     }
-  }, [commitRename, node.name]);
+  }, [commitRename]);
 
   return (
     <div
@@ -774,25 +769,46 @@ function SectionLabel({ node }: { node: SectionNode }) {
         </svg>
       </div>
       {/* Label container */}
-      <div
-        ref={labelRef}
-        contentEditable={isEditing}
-        suppressContentEditableWarning
-        onDoubleClick={handleDoubleClick}
-        onBlur={isEditing ? commitRename : undefined}
-        onKeyDown={isEditing ? handleKeyDown : undefined}
-        style={{
-          backgroundColor: pillBg,
-          borderRadius: pillRadius,
-          padding: `${pillPadY}px ${pillPadX}px`,
-          cursor: isEditing ? 'text' : CURSORS.default,
-          userSelect: isEditing ? 'text' : 'none',
-          outline: 'none',
-          minWidth: 8 / state.scale,
-        }}
-      >
-        {node.name}
-      </div>
+      {isEditing ? (
+        <InputPrimitive
+          id={`section-rename-${node.id}`}
+          ref={labelRef}
+          defaultValue={node.name}
+          onBlur={commitRename}
+          onKeyDown={handleKeyDown}
+          style={{
+            backgroundColor: pillBg,
+            borderRadius: pillRadius,
+            padding: `${pillPadY}px ${pillPadX}px`,
+            cursor: 'text',
+            outline: 'none',
+            minWidth: 8 / state.scale,
+            border: 'none',
+            font: 'inherit',
+            color: 'inherit',
+            lineHeight: 'inherit',
+          }}
+        />
+      ) : (
+        <ButtonPrimitive
+          onDoubleClick={handleDoubleClick}
+          style={{
+            backgroundColor: pillBg,
+            borderRadius: pillRadius,
+            padding: `${pillPadY}px ${pillPadX}px`,
+            cursor: CURSORS.default,
+            userSelect: 'none',
+            outline: 'none',
+            minWidth: 8 / state.scale,
+            border: 'none',
+            font: 'inherit',
+            color: 'inherit',
+            lineHeight: 'inherit',
+          }}
+        >
+          {node.name}
+        </ButtonPrimitive>
+      )}
     </div>
   );
 }

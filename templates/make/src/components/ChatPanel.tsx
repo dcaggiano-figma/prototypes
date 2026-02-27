@@ -18,21 +18,25 @@ import {
   ToggleTip,
 } from '@figma/fpl-components';
 
-import { ChatMessage, CollapsibleSection, ProgressIndicator } from './ChatMessage';
-import { highlightLine } from './CodeView';
-import { FileCard } from './FileCard';
-import { PromptInput } from './PromptInput';
-import { StreamingContent } from './StreamingContent';
-import { SystemMessage } from './SystemMessage';
-import { TodoList } from './TodoListCard';
-import { VersionCard } from './VersionCard';
 import {
+  ChatMessage,
+  CollapsibleSection,
+  ProgressIndicator,
+  FileCard,
+  PromptPanel,
+  StreamingContent,
+  SystemMessage,
+  TodoList,
+  VersionCard,
   type ChatItem,
   type TransientItem,
   type Task,
-} from '../hooks/useChatScript';
+  type Attachment,
+  type InspectedElement,
+  type PromptSubmission,
+} from '@prototype/shared';
+import { highlightLine } from './CodeView';
 import { useWorkingState } from '../helpers/workingState';
-import type { Attachment, InspectedElement, PromptSubmission } from '../types';
 
 /* ------------------------------------------------------------------ */
 /*  ChatPanelItem – renders a single accumulated chat item              */
@@ -503,8 +507,7 @@ export function ChatPanel({
 
       {/* Bottom prompt input */}
       <div className="p-3">
-        <PromptInput
-          variant="chat"
+        <PromptPanel
           value={promptValue}
           onChange={onPromptChange}
           onSubmit={handleSubmit}

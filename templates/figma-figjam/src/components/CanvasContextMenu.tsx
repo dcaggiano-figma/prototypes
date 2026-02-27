@@ -1,20 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { ButtonPrimitive, Menu } from '@figma/fpl-components';
 import type { MenuItemDef } from './menuTypes';
-import { renderMenuItems } from './menuTypes';
 
-export interface ContextMenuState {
-  x: number;
-  y: number;
-  type: 'node' | 'canvas';
-}
-
-interface CanvasContextMenuProps {
-  state: ContextMenuState;
-  onClose: () => void;
-}
-
-function getNodeMenuItems(onClose: () => void): MenuItemDef[] {
+export function getNodeMenuItems(onClose: () => void): MenuItemDef[] {
   return [
     { type: 'item', id: 'copy', label: 'Copy', shortcut: '⌘C', onClick: onClose },
     { type: 'item', id: 'paste', label: 'Paste', shortcut: '⌘V', onClick: onClose },
@@ -56,7 +42,7 @@ function getNodeMenuItems(onClose: () => void): MenuItemDef[] {
   ];
 }
 
-function getCanvasMenuItems(onClose: () => void): MenuItemDef[] {
+export function getCanvasMenuItems(onClose: () => void): MenuItemDef[] {
   return [
     { type: 'item', id: 'paste', label: 'Paste', shortcut: '⌘V', onClick: onClose },
     { type: 'separator' },
@@ -81,50 +67,3 @@ function getCanvasMenuItems(onClose: () => void): MenuItemDef[] {
   ];
 }
 
-export function CanvasContextMenu({ state, onClose }: CanvasContextMenuProps) {
-  const { getTriggerProps, manager } = Menu.useMenu({
-    onOpenChange: (open) => {
-      if (!open) onClose();
-    },
-  });
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  // Open the menu after the trigger is positioned in the DOM
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      manager.setOpen(true);
-    });
-    return () => cancelAnimationFrame(id);
-  }, [state.x, state.y, manager]);
-
-  const items = state.type === 'node'
-    ? getNodeMenuItems(onClose)
-    : getCanvasMenuItems(onClose);
-
-  return (
-    <div data-preferred-theme="dark">
-      <Menu.Root manager={manager}>
-        <ButtonPrimitive
-          ref={triggerRef}
-          {...getTriggerProps()}
-          style={{
-            position: 'fixed',
-            left: state.x,
-            top: state.y,
-            width: 1,
-            height: 1,
-            opacity: 0,
-            overflow: 'hidden',
-            padding: 0,
-            border: 'none',
-          }}
-        >
-          {'\u200B'}
-        </ButtonPrimitive>
-        <Menu.Container>
-          {renderMenuItems(items)}
-        </Menu.Container>
-      </Menu.Root>
-    </div>
-  );
-}

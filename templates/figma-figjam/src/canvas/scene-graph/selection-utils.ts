@@ -38,6 +38,26 @@ export function pointInRect(px: number, py: number, r: Rect): boolean {
   return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
 }
 
+/** Find the topmost geometry node containing a world-space point (skip sections) */
+export function findNodeAtWorldPoint(
+  store: SceneGraphStore,
+  wx: number,
+  wy: number,
+): string | undefined {
+  const roots = store.getRootNodes();
+  // Iterate in reverse so later (topmost) nodes win
+  for (let i = roots.length - 1; i >= 0; i--) {
+    const node = roots[i];
+    if (!isGeometryNode(node)) continue;
+    if (node.type === 'SECTION') continue;
+    const pos = getWorldPosition(store, node);
+    if (pointInRect(wx, wy, { x: pos.x, y: pos.y, w: node.width, h: node.height })) {
+      return node.id;
+    }
+  }
+  return undefined;
+}
+
 /** Collect IDs of all selected geometry nodes for dragging */
 export function collectDraggableIds(
   store: SceneGraphStore,

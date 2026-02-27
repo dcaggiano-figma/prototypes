@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { IconButton, InputPrimitive, TextareaPrimitive } from '@figma/fpl-components';
-import { Icon24Emoji, Icon24Mention, Icon24Image } from '@figma/fpl-icons';
-import { Avatar } from '../Avatar';
+import { Icon24Emoji, Icon24Mention, Icon24Image, Icon24ArrowUp } from '@figma/fpl-icons';
+import { UserAvatar } from '../user-config';
 import styles from './comments.module.css';
 
 interface CommentPopoverProps {
@@ -78,7 +78,7 @@ export function CommentPopover({ onSubmit, onClose, style }: CommentPopoverProps
     >
       {!expanded ? (
         <div className="flex items-center gap-2 p-2">
-          <Avatar size="md" initial="Y" alt="You" />
+          <UserAvatar size="md" />
           <div className="flex-1">
             <InputPrimitive
               ref={inputRef}
@@ -100,10 +100,9 @@ export function CommentPopover({ onSubmit, onClose, style }: CommentPopoverProps
           </IconButton>
         </div>
       ) : (
-        <div className="p-2">
+        <div className="">
           <div className="flex items-start gap-2">
-            <Avatar size="md" initial="Y" alt="You" />
-            <div className="flex-1">
+            <div className="flex-1 p-2">
               <TextareaPrimitive.Root className="w-full">
                 <TextareaPrimitive
                   ref={textareaRef}
@@ -114,13 +113,13 @@ export function CommentPopover({ onSubmit, onClose, style }: CommentPopoverProps
                   rows={2}
                   expandable
                   maxHeight={120}
-                  className="w-full bg-bg-secondary rounded-md px-2 py-1.5 text-bodyMd text-text resize-none border-none outline-none"
+                  className="w-full px-2 py-1 text-bodyLg text-text resize-none border-none outline-none"
                 />
               </TextareaPrimitive.Root>
             </div>
           </div>
-          <div className="flex items-center mt-2 pl-8">
-            <div className="flex gap-0.5">
+          <div className="flex items-center mt-2 p-2 border-t border-border">
+            <div className="flex gap-1">
               <IconButton aria-label="Emoji">
                 <Icon24Emoji />
               </IconButton>
@@ -134,11 +133,11 @@ export function CommentPopover({ onSubmit, onClose, style }: CommentPopoverProps
             <div className="ml-auto">
               <IconButton
                 aria-label="Send"
-                variant={hasText ? 'primaryCircle' : 'secondary'}
+                variant="primaryCircle"
                 disabled={!hasText}
                 onClick={handleSubmit}
               >
-                <SendIcon />
+                <Icon24ArrowUp />
               </IconButton>
             </div>
           </div>

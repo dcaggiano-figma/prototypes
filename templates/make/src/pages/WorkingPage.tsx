@@ -30,14 +30,13 @@ import {
 } from '@figma/fpl-icons';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
-import { useResizablePanel, Avatar, ResizeHandle } from '@prototype/shared';
+import { useResizablePanel, UserAvatar, ResizeHandle, type Attachment, type InspectedElement } from '@prototype/shared';
 import { ChatPanel } from '../components/ChatPanel';
 import { LoadingView } from '../components/LoadingView';
 import { CodeView } from '../components/CodeView';
 import { PreviewView } from '../components/PreviewView';
 import { PublishWindow } from '../components/PublishModal';
 import { SnapshotWindow } from '../components/SnapshotWindow';
-import type { Attachment, InspectedElement } from '../types';
 
 /* ------------------------------------------------------------------ */
 /*  Working page – standalone page with its own header                  */
@@ -386,7 +385,7 @@ export function WorkingPage() {
 
           {/* Trailing */}
           <div className="flex items-center gap-8px">
-            <Avatar size="md" src="/assets/avatar.jpg" />
+            <UserAvatar size="md" />
             <div className="flex items-center gap-1">
               <Menu.Root manager={settingsMenu.manager}>
                 <IconButton

@@ -1,14 +1,7 @@
 import type { ComponentType } from 'react';
 import { Menu, ButtonGroup, ButtonPrimitive, IconButton } from '@figma/fpl-components';
 import { Icon16ChevronDown } from '@figma/fpl-icons';
-
-export interface SubTool {
-  id: string;
-  label: string;
-  Icon: ComponentType;
-  LargeIcon?: ComponentType;
-  shortcut?: string;
-}
+import type { SubTool } from './types';
 
 interface ToolButtonProps {
   id: string;

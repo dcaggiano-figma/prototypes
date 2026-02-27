@@ -1,6 +1,6 @@
 import { ButtonPrimitive, LoadingSpinner } from '@figma/fpl-components';
 import { Icon16Close } from '@figma/fpl-icons';
-import type { Attachment } from '../types';
+import type { Attachment } from './types';
 
 interface AttachmentThumbnailProps {
   attachment: Attachment;

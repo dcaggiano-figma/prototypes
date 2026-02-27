@@ -1,38 +1,213 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Badge,
   Button,
   CollapsePrimitive,
   Chip,
   IconButton,
-  Menu,
-  TextareaPrimitive,
+  Link,
+  ToggleTip,
 } from '@figma/fpl-components';
 import {
-  Icon16ChevronDown,
   Icon24AiAsisstantLarge,
+  Icon24AiCredit,
   Icon24ChevronDown,
   Icon24Component,
   Icon24Grid,
   Icon24Frame,
   Icon24Comment,
-  Icon24Image,
-  Icon24McpConnector,
-  Icon24Microphone,
-  Icon24Paperclip,
-  Icon24Plus,
-  Icon24Send,
+  Icon24ListView,
   Icon24Styles,
   Icon24Text,
+  Icon24ThumbDown,
+  Icon24ThumbUp,
 } from '@figma/fpl-icons';
 import clsx from 'clsx';
+import {
+  ChatMessage,
+  CollapsibleSection,
+  FileCard,
+  ProgressIndicator,
+  PromptPanel,
+  StreamingContent,
+  SystemMessage,
+  TodoList,
+  VersionCard,
+  useChatScript,
+  type ChatItem,
+  type TransientItem,
+  type Task,
+  type PromptSubmission,
+} from '@prototype/shared';
+import { DEFAULT_SCRIPT } from '../../data/chatScript';
 
-const MODEL_OPTIONS = [
-  { value: 'default', label: 'Default', description: 'Standard setup' },
-  { value: 'claude-opus', label: 'Claude Opus 4.6', description: 'Proactive, thorough' },
-  { value: 'gemini-flash', label: 'Gemini 3 Flash', description: 'Fast, iterative' },
-  { value: 'gemini-pro', label: 'Gemini 3 Pro', description: 'Deep, creative' },
-];
+/* ------------------------------------------------------------------ */
+/*  ChatPanelItem – renders a single accumulated chat item              */
+/* ------------------------------------------------------------------ */
+
+function ChatPanelItem({
+  item,
+  tasks,
+  awaitingUserAction,
+  onStartTasks,
+  onStreamComplete,
+  toggleTipManager,
+}: {
+  item: ChatItem;
+  tasks: Task[];
+  awaitingUserAction: boolean;
+  onStartTasks: () => void;
+  onStreamComplete: () => void;
+  toggleTipManager: ReturnType<typeof ToggleTip.useUncontrolledToggleTip>;
+}) {
+  switch (item.type) {
+    case 'reasoning':
+      return (
+        <CollapsibleSection
+          label="Reasoning"
+          status={item.status}
+          onStreamComplete={onStreamComplete}
+        >
+          <ChatMessage sender="ai">
+            <p>{item.content}</p>
+          </ChatMessage>
+        </CollapsibleSection>
+      );
+
+    case 'ai-message':
+      if (item.streaming) {
+        return (
+          <ChatMessage sender="ai">
+            <StreamingContent
+              content={item.content}
+              status="active"
+              maxHeight={10000}
+              chunkBy="words"
+              speed={20}
+              fade={false}
+              onComplete={onStreamComplete}
+            >
+              {(visible) => <span>{visible}</span>}
+            </StreamingContent>
+          </ChatMessage>
+        );
+      }
+      return (
+        <ChatMessage sender="ai">{item.content}</ChatMessage>
+      );
+
+    case 'todo-list':
+      return (
+        <SystemMessage icon={<Icon24ListView />} label="To do list">
+          <TodoList tasks={tasks} />
+          {awaitingUserAction && (
+            <div className="px-3 pb-3">
+              <Button variant="primary" size="lg" onClick={onStartTasks}>Start tasks</Button>
+            </div>
+          )}
+        </SystemMessage>
+      );
+
+    case 'work-log':
+      return (
+        <CollapsibleSection label={`Worked with ${String(item.files.length)} file${item.files.length !== 1 ? 's' : ''}`}>
+          <ChatMessage sender="ai">
+            <ul className="list-none list-inside space-y-1">
+              {item.files.map((file) => (
+                <li key={file}>
+                  {'Edited '}
+                  <Link href={file}><span className="text-text-secondary hover:text-text hover:underline">{file}</span></Link>
+                </li>
+              ))}
+            </ul>
+          </ChatMessage>
+        </CollapsibleSection>
+      );
+
+    case 'version':
+      return <VersionCard label={item.label} variant="current" />;
+
+    case 'rating':
+      return (
+        <div className="flex items-center gap-1">
+          <IconButton aria-label="Thumbs up" onClick={() => {}}><Icon24ThumbUp className="fill-icon-secondary" /></IconButton>
+          <IconButton aria-label="Thumbs down" onClick={() => {}}><Icon24ThumbDown className="fill-icon-secondary" /></IconButton>
+          {/* eslint-disable-next-line react/jsx-props-no-spreading */}
+          <IconButton aria-label="AI credits" {...toggleTipManager.getTriggerProps()}><Icon24AiCredit className="fill-icon-secondary" /></IconButton>
+          <ToggleTip.Container manager={toggleTipManager}>
+            <ToggleTip.Content>
+              Used 16 AI credits
+            </ToggleTip.Content>
+          </ToggleTip.Container>
+        </div>
+      );
+
+    default:
+      return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  TransientElement – renders the current transient indicator          */
+/* ------------------------------------------------------------------ */
+
+function TransientElement({
+  transient,
+  onStreamComplete,
+}: {
+  transient: TransientItem;
+  onStreamComplete: () => void;
+}) {
+  switch (transient.type) {
+    case 'progress':
+      return <ProgressIndicator label={transient.label} spinner />;
+
+    case 'view-file':
+      return <FileCard variant="viewing" fileName={transient.fileName} />;
+
+    case 'write-file':
+      return (
+        <FileCard variant="writing" fileName={transient.fileName}>
+          <StreamingContent
+            content={transient.code}
+            status="active"
+            maxHeight={128}
+            chunkBy="lines"
+            speed={12}
+            onComplete={onStreamComplete}
+          >
+            {(visible) => {
+              const lines = visible.split('\n');
+              return (
+                <table className="w-full border-collapse font-mono text-bodyMd">
+                  <tbody>
+                    {lines.map((line, i) => (
+                      // eslint-disable-next-line react/no-array-index-key
+                      <tr key={`line-${String(i)}`}>
+                        <td className="select-none text-right px-3 text-text-tertiary w-[1%] whitespace-nowrap align-top">
+                          {i + 1}
+                        </td>
+                        <td className="text-text font-mono pr-16px whitespace-pre">
+                          {line}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              );
+            }}
+          </StreamingContent>
+        </FileCard>
+      );
+
+    default:
+      return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Suggestions data                                                    */
+/* ------------------------------------------------------------------ */
 
 const SUGGESTIONS = [
   {
@@ -49,12 +224,89 @@ const SUGGESTIONS = [
   { id: 'style', icon: Icon24Styles, label: 'Style changes' },
 ] as const;
 
+/* ------------------------------------------------------------------ */
+/*  AiChatPanel                                                         */
+/* ------------------------------------------------------------------ */
+
 export function AiChatPanel() {
   const [openItem, setOpenItem] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('default');
-  const modelMenu = Menu.useMenu();
-  const attachMenu = Menu.useMenu();
+  const [phase, setPhase] = useState<'idle' | 'active'>('idle');
+  const [submittedPrompt, setSubmittedPrompt] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const script = useChatScript(DEFAULT_SCRIPT, phase === 'active');
+  const toggleTipManager = ToggleTip.useUncontrolledToggleTip({ placement: 'top' });
+
+  /* Auto-scroll when new items arrive */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [script.items, script.transient]);
+
+  const handleSubmit = (submission: PromptSubmission) => {
+    if (!submission.text.trim()) return;
+    setSubmittedPrompt(submission.text);
+    setPrompt('');
+    setPhase('active');
+  };
+
+  if (phase === 'active') {
+    return (
+      <>
+        {/* Header */}
+        <div className="flex items-center px-3 py-12px border-b border-border justify-between">
+          <span className="text-bodyLgStrong text-text">New chat</span>
+          <Badge variant="defaultOutline">AI</Badge>
+        </div>
+
+        {/* Scrollable conversation */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 text-bodyLg text-text">
+          <div className="flex flex-col gap-3 py-3">
+            {/* User message */}
+            <ChatMessage sender="user">{submittedPrompt}</ChatMessage>
+
+            {/* Script items */}
+            {script.items.map((item) => (
+              <ChatPanelItem
+                key={item.id}
+                item={item}
+                tasks={script.tasks}
+                awaitingUserAction={script.awaitingUserAction}
+                onStartTasks={script.onStartTasks}
+                onStreamComplete={script.onStreamComplete}
+                toggleTipManager={toggleTipManager}
+              />
+            ))}
+
+            {/* Transient element */}
+            {script.transient && (
+              <TransientElement
+                transient={script.transient}
+                onStreamComplete={script.onStreamComplete}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Bottom prompt input */}
+        <div className="p-3">
+          <PromptPanel
+            value={prompt}
+            onChange={setPrompt}
+            onSubmit={handleSubmit}
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+            isWorking={script.isWorking}
+            placeholder="Ask anything..."
+          />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -123,92 +375,14 @@ export function AiChatPanel() {
 
       {/* Prompt input */}
       <div className="p-3">
-        <div className="flex flex-col border border-bordertranslucent hover:border-bordertranslucentstrong focus-within:border-bordertranslucentstrong focus-within:shadow-100 rounded-lg overflow-hidden">
-          <TextareaPrimitive.Root className="flex w-full">
-            <TextareaPrimitive
-              aria-label="Ask AI"
-              value={prompt}
-              onChange={setPrompt}
-              placeholder="Ask anything..."
-              rows={3}
-              expandable
-              maxHeight={200}
-              className="flex-1 border-none outline-none text-bodyLg text-text px-3 py-12px resize-none bg-bg"
-            />
-          </TextareaPrimitive.Root>
-          <div className="flex items-center justify-between p-2">
-            <div className="flex items-center gap-4px">
-              <Menu.Root manager={attachMenu.manager}>
-                <IconButton
-                  aria-label="Attach"
-                  variant="ghost"
-                  {...attachMenu.getTriggerProps()}
-                >
-                  <Icon24Plus />
-                </IconButton>
-                <Menu.Container>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => {}}>
-                      <Menu.ItemLead><Icon24Paperclip /></Menu.ItemLead>
-                      Add images & files
-                    </Menu.Item>
-                    <Menu.Item onClick={() => {}}>
-                      <Menu.ItemLead><Icon24Component /></Menu.ItemLead>
-                      Attach a design
-                    </Menu.Item>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => {}}>
-                      <Menu.ItemLead><Icon24McpConnector /></Menu.ItemLead>
-                      Connectors
-                    </Menu.Item>
-                  </Menu.Group>
-                </Menu.Container>
-              </Menu.Root>
-              <IconButton aria-label="Layout" variant="ghost">
-                <Icon24Image />
-              </IconButton>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <Menu.Root manager={modelMenu.manager}>
-                  <Button
-                    aria-label="Select model"
-                    variant="ghost"
-                    {...modelMenu.getTriggerProps()}
-                  >
-                    <span className="flex items-center gap-4px">
-                      <span className="max-w-[80px] truncate">{MODEL_OPTIONS.find((m) => m.value === selectedModel)?.label ?? 'Default'}</span>
-                      <span className="flex-shrink w-12px"><Icon16ChevronDown /></span>
-                    </span>
-                  </Button>
-                  <Menu.Container>
-                    <Menu.RadioGroup
-                      title={<Menu.Title>Select model</Menu.Title>}
-                      value={selectedModel}
-                      onChange={(v) => setSelectedModel(v as string)}
-                    >
-                      {MODEL_OPTIONS.map((model) => (
-                        <Menu.RadioGroupItem key={model.value} value={model.value}>
-                          <span>
-                            {model.label}
-                            <Menu.SubText>{model.description}</Menu.SubText>
-                          </span>
-                        </Menu.RadioGroupItem>
-                      ))}
-                    </Menu.RadioGroup>
-                  </Menu.Container>
-                </Menu.Root>
-                <IconButton aria-label="Voice" variant="ghost">
-                  <Icon24Microphone />
-                </IconButton>
-              </div>
-              <IconButton aria-label="Send" variant="primaryCircle" disabled={!prompt.trim()}>
-                <Icon24Send />
-              </IconButton>
-            </div>
-          </div>
-        </div>
+        <PromptPanel
+          value={prompt}
+          onChange={setPrompt}
+          onSubmit={handleSubmit}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          placeholder="Ask anything..."
+        />
       </div>
     </>
   );

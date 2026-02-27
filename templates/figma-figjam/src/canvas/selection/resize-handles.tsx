@@ -478,12 +478,20 @@ export function ResizeHandles() {
       newH = Math.max(newW, newH); // Minimum square
     }
 
-    store.updateNode(drag.nodeId, {
+    const updates: Partial<GeometryNode> & Record<string, unknown> = {
       x: newX,
       y: newY,
       width: newW,
       height: newH,
-    });
+    };
+
+    // When a TEXT node is manually resized, switch from WIDTH_AND_HEIGHT to HEIGHT
+    // so the width stays fixed and only height auto-grows to fit content.
+    if (node?.type === 'TEXT') {
+      updates.textAutoResize = 'HEIGHT';
+    }
+
+    store.updateNode(drag.nodeId, updates);
 
     forceUpdate((n) => n + 1);
   }

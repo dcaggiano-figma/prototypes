@@ -11,7 +11,7 @@ export interface FileCardProps {
   fileName: string;
   /** Whether to show the loading spinner (default: true) */
   loading?: boolean;
-  /** Optional content slot rendered below the header — typically streaming code content */
+  /** Optional content slot rendered below the header - typically streaming code content */
   children?: ReactNode;
 }
 

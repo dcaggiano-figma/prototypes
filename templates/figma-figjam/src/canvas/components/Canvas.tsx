@@ -11,15 +11,13 @@ import { useActiveTool } from '../tools/provider';
 import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
-import { CommentPinLayer, useComments } from '@prototype/shared';
+import { CommentPinLayer, useComments, useUserConfig } from '@prototype/shared';
 import { useTextEditing } from '../text-editing/provider';
 import { CanvasRenderer } from './canvas-renderer';
 import type { Point } from '../tools/path-smoothing';
 import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from '../tools/path-smoothing';
 import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
-import { collectDraggableIds, getSelectionBBox, pointInRect } from '../scene-graph/selection-utils';
-import type { ContextMenuState } from '../../components/CanvasContextMenu';
-
+import { collectDraggableIds, findNodeAtWorldPoint, getSelectionBBox, pointInRect } from '../scene-graph/selection-utils';
 /** Shape tools that support click-drag-to-create */
 const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
 
@@ -53,7 +51,7 @@ const PEN_MIN_DISTANCE = 2;
 const PEN_RDP_EPSILON = 2.0;
 
 interface CanvasProps {
-  onOpenContextMenu?: (state: ContextMenuState) => void;
+  onOpenContextMenu?: (type: 'node' | 'canvas', x: number, y: number) => void;
 }
 
 export function Canvas({ onOpenContextMenu }: CanvasProps) {
@@ -65,6 +63,17 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   const { effectiveTool, setActiveTool, stickyColor, sectionFillColor, shapeColor, markerColor, highlighterColor, markerSubType } = useActiveTool();
   const textEditing = useTextEditing();
   const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
+  const { config: userConfig } = useUserConfig();
+
+  /** Resolve the world position of a node by ID (for comment node-attachment) */
+  const getNodePosition = useCallback(
+    (nodeId: string): { x: number; y: number } | undefined => {
+      const node = store.getNode(nodeId);
+      if (!node || !isGeometryNode(node)) return undefined;
+      return getWorldPosition(store, node);
+    },
+    [store],
+  );
 
   /** Screen-space mouse position for sticky note ghost preview */
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
@@ -138,6 +147,17 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       }
     }
   }, [effectiveTool]);
+
+  // Register tool shortcuts
+  useAction('tool.move', useCallback(() => setActiveTool('MOVE'), [setActiveTool]));
+  useAction('tool.frame', useCallback(() => setActiveTool('FRAME'), [setActiveTool]));
+  useAction('tool.rectangle', useCallback(() => setActiveTool('RECTANGLE'), [setActiveTool]));
+  useAction('tool.ellipse', useCallback(() => setActiveTool('ELLIPSE'), [setActiveTool]));
+  useAction('tool.text', useCallback(() => setActiveTool('TEXT'), [setActiveTool]));
+  useAction('tool.pen', useCallback(() => setActiveTool('PEN'), [setActiveTool]));
+  useAction('tool.hand', useCallback(() => setActiveTool('HAND'), [setActiveTool]));
+  useAction('tool.comment', useCallback(() => setActiveTool('COMMENT'), [setActiveTool]));
+  useAction('tool.line', useCallback(() => setActiveTool('LINE'), [setActiveTool]));
 
   // Register selection actions
   useAction(
@@ -274,10 +294,10 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         if (!selection.isSelected(hitId)) {
           selection.select(hitId);
         }
-        onOpenContextMenu?.({ x: e.clientX, y: e.clientY, type: 'node' });
+        onOpenContextMenu?.('node', e.clientX, e.clientY);
       } else {
         selection.clear();
-        onOpenContextMenu?.({ x: e.clientX, y: e.clientY, type: 'canvas' });
+        onOpenContextMenu?.('canvas', e.clientX, e.clientY);
       }
     },
     [selection, onOpenContextMenu],
@@ -285,6 +305,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
+      // Only handle left-click (button 0) — right-clicks use the context menu
+      if (e.button !== 0) return;
+
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
 
@@ -305,16 +328,15 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
         if (hitId) {
           const node = store.getNode(hitId);
-          if (node && 'x' in node) {
-            const nodeX = (node as { x: number }).x;
-            const nodeY = (node as { y: number }).y;
+          if (node && isGeometryNode(node)) {
+            const nodeWorldPos = getWorldPosition(store, node);
             setInteraction({
               type: 'placing',
               worldX: world.x,
               worldY: world.y,
               nodeId: hitId,
-              nodeOffsetX: world.x - nodeX,
-              nodeOffsetY: world.y - nodeY,
+              nodeOffsetX: world.x - nodeWorldPos.x,
+              nodeOffsetY: world.y - nodeWorldPos.y,
             });
           }
         } else {
@@ -351,6 +373,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           width: STICKY_DEFAULT_SIZE,
           height: STICKY_DEFAULT_SIZE,
           fills: [{ type: 'SOLID', color: stickyColor, opacity: 1, visible: true }],
+          authorName: userConfig.name,
         });
         selection.select(node.id);
         textEditing.startEditing(node.id);
@@ -499,7 +522,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       }
     },
-    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, stickyColor, sectionFillColor, markerColor, highlighterColor, markerSubType, interaction, setInteraction],
+    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, stickyColor, sectionFillColor, markerColor, highlighterColor, markerSubType, interaction, setInteraction, userConfig],
   );
 
   const onPointerMove = useCallback(
@@ -860,6 +883,54 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     [selection, effectiveTool, store, setActiveTool, textEditing],
   );
 
+  // ── Comment pin drag handlers ──────────────────────────────────────────
+
+  const handleCommentDragStart = useCallback(
+    (threadId: string) => {
+      // Close any open thread/popover
+      setSelectedThreadId(null);
+      setInteraction({ type: 'dragging', threadId, worldX: 0, worldY: 0 });
+    },
+    [setSelectedThreadId, setInteraction],
+  );
+
+  const handleCommentDragMove = useCallback(
+    (threadId: string, worldX: number, worldY: number) => {
+      setInteraction({ type: 'dragging', threadId, worldX, worldY });
+    },
+    [setInteraction],
+  );
+
+  const handleCommentDragEnd = useCallback(
+    (threadId: string, worldX: number, worldY: number) => {
+      const hitNodeId = findNodeAtWorldPoint(store, worldX, worldY);
+      if (hitNodeId) {
+        const node = store.getNode(hitNodeId);
+        if (node && isGeometryNode(node)) {
+          const nodeWorldPos = getWorldPosition(store, node);
+          commentsStore.updateAnchor(threadId, {
+            worldX,
+            worldY,
+            nodeId: hitNodeId,
+            nodeOffsetX: worldX - nodeWorldPos.x,
+            nodeOffsetY: worldY - nodeWorldPos.y,
+          });
+        }
+      } else {
+        // Dropped on empty canvas — detach from any node
+        commentsStore.updateAnchor(threadId, {
+          worldX,
+          worldY,
+          nodeId: undefined,
+          nodeOffsetX: undefined,
+          nodeOffsetY: undefined,
+        });
+      }
+      setInteraction({ type: 'none' });
+    },
+    [store, commentsStore, setInteraction],
+  );
+
   // Cursor style based on active tool
   const cursorStyle = (() => {
     switch (effectiveTool) {
@@ -874,7 +945,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       case 'POLYGON':
       case 'STAR': return CURSORS.crosshair;
       case 'STICKY_NOTE': return CURSORS.default;
-      case 'COMMENT': return CURSORS.comment;
+      case 'COMMENT': return CURSORS.commentNext;
       default: return CURSORS.default;
     }
   })();
@@ -949,12 +1020,13 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           interaction={interaction}
           selectedThreadId={selectedThreadId}
           zoom={scale}
+          getNodePosition={getNodePosition}
           onPinClick={(threadId) => {
             setSelectedThreadId(threadId);
             setInteraction({ type: 'viewing', threadId });
           }}
           onPinHoverStart={(threadId) => {
-            if (interaction.type !== 'viewing') {
+            if (interaction.type !== 'viewing' && interaction.type !== 'dragging') {
               setInteraction({ type: 'hovering', threadId });
             }
           }}
@@ -963,6 +1035,13 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
               setInteraction({ type: 'none' });
             }
           }}
+          onDragStart={handleCommentDragStart}
+          onDragMove={handleCommentDragMove}
+          onDragEnd={handleCommentDragEnd}
+          screenToWorld={screenToWorld}
+          containerRef={containerRef}
+          nodeStoreSubscribe={store.subscribe}
+          nodeStoreGetSnapshot={store.getSnapshot}
         />
       </div>
       {showPixelGrid && <div style={pixelGridStyle} />}

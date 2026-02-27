@@ -5,9 +5,15 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useChatScript, type ChatItem, type Task } from '../hooks/useChatScript';
+import {
+  useChatScript,
+  type ChatItem,
+  type Task,
+  type Attachment,
+  type InspectedElement,
+  type PromptSubmission,
+} from '@prototype/shared';
 import { DEFAULT_SCRIPT } from '../data/chatScript';
-import type { Attachment, InspectedElement, PromptSubmission } from '../types';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

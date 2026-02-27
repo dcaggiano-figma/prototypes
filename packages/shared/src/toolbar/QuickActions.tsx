@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useEffect } from 'react';
+import { useState, useLayoutEffect, useEffect, useMemo } from 'react';
 import {
   AutocompletePrimitive,
   Badge,
@@ -10,126 +10,8 @@ import {
   PopoverPrimitive,
   Tabs,
 } from '@figma/fpl-components';
-import {
-  Icon24ActionsLarge,
-  Icon24AiEdit,
-  Icon24Check,
-  Icon24Checklist,
-  Icon24ExtendImage,
-  Icon24FirstDraft,
-  Icon24ImageToDesign,
-  Icon24Instance,
-  Icon24Interactive,
-  Icon24Pencil,
-  Icon24ReadyForDev,
-  Icon24RemoveBackground,
-  Icon24Rename,
-  Icon24ReplaceContent,
-  Icon24Rewrite,
-  Icon24Settings,
-  Icon24Shorten,
-  Icon24Translate,
-  Icon24VisualSearch,
-  Icon24Wand,
-} from '@figma/fpl-icons';
-import type { ComponentType } from 'react';
-
-
-// ---------------------------------------------------------------------------
-// Data types
-// ---------------------------------------------------------------------------
-
-interface ActionItem {
-  id: string;
-  icon?: ComponentType;
-  label: string;
-  onClick?: () => void;
-  badge?: string;
-  checkbox?: boolean;
-  defaultChecked?: boolean;
-}
-
-interface ActionSection {
-  title: string;
-  items: ActionItem[];
-}
-
-interface TabConfig {
-  key: string;
-  label: string;
-  sections: ActionSection[];
-  emptyMessage?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Tab data
-// ---------------------------------------------------------------------------
-
-const TABS: TabConfig[] = [
-  {
-    key: 'all',
-    label: 'All',
-    sections: [
-      {
-        title: 'Recents',
-        items: [
-          { id: 'preferences', icon: Icon24Settings, label: 'Preferences' },
-          { id: 'mark-ready', icon: Icon24Check, label: 'Mark as ready' },
-          { id: 'image-to-design', icon: Icon24ImageToDesign, label: 'Image to design' },
-        ],
-      },
-      {
-        title: 'Suggestions',
-        items: [
-          { id: 'rename', icon: Icon24Pencil, label: 'Rename selection' },
-          { id: 'ai-assistant', icon: Icon24Wand, label: 'AI assistant', badge: 'New' },
-          { id: 'create-component', icon: Icon24Instance, label: 'Create component' },
-          { id: 'checklist', icon: Icon24Checklist, label: 'Design review checklist' },
-          { id: 'mcp-toggle', label: 'Enable desktop MCP server', checkbox: true, defaultChecked: true },
-        ],
-      },
-      {
-        title: 'Image editing',
-        items: [
-          { id: 'remove-background', icon: Icon24RemoveBackground, label: 'Remove background', badge: 'AI' },
-          { id: 'boost-resolution', icon: Icon24ExtendImage, label: 'Boost resolution' },
-          { id: 'edit-image-prompt', icon: Icon24AiEdit, label: 'Edit image with prompt' },
-        ],
-      },
-      {
-        title: 'Design tools',
-        items: [
-          { id: 'rename-layers', icon: Icon24Rename, label: 'Rename layers' },
-          { id: 'replace-content', icon: Icon24ReplaceContent, label: 'Replace content' },
-          { id: 'search-image-selection', icon: Icon24VisualSearch, label: 'Search with image or selection' },
-          { id: 'first-draft', icon: Icon24FirstDraft, label: 'First Draft' },
-          { id: 'add-interactions', icon: Icon24Interactive, label: 'Add interactions' },
-          { id: 'check-designs', icon: Icon24ReadyForDev, label: 'Check designs', badge: 'New' },
-        ],
-      },
-      {
-        title: 'Riffing and writing',
-        items: [
-          { id: 'rewrite', icon: Icon24Rewrite, label: 'Rewrite this...' },
-          { id: 'shorten', icon: Icon24Shorten, label: 'Shorten' },
-          { id: 'translate', icon: Icon24Translate, label: 'Translate to...' },
-        ],
-      },
-    ],
-  },
-  {
-    key: 'assets',
-    label: 'Assets',
-    sections: [],
-    emptyMessage: 'No recent assets',
-  },
-  {
-    key: 'plugins',
-    label: 'Plugins & widgets',
-    sections: [],
-    emptyMessage: 'No plugins installed',
-  },
-];
+import { Icon24ActionsLarge } from '@figma/fpl-icons';
+import type { TabConfig, ActionSection } from './types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -179,22 +61,37 @@ function getInitialCheckedState(tabs: TabConfig[]): Record<string, boolean> {
 // QuickActions component
 // ---------------------------------------------------------------------------
 
-const CHECKBOX_IDS = getCheckboxIds(TABS);
-const INITIAL_CHECKED = getInitialCheckedState(TABS);
-
-type QuickActionsTab = 'all' | 'assets' | 'plugins';
-
 interface QuickActionsProps {
+  tabs: TabConfig[];
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  isActive: boolean;
-  triggerWidth: number;
   toolbarRef: React.RefObject<HTMLDivElement | null>;
+  /** Explicit popover width. When omitted, measures from toolbarRef. */
+  width?: number;
+  /** Controls trigger button variant. When omitted, uses isOpen. */
+  isActive?: boolean;
+  /** Optional callback when an action is selected. */
+  onAction?: (id: string) => void;
 }
 
-export function QuickActions({ isOpen, onOpenChange, isActive, triggerWidth, toolbarRef }: QuickActionsProps) {
+export function QuickActions({
+  tabs,
+  isOpen,
+  onOpenChange,
+  toolbarRef,
+  width,
+  isActive,
+  onAction,
+}: QuickActionsProps) {
   const [search, setSearch] = useState('');
-  const [checkedState, setCheckedState] = useState(INITIAL_CHECKED);
+
+  const checkboxIds = useMemo(() => getCheckboxIds(tabs), [tabs]);
+  const initialChecked = useMemo(() => getInitialCheckedState(tabs), [tabs]);
+  const [checkedState, setCheckedState] = useState(initialChecked);
+
+  // If no explicit width, measure from the toolbar ref
+  const [measuredWidth, setMeasuredWidth] = useState(400);
+
   // --- Popover (positioning only) ---
   const { getTriggerProps, getContainerProps, context } = PopoverPrimitive.usePopover({
     isOpen,
@@ -208,18 +105,23 @@ export function QuickActions({ isOpen, onOpenChange, isActive, triggerWidth, too
   useLayoutEffect(() => {
     if (toolbarRef.current) {
       context.refs.setPositionReference(toolbarRef.current);
+      if (width == null) {
+        setMeasuredWidth(toolbarRef.current.offsetWidth);
+      }
     }
-  }, [context.refs, toolbarRef]);
+  }, [context.refs, toolbarRef, width]);
+
+  const popoverWidth = width ?? measuredWidth;
 
   // --- Tabs ---
-  const tabKeys = Object.fromEntries(TABS.map((t) => [t.key, true])) as Record<QuickActionsTab, true>;
-  const [tabPropsMap, tabPanelPropsMap, tabManager] = Tabs.useTabs<QuickActionsTab>(tabKeys, {
-    defaultActive: 'all',
+  const tabKeys = Object.fromEntries(tabs.map((t) => [t.key, true])) as Record<string, true>;
+  const [tabPropsMap, tabPanelPropsMap, tabManager] = Tabs.useTabs<string>(tabKeys, {
+    defaultActive: tabs[0]?.key ?? 'all',
   });
 
   // --- Autocomplete ---
   const handleAction = (id: string) => {
-    console.log(id);
+    onAction?.(id);
   };
 
   const autocomplete = AutocompletePrimitive.useAutocomplete({
@@ -228,7 +130,7 @@ export function QuickActions({ isOpen, onOpenChange, isActive, triggerWidth, too
     expandOnFocus: false,
     onSelect(value) {
       if (value) {
-        if (CHECKBOX_IDS.has(value)) {
+        if (checkboxIds.has(value)) {
           setCheckedState((prev) => ({ ...prev, [value]: !prev[value] }));
         } else {
           handleAction(value);
@@ -245,10 +147,9 @@ export function QuickActions({ isOpen, onOpenChange, isActive, triggerWidth, too
     }
   }, [isOpen]);
 
-  // --- Render helpers (closures over autocomplete & search) ---
+  // --- Render helpers ---
 
   function renderTabContent(tab: TabConfig) {
-    // Empty tab (assets, plugins)
     if (tab.sections.length === 0) {
       return (
         <div className="flex flex-col py-3 px-3">
@@ -295,6 +196,7 @@ export function QuickActions({ isOpen, onOpenChange, isActive, triggerWidth, too
     );
   }
 
+  const triggerActive = isActive ?? isOpen;
   const containerProps = getContainerProps();
 
   return (
@@ -303,7 +205,7 @@ export function QuickActions({ isOpen, onOpenChange, isActive, triggerWidth, too
         {...getTriggerProps()}
         size="lg"
         aria-label="Actions"
-        variant={isActive ? 'primary' : 'ghost'}
+        variant={triggerActive ? 'primary' : 'ghost'}
       >
         <Icon24ActionsLarge />
       </IconButton>
@@ -316,7 +218,7 @@ export function QuickActions({ isOpen, onOpenChange, isActive, triggerWidth, too
         }}
       >
         <Popover.Contents>
-          <div className="h-[360px] flex flex-col overflow-hidden" style={{ width: triggerWidth }}>
+          <div className="h-[360px] flex flex-col overflow-hidden" style={{ width: popoverWidth }}>
             {/* Search */}
             <div className="px-8px pt-8px">
               <SearchInput
@@ -333,8 +235,8 @@ export function QuickActions({ isOpen, onOpenChange, isActive, triggerWidth, too
             {/* Tabs */}
             <div className="p-2 border-b border-border">
               <Tabs.TabStrip manager={tabManager}>
-                {TABS.map((tab) => (
-                  <Tabs.Tab key={tab.key} {...tabPropsMap[tab.key as QuickActionsTab]}>
+                {tabs.map((tab) => (
+                  <Tabs.Tab key={tab.key} {...tabPropsMap[tab.key]}>
                     {tab.label}
                   </Tabs.Tab>
                 ))}
@@ -343,8 +245,8 @@ export function QuickActions({ isOpen, onOpenChange, isActive, triggerWidth, too
 
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto pb-2">
-              {TABS.map((tab) => (
-                <Tabs.TabPanel key={tab.key} {...tabPanelPropsMap[tab.key as QuickActionsTab]}>
+              {tabs.map((tab) => (
+                <Tabs.TabPanel key={tab.key} {...tabPanelPropsMap[tab.key]}>
                   {renderTabContent(tab)}
                 </Tabs.TabPanel>
               ))}

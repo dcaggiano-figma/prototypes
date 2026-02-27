@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useUserConfig } from '../user-config';
 import { CommentPopover } from './CommentPopover';
 import { CommentHoverPreview } from './CommentHoverPreview';
 import { CommentThreadWindow } from './CommentThreadWindow';
@@ -27,6 +28,8 @@ export function CommentOverlay({
   worldToScreen,
   getNodePosition,
 }: CommentOverlayProps) {
+  const { config, initial } = useUserConfig();
+
   const handleCreateSubmit = useCallback((body: string) => {
     if (interaction.type !== 'placing') return;
     const anchor = {
@@ -37,14 +40,15 @@ export function CommentOverlay({
       nodeOffsetY: interaction.nodeOffsetY,
     };
     const thread = store.createThread(anchor, {
-      authorName: 'You',
-      authorInitial: 'Y',
+      authorName: config.name,
+      authorInitial: initial,
+      avatarUrl: config.avatarUrl,
       body,
       createdAt: Date.now(),
     });
     setSelectedThreadId(thread.id);
     setInteraction({ type: 'viewing', threadId: thread.id });
-  }, [interaction, store, setSelectedThreadId, setInteraction]);
+  }, [interaction, store, setSelectedThreadId, setInteraction, config, initial]);
 
   const handleCreateClose = useCallback(() => {
     setInteraction({ type: 'none' });
@@ -66,7 +70,7 @@ export function CommentOverlay({
                 top: screen.y - 32,
               }}
             >
-              <CommentPin authorInitial="Y" empty selected />
+              <CommentPin authorInitial={initial} empty selected />
             </div>
             <div
               className="absolute"
@@ -95,7 +99,7 @@ export function CommentOverlay({
             className="absolute"
             style={{
               left: screen.x + 48,
-              top: screen.y - 20,
+              top: screen.y - 32,
             }}
           >
             <CommentHoverPreview thread={thread} />
@@ -107,38 +111,45 @@ export function CommentOverlay({
       {selectedThread && interaction.type === 'viewing' && (() => {
         const pos = resolveCommentPosition(selectedThread.anchor, getNodePosition);
         const screen = worldToScreen(pos.worldX, pos.worldY);
+        const closeThread = () => {
+          setSelectedThreadId(null);
+          setInteraction({ type: 'none' });
+        };
         return (
-          <div
-            className="pointer-events-auto absolute"
-            style={{
-              left: screen.x + 48,
-              top: Math.max(8, screen.y - 32),
-            }}
-          >
-            <CommentThreadWindow
-              key={selectedThread.id}
-              thread={selectedThread}
-              onClose={() => {
-                setSelectedThreadId(null);
-                setInteraction({ type: 'none' });
-              }}
-              onResolve={() => {
-                if (selectedThread.resolved) {
-                  store.unresolveThread(selectedThread.id);
-                } else {
-                  store.resolveThread(selectedThread.id);
-                }
-              }}
-              onReply={(body) => {
-                store.addComment(selectedThread.id, {
-                  authorName: 'You',
-                  authorInitial: 'Y',
-                  body,
-                  createdAt: Date.now(),
-                });
-              }}
+          <>
+            {/* Click-outside backdrop */}
+            <div
+              className="fixed inset-0 pointer-events-auto"
+              onPointerDown={closeThread}
             />
-          </div>
+            <div
+              className="pointer-events-auto absolute"
+              style={{
+                left: screen.x + 48,
+                top: Math.max(8, screen.y - 32),
+              }}
+            >
+              <CommentThreadWindow
+                key={selectedThread.id}
+                thread={selectedThread}
+                onClose={closeThread}
+                onResolve={() => {
+                  store.deleteThread(selectedThread.id);
+                  setSelectedThreadId(null);
+                  setInteraction({ type: 'none' });
+                }}
+                onReply={(body) => {
+                  store.addComment(selectedThread.id, {
+                    authorName: config.name,
+                    authorInitial: initial,
+                    avatarUrl: config.avatarUrl,
+                    body,
+                    createdAt: Date.now(),
+                  });
+                }}
+              />
+            </div>
+          </>
         );
       })()}
     </div>

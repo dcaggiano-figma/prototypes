@@ -6,22 +6,24 @@ import {
   ToolProvider,
   ViewportProvider,
 } from './canvas';
-import { CommentsProvider } from '@prototype/shared';
+import { CommentsProvider, UserConfigProvider } from '@prototype/shared';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SceneGraphProvider>
-      <ViewportProvider>
-        <SelectionProvider>
-          <TextEditingProvider>
-            <ToolProvider>
-              <CommentsProvider>
-                <ActionProvider>{children}</ActionProvider>
-              </CommentsProvider>
-            </ToolProvider>
-          </TextEditingProvider>
-        </SelectionProvider>
-      </ViewportProvider>
-    </SceneGraphProvider>
+    <UserConfigProvider config={{ name: 'Josh Ferrell' }}>
+      <SceneGraphProvider>
+        <ViewportProvider>
+          <SelectionProvider>
+            <TextEditingProvider>
+              <ToolProvider>
+                <CommentsProvider>
+                  <ActionProvider>{children}</ActionProvider>
+                </CommentsProvider>
+              </ToolProvider>
+            </TextEditingProvider>
+          </SelectionProvider>
+        </ViewportProvider>
+      </SceneGraphProvider>
+    </UserConfigProvider>
   );
 }

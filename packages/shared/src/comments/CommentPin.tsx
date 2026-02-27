@@ -6,6 +6,7 @@ interface CommentPinProps {
   authorInitial: string;
   avatarUrl?: string;
   selected?: boolean;
+  hovered?: boolean;
   resolved?: boolean;
   empty?: boolean;
   onClick?: (e: React.MouseEvent) => void;
@@ -17,6 +18,7 @@ export function CommentPin({
   authorInitial,
   avatarUrl,
   selected = false,
+  hovered = false,
   resolved = false,
   empty = false,
   onClick,
@@ -24,10 +26,12 @@ export function CommentPin({
   onMouseLeave,
 }: CommentPinProps) {
   const borderColor = selected
-    ? 'var(--color-border-brand)'
-    : resolved
-      ? 'var(--color-border-success)'
-      : 'var(--color-border)';
+    ? 'var(--color-border-selected-strong)'
+    : hovered
+      ? 'var(--color-border-brand)'
+      : resolved
+        ? 'var(--color-border-transparent)'
+        : 'var(--color-border-transparent)';
 
   return (
     <div
@@ -37,12 +41,12 @@ export function CommentPin({
       onMouseLeave={onMouseLeave}
     >
       <div
-        className="flex items-center justify-center bg-bg"
+        className="flex items-center justify-center bg-bg shadow-100"
         style={{
           width: 32,
           height: 32,
           borderRadius: '999px 999px 999px 0',
-          border: `${selected ? 2.5 : 1.5}px solid ${borderColor}`,
+          outline: `${selected || hovered ? 2 : 1}px solid ${borderColor}`,
         }}
       >
         {!empty && (

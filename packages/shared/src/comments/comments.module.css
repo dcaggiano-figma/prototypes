@@ -46,6 +46,7 @@
 /* Pin hover scale */
 .pinHover {
   transition: transform 100ms ease-out;
+  transform-origin: bottom left;
 }
 
 .pinHover:hover {

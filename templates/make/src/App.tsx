@@ -31,12 +31,11 @@ import {
   Icon24Adjust,
 } from '@figma/fpl-icons';
 import { ThemeProvider } from '@figma/fpl-tokens';
+import { PromptLanding, UserConfigProvider, type PromptSubmission } from '@prototype/shared';
 import { AppThemeProvider, useTheme, type ThemeSetting } from './helpers/theme';
 import { WorkingStateProvider, useWorkingState } from './helpers/workingState';
-import { PromptInput } from './components/PromptInput';
 import { WorkingPage } from './pages/WorkingPage';
 import { SettingsPage } from './pages/SettingsPage';
-import type { PromptSubmission } from './types';
 
 /* ------------------------------------------------------------------ */
 /*  Card data                                                          */
@@ -368,8 +367,7 @@ function HomePage() {
       <div className="w-full max-w-[800px] flex flex-col gap-5 items-center">
         <div className="flex flex-col gap-5 py-5 items-center w-full max-w-[680px]">
           <h1 className="text-headingLg text-text text-center">What do you want to make?</h1>
-          <PromptInput
-            variant="home"
+          <PromptLanding
             value={promptValue}
             onChange={setPromptValue}
             onSubmit={handlePromptSubmit}
@@ -424,15 +422,17 @@ function App() {
     <ThemeProvider initialVersion="ui3">
       <AppThemeProvider initial="light">
         <HashRouter>
-          <WorkingStateProvider>
-            <Routes>
+          <UserConfigProvider config={{ name: 'Josh Ferrell' }}>
+            <WorkingStateProvider>
+              <Routes>
               <Route element={<HomeLayout />}>
                 <Route index element={<HomePage />} />
               </Route>
               <Route path="working" element={<WorkingPage />} />
               <Route path="settings" element={<SettingsPage />} />
-            </Routes>
-          </WorkingStateProvider>
+              </Routes>
+            </WorkingStateProvider>
+          </UserConfigProvider>
         </HashRouter>
       </AppThemeProvider>
     </ThemeProvider>

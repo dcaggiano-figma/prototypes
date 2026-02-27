@@ -1,23 +1,10 @@
-import { type ReactNode } from 'react';
 import clsx from 'clsx';
 import { LoadingSpinner } from '@figma/fpl-components';
 import { Icon24CheckLarge, Icon24Ellipse } from '@figma/fpl-icons';
+import type { Task, TaskStatus } from './types';
 
 /* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-export type TaskStatus = 'pending' | 'in_progress' | 'complete';
-
-export interface Task {
-  label: string;
-  status: TaskStatus;
-  /** Optional content rendered below the task label */
-  children?: ReactNode;
-}
-
-/* ------------------------------------------------------------------ */
-/*  TodoItem – renders a single task row based on status               */
+/*  TodoItem - renders a single task row based on status               */
 /* ------------------------------------------------------------------ */
 
 function getTaskIcon(status: TaskStatus) {
@@ -27,7 +14,6 @@ function getTaskIcon(status: TaskStatus) {
 }
 
 function TodoItem({ task }: { task: Task }) {
-
   return (
     <li className={clsx('flex flex-col gap-1', task.status === 'in_progress' && 'text-text')}>
       <div className="flex items-center gap-2">
@@ -40,7 +26,7 @@ function TodoItem({ task }: { task: Task }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  TodoList – renders a list of tasks                                 */
+/*  TodoList - renders a list of tasks                                 */
 /* ------------------------------------------------------------------ */
 
 export interface TodoListProps {

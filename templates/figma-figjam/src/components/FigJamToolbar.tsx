@@ -1,6 +1,8 @@
-import { type ComponentType, useEffect, useRef, useState } from 'react';
+import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Button, ButtonPrimitive, IconButton } from '@figma/fpl-components';
+import { Toolbar as SharedToolbar } from '@prototype/shared';
+import { useAction } from '../actions/provider';
 import {
   Icon16ChevronDown,
   Icon24MoveLarge,
@@ -24,13 +26,14 @@ import {
 } from '@figma/fpl-icons';
 import { useActiveTool, useSelection, useSceneGraph } from '../canvas';
 import type { ToolType, Color } from '../canvas';
-import { IllustrationToolButton } from './IllustrationToolButton';
 import { MarkerIllustration, HighlighterIllustration, TapeIllustration } from './toolbar-illustrations';
 import { StickyToolButton } from './StickyToolButton';
 import { ShapesToolButton } from './ShapesToolButton';
 import type { ShapeType } from './ShapesToolButton';
 import { MarkerSecondaryToolbar } from './MarkerSecondaryToolbar';
-import { QuickActions } from './QuickActions';
+import { QUICK_ACTIONS_TABS } from './quickActionsData';
+
+const { FlatToolButton, IllustrationToolButton, QuickActions } = SharedToolbar;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,17 +104,8 @@ export function FigJamToolbar() {
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
-  // ⌘K opens QuickActions
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'k' && e.metaKey) {
-        e.preventDefault();
-        setIsActionsOpen(true);
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  // Register quick-actions action so it can be triggered from the main menu
+  useAction('quick-actions', useCallback(() => setIsActionsOpen(true), []));
 
   /** The active pen color based on the current sub-type */
   const activePenColor = markerSubType === 'highlighter' ? highlighterColor : markerColor;
@@ -244,6 +238,10 @@ export function FigJamToolbar() {
             label="Marker"
             isActive={activeRaised === 'marker'}
             onSelect={() => handleRaisedClick('marker')}
+            widthClass="w-auto min-w-40px"
+            restTranslate="-translate-y-0"
+            hoverTranslate="group-hover:-translate-y-1"
+            activeTranslate="-translate-y-1 group-hover:-translate-y-1"
           >
             {markerSubType === 'highlighter' ? (
               <HighlighterIllustration color={activePenColor} className="w-5 h-[52px]" />
@@ -302,6 +300,7 @@ export function FigJamToolbar() {
             onClick={() => handleToolClick('COMMENT')}
           />
           <QuickActions
+            tabs={QUICK_ACTIONS_TABS}
             isOpen={isActionsOpen}
             onOpenChange={setIsActionsOpen}
             toolbarRef={toolbarRef}
@@ -316,35 +315,6 @@ export function FigJamToolbar() {
         </div>
       </div>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Flat tool button (icon-only, no sub-menu)
-// ---------------------------------------------------------------------------
-
-function FlatToolButton({
-  icon: Icon,
-  label,
-  isActive,
-  secondary,
-  onClick,
-}: {
-  icon: ComponentType;
-  label: string;
-  isActive: boolean;
-  secondary?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <IconButton
-      size="lg"
-      aria-label={label}
-      variant={isActive && !secondary ? 'primary' : secondary ? 'secondary' : 'ghost'}
-      onClick={onClick}
-    >
-      <Icon />
-    </IconButton>
   );
 }
 

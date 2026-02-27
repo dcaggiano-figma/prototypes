@@ -185,8 +185,8 @@ export type AppearanceNode = FrameNode | SectionNode | RectangleNode | EllipseNo
 /** Shape nodes that support editable text */
 export type ShapeWithTextNode = RectangleNode | EllipseNode | PolygonNode | StarNode
 
-/** All nodes that support text editing (shapes + sticky notes) */
-export type TextCapableNode = ShapeWithTextNode | StickyNoteNode
+/** All nodes that support text editing (shapes + sticky notes + text nodes) */
+export type TextCapableNode = ShapeWithTextNode | StickyNoteNode | TextNode
 
 /** Shape types that have editable text */
 const SHAPE_WITH_TEXT_TYPES = new Set(['RECTANGLE', 'ELLIPSE', 'POLYGON', 'STAR'])
@@ -196,7 +196,7 @@ export function isShapeWithText(node: SceneNode): node is ShapeWithTextNode {
   return SHAPE_WITH_TEXT_TYPES.has(node.type)
 }
 
-/** Check if a node supports text editing (shapes + sticky notes) */
+/** Check if a node supports text editing (shapes + sticky notes + text nodes) */
 export function isTextCapableNode(node: SceneNode): node is TextCapableNode {
-  return SHAPE_WITH_TEXT_TYPES.has(node.type) || node.type === 'STICKY_NOTE'
+  return SHAPE_WITH_TEXT_TYPES.has(node.type) || node.type === 'STICKY_NOTE' || node.type === 'TEXT'
 }

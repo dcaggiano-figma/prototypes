@@ -3,14 +3,14 @@ import {
 } from 'react';
 import { ButtonPrimitive, Chip, LoadingSpinner } from '@figma/fpl-components';
 import { Icon16ChevronRight } from '@figma/fpl-icons';
-import type { Attachment, InspectedElement } from '../types';
-import { Avatar } from '@prototype/shared';
+import clsx from 'clsx';
+import type { Attachment, InspectedElement } from './types';
+import { UserAvatar } from '../user-config';
 import { AttachmentThumbnail } from './AttachmentThumbnail';
-import { getElementIcon } from '../helpers/elementIcons';
+import { getElementIcon } from './elementIcons';
 import styles from './CollapsibleSection.module.css';
 import shimmerStyles from './ShimmerText.module.css';
 import { StreamingContent } from './StreamingContent';
-import clsx from 'clsx';
 
 /* ------------------------------------------------------------------ */
 /*  Chat message bubble                                                */
@@ -57,7 +57,7 @@ export function ChatMessage({
             <span className="leading-[1.5] block">{children}</span>
           </div>
         </div>
-        <div className="flex items-end"><Avatar size="md" src="/assets/avatar.jpg" /></div>
+        <div className="flex items-end"><UserAvatar size="md" /></div>
       </div>
     );
   }
@@ -71,7 +71,7 @@ export function ChatMessage({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Collapsible section (Reasoning, Worked with…)                      */
+/*  Collapsible section (Reasoning, Worked with...)                    */
 /* ------------------------------------------------------------------ */
 
 export interface CollapsibleSectionProps {

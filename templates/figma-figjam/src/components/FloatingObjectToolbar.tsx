@@ -173,7 +173,8 @@ export function FloatingObjectToolbar() {
 
   const isStickySelected = firstNode?.type === 'STICKY_NOTE';
   const isShapeSelected = firstNode ? isShapeWithText(firstNode) : false;
-  const isTextCapable = isStickySelected || isShapeSelected;
+  const isTextSelected = firstNode?.type === 'TEXT';
+  const isTextCapable = isStickySelected || isShapeSelected || isTextSelected;
   const isSectionSelected = firstNode?.type === 'SECTION';
 
   const topY = minY - 48;
@@ -238,7 +239,12 @@ export function FloatingObjectToolbar() {
     for (const id of selection.selectedIds) {
       const node = store.getNode(id);
       if (node && isTextCapableNode(node)) {
-        store.updateNode(id, { fontSize: size });
+        const updates: Record<string, unknown> = { fontSize: size };
+        // TEXT nodes use absolute lineHeight (px), so scale it with fontSize
+        if (node.type === 'TEXT') {
+          updates.lineHeight = Math.round(size * 1.25);
+        }
+        store.updateNode(id, updates);
       }
     }
   };
@@ -333,7 +339,7 @@ export function FloatingObjectToolbar() {
           <>
             <ButtonPrimitive
               {...getFontTriggerProps()}
-              className="flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed font-[size:20px] text-text whitespace-nowrap"
+              className="flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-headingMd text-text whitespace-nowrap"
             >
               <span style={{ fontFamily: FONT_FAMILY_PRESETS.find((p) => p.value === currentFontFamily)?.fontFamily }} className="w-3 text-center">Aa</span>
               <Icon16ChevronDown />
@@ -747,7 +753,7 @@ function MixedSelectionToolbar({ centerX, topY, selection, store }: MixedSelecti
         <div
           ref={alignPopoverRef}
           data-preferred-theme="dark"
-          className="flex items-center gap-0.5 bg-bg rounded-lg shadow-300 p-1"
+          className="flex items-center gap-1 bg-bg rounded-lg shadow-300 p-1"
         >
           <IconButton size="lg" aria-label="Align left" variant="ghost"
             onClick={() => alignNodes(store, selection.selectedIds, 'left')}>
@@ -779,7 +785,7 @@ function MixedSelectionToolbar({ centerX, topY, selection, store }: MixedSelecti
       {/* Main toolbar: alignment trigger + distribute + wrap in section */}
       <div
         data-preferred-theme="dark"
-        className="flex items-center gap-0.5 bg-bg rounded-lg shadow-300 p-1"
+        className="flex items-center gap-1 bg-bg rounded-lg shadow-300 p-1"
       >
         {/* Alignment trigger */}
         <ButtonPrimitive
