@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ButtonPrimitive, Checkbox, HiddenLabel, HiddenLegend, IconButton, Input, Label, ScrollContainer, SegmentedControl, Select, Tabs,
 } from '@figma/fpl-components';
@@ -52,9 +52,13 @@ import {
   Icon24Border,
   Icon24AspectRatio,
   Icon24Angle,
+  Icon24LayoutDistributeHorizontalSpacing,
+  Icon24LayoutDistributeVerticalSpacing,
 } from '@figma/fpl-icons';
 
 import {
+  alignNodes,
+  distributeNodes,
   useNode,
   usePageBackground,
   useSceneGraph,
@@ -62,7 +66,9 @@ import {
   useViewport,
 } from '../../canvas';
 import type {
+  AlignDirection,
   AppearanceNode,
+  DistributeDirection,
   FrameNode,
   GeometryNode,
   Paint,
@@ -117,8 +123,10 @@ export function DesignModeContent() {
           <ScrollContainer scroll="y" fill>
             {singleId ? (
               <NodePropertiesById nodeId={singleId} />
+            ) : selectedIds.size > 1 ? (
+              <MultiSelectionProperties selectedIds={selectedIds} />
             ) : (
-              <NoSelectionState multipleSelected={selectedIds.size > 1} />
+              <NoSelectionState />
             )}
           </ScrollContainer>
         </Tabs.TabPanel>
@@ -145,17 +153,9 @@ function NodePropertiesById({ nodeId }: { nodeId: string }) {
 
 // ── No-selection state ────────────────────────────────────────────────
 
-function NoSelectionState({ multipleSelected }: { multipleSelected: boolean }) {
+function NoSelectionState() {
   const store = useSceneGraph();
   const pageBg = usePageBackground();
-
-  if (multipleSelected) {
-    return (
-      <div className="pl-3 pr-2 py-32px text-center text-text-tertiary text-bodyMd">
-        Multiple selection
-      </div>
-    );
-  }
 
   const handleBgChange = (hex: string) => {
     const color = hexToRgb(hex);
@@ -190,6 +190,251 @@ function NoSelectionState({ multipleSelected }: { multipleSelected: boolean }) {
       </div>
       <PlaceholderSection title="Styles" actions />
       <PlaceholderSection title="Export" actions />
+    </>
+  );
+}
+
+// ── Multi-selection properties ─────────────────────────────────────────
+
+function MultiSelectionProperties({ selectedIds }: { selectedIds: Set<string> }) {
+  const store = useSceneGraph();
+
+  // Subscribe to store changes so we re-render when nodes move/change
+  const [, bump] = useState(0);
+  useEffect(() => store.subscribe(() => bump((n) => n + 1)), [store]);
+
+  // Collect node information
+  const geometryNodes: GeometryNode[] = [];
+  const appearanceNodes: AppearanceNode[] = [];
+  const nodesWithStrokes: (AppearanceNode | { type: 'LINE'; strokes: Stroke[]; id: string; opacity: number })[] = [];
+
+  for (const id of selectedIds) {
+    const node = store.getNode(id);
+    if (!node) continue;
+    if (isGeometryNode(node)) geometryNodes.push(node);
+    if (isAppearanceNode(node)) {
+      appearanceNodes.push(node);
+      nodesWithStrokes.push(node);
+    } else if (node.type === 'LINE') {
+      nodesWithStrokes.push(node);
+    }
+  }
+
+  const allAreGeometry = geometryNodes.length === selectedIds.size;
+  const allAreAppearance = appearanceNodes.length === selectedIds.size;
+  const allHaveStrokes = nodesWithStrokes.length === selectedIds.size;
+
+  const handleAlign = useCallback(
+    (direction: AlignDirection) => {
+      alignNodes(store, selectedIds, direction);
+    },
+    [store, selectedIds],
+  );
+
+  const handleDistribute = useCallback(
+    (direction: DistributeDirection) => {
+      distributeNodes(store, selectedIds, direction);
+    },
+    [store, selectedIds],
+  );
+
+  // Multi-fill color change: apply to all appearance nodes
+  const handleFillColorChange = useCallback(
+    (hex: string) => {
+      const color = hexToRgb(hex);
+      if (!color) return;
+      for (const node of appearanceNodes) {
+        if (node.fills.length === 0) continue;
+        const newFills = [...node.fills];
+        newFills[0] = { ...newFills[0], color };
+        store.updateNode(node.id, { fills: newFills });
+      }
+    },
+    [store, appearanceNodes],
+  );
+
+  // Multi-fill opacity change
+  const handleFillOpacityChange = useCallback(
+    (value: number) => {
+      for (const node of appearanceNodes) {
+        if (node.fills.length === 0) continue;
+        const newFills = [...node.fills];
+        newFills[0] = { ...newFills[0], opacity: value / 100 };
+        store.updateNode(node.id, { fills: newFills });
+      }
+    },
+    [store, appearanceNodes],
+  );
+
+  // Multi-stroke color change
+  const handleStrokeColorChange = useCallback(
+    (hex: string) => {
+      const color = hexToRgb(hex);
+      if (!color) return;
+      for (const node of nodesWithStrokes) {
+        const current = store.getNode(node.id);
+        if (!current) continue;
+        const strokes = 'strokes' in current ? (current as { strokes: Stroke[] }).strokes : [];
+        if (strokes.length === 0) continue;
+        const newStrokes = [...strokes];
+        newStrokes[0] = { ...newStrokes[0], paint: { ...newStrokes[0].paint, color } };
+        store.updateNode(node.id, { strokes: newStrokes });
+      }
+    },
+    [store, nodesWithStrokes],
+  );
+
+  // Multi-stroke weight change
+  const handleStrokeWeightChange = useCallback(
+    (value: number) => {
+      for (const node of nodesWithStrokes) {
+        const current = store.getNode(node.id);
+        if (!current) continue;
+        const strokes = 'strokes' in current ? (current as { strokes: Stroke[] }).strokes : [];
+        if (strokes.length === 0) continue;
+        const newStrokes = [...strokes];
+        newStrokes[0] = { ...newStrokes[0], weight: value };
+        store.updateNode(node.id, { strokes: newStrokes });
+      }
+    },
+    [store, nodesWithStrokes],
+  );
+
+  // Multi-opacity change
+  const handleOpacityChange = useCallback(
+    (value: number) => {
+      for (const node of geometryNodes) {
+        store.updateNode(node.id, { opacity: value / 100 });
+      }
+    },
+    [store, geometryNodes],
+  );
+
+  // Use first node's values as representative
+  const firstGeo = geometryNodes[0];
+  const firstAppearance = appearanceNodes[0];
+  const firstStrokeNode = nodesWithStrokes[0];
+  const firstStroke = firstStrokeNode && 'strokes' in firstStrokeNode
+    ? (firstStrokeNode as { strokes: Stroke[] }).strokes[0]
+    : undefined;
+
+  return (
+    <>
+      {/* Header */}
+      <div className="flex items-center gap-2 pl-3 pr-2 h-panel-header box-content border-b border-border">
+        <span className="text-text text-bodyLgStrong truncate flex-1 min-w-0">
+          {selectedIds.size} layers
+        </span>
+      </div>
+
+      {/* Alignment section — always shown for 2+ geometry nodes */}
+      {geometryNodes.length >= 2 && (
+        <PropertySection title="Alignment">
+          <PropertyRow>
+            <IconButtonGroup>
+              <IconButtonGroup.Button aria-label="Align left" onClick={() => handleAlign('left')}>
+                <Icon24LayoutAlignLeft />
+              </IconButtonGroup.Button>
+              <IconButtonGroup.Button aria-label="Align horizontal center" onClick={() => handleAlign('center-h')}>
+                <Icon24LayoutAlignHorizontalCenter />
+              </IconButtonGroup.Button>
+              <IconButtonGroup.Button aria-label="Align right" onClick={() => handleAlign('right')}>
+                <Icon24LayoutAlignRight />
+              </IconButtonGroup.Button>
+            </IconButtonGroup>
+            <IconButtonGroup>
+              <IconButtonGroup.Button aria-label="Align top" onClick={() => handleAlign('top')}>
+                <Icon24LayoutAlignTop />
+              </IconButtonGroup.Button>
+              <IconButtonGroup.Button aria-label="Align vertical center" onClick={() => handleAlign('center-v')}>
+                <Icon24LayoutAlignVerticalCenter />
+              </IconButtonGroup.Button>
+              <IconButtonGroup.Button aria-label="Align bottom" onClick={() => handleAlign('bottom')}>
+                <Icon24LayoutAlignBottom />
+              </IconButtonGroup.Button>
+            </IconButtonGroup>
+            <div />
+          </PropertyRow>
+          {geometryNodes.length >= 3 && (
+            <PropertyRow columns="1fr 1fr 24px">
+              <IconButtonGroup>
+                <IconButtonGroup.Button aria-label="Distribute horizontal" onClick={() => handleDistribute('horizontal')}>
+                  <Icon24LayoutDistributeHorizontalSpacing />
+                </IconButtonGroup.Button>
+              </IconButtonGroup>
+              <IconButtonGroup>
+                <IconButtonGroup.Button aria-label="Distribute vertical" onClick={() => handleDistribute('vertical')}>
+                  <Icon24LayoutDistributeVerticalSpacing />
+                </IconButtonGroup.Button>
+              </IconButtonGroup>
+              <div />
+            </PropertyRow>
+          )}
+        </PropertySection>
+      )}
+
+      {/* Opacity section — shown when all are geometry nodes */}
+      {allAreGeometry && firstGeo && (
+        <PropertySection title="Appearance">
+          <PropertyRow>
+            <NumericField
+              label="Opacity"
+              icon={<Icon24Opacity />}
+              value={Math.round(firstGeo.opacity * 100)}
+              onChange={handleOpacityChange}
+              formatter={percentFormatter}
+            />
+            <div />
+            <div />
+          </PropertyRow>
+        </PropertySection>
+      )}
+
+      {/* Fill section — shown when all are AppearanceNodes with fills */}
+      {allAreAppearance && firstAppearance?.fills[0] && (
+        <PropertySection title="Fill">
+          <PropertyRow columns="1fr auto">
+            <Input.Group columns="1fr 52px">
+              <Input.Root>
+                <ColorSwatch color={firstAppearance.fills[0].color} onChange={handleFillColorChange} />
+                <HexInput color={firstAppearance.fills[0].color} onChange={handleFillColorChange} />
+              </Input.Root>
+              <Input.Root>
+                <OpacityInput
+                  value={firstAppearance.fills[0].opacity}
+                  onChange={handleFillOpacityChange}
+                />
+                <PercentSuffix />
+              </Input.Root>
+            </Input.Group>
+            <div className="w-24px" />
+          </PropertyRow>
+        </PropertySection>
+      )}
+
+      {/* Stroke section — shown when all have strokes */}
+      {allHaveStrokes && firstStroke && (
+        <PropertySection title="Stroke">
+          <PropertyRow columns="1fr auto">
+            <Input.Group columns="1fr 52px">
+              <Input.Root>
+                <ColorSwatch color={firstStroke.paint.color} onChange={handleStrokeColorChange} />
+                <HexInput color={firstStroke.paint.color} onChange={handleStrokeColorChange} />
+              </Input.Root>
+              <Input.Root>
+                <NumericField
+                  label="Wt"
+                  icon={<Icon24StrokeWeight />}
+                  value={firstStroke.weight}
+                  onChange={handleStrokeWeightChange}
+                  formatter={positiveFormatter}
+                />
+              </Input.Root>
+            </Input.Group>
+            <div className="w-24px" />
+          </PropertyRow>
+        </PropertySection>
+      )}
     </>
   );
 }

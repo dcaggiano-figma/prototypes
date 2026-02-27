@@ -6,6 +6,7 @@ import {
   ToolProvider,
   ViewportProvider,
 } from './canvas';
+import { CommentsProvider } from '@prototype/shared';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -14,7 +15,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <SelectionProvider>
           <TextEditingProvider>
             <ToolProvider>
-              <ActionProvider>{children}</ActionProvider>
+              <CommentsProvider>
+                <ActionProvider>{children}</ActionProvider>
+              </CommentsProvider>
             </ToolProvider>
           </TextEditingProvider>
         </SelectionProvider>

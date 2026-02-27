@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ButtonPrimitive, IconButton, Button } from '@figma/fpl-components';
 import { Icon16ChevronDown, Icon24AiLarge, Icon24TimerLarge, Icon24TemplateLarge } from '@figma/fpl-icons';
-import Avatar from './avatar';
+import { Avatar } from '@prototype/shared';
 import { ShareModal } from './ShareModal';
 import { TimerPanel } from './TimerPanel';
 
@@ -31,7 +31,7 @@ export function FigJamTopRight() {
         onClick={() => setTimerOpen((prev) => !prev)}
       >
         <Icon24TimerLarge />
-        <span>05:00</span>
+        <span className="font-mono text-[16px]">05:00</span>
       </ButtonPrimitive>
 
       {/* Share button */}

@@ -4,7 +4,7 @@ import { createRootRoute } from '@tanstack/react-router';
 import { LeftRail } from '../components/LeftRail';
 import { LeftPanel } from '../components/LeftPanel';
 import { RightPanel } from '../components/RightPanel';
-import { Canvas } from '../canvas';
+import { Canvas, useViewport } from '../canvas';
 import { CanvasOverlay } from '../components/CanvasOverlay';
 import { VariablesView, VariablesWindow } from '../components/variables';
 import type { Mode } from '../components/menuTypes';
@@ -19,6 +19,7 @@ import {
 import { ButtonPrimitive, Menu } from '@figma/fpl-components';
 import { Icon24Help, Icon24Star } from '@figma/fpl-icons';
 import { showToast } from '../components/toast';
+import { CommentOverlay, useComments } from '@prototype/shared';
 import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
 import { Providers } from '../providers';
 import { useAction } from '../actions/provider';
@@ -68,6 +69,8 @@ function EditorContent() {
 
   // Minimize UI state
   const [isMinimized, setIsMinimized] = useState(false);
+  const viewport = useViewport();
+  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore, threads: commentThreads } = useComments();
   const [fileName, setFileName] = useState('Untitled');
   const toggleMinimized = useCallback(() => setIsMinimized((v) => !v), []);
 
@@ -229,6 +232,15 @@ function EditorContent() {
         </Menu.Container>
       </Menu.Root>
       {featuresModal.modal}
+      <CommentOverlay
+        interaction={interaction}
+        setInteraction={setInteraction}
+        selectedThreadId={selectedThreadId}
+        setSelectedThreadId={setSelectedThreadId}
+        store={commentsStore}
+        threads={commentThreads}
+        worldToScreen={viewport.worldToScreen}
+      />
     </div>
     </MinimizeUIProvider>
   );

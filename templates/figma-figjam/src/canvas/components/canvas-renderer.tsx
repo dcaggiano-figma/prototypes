@@ -12,6 +12,7 @@ import type {
   RectangleNode,
   SceneNode,
   SectionNode,
+  ShapeWithTextNode,
   StarNode,
   StickyNoteNode,
   Stroke,
@@ -99,9 +100,12 @@ function RectangleRenderer({ node }: { node: RectangleNode }) {
         borderRadius: node.cornerRadius,
         transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
+        overflow: 'hidden',
         ...strokeStyles(stroke),
       }}
-    />
+    >
+      <ShapeTextOverlay node={node} />
+    </div>
   );
 }
 
@@ -271,7 +275,7 @@ function StickyNoteRenderer({ node }: { node: StickyNoteNode }) {
       if (!entry) return;
       const contentH = Math.round(entry.contentRect.height);
       const footerH = node.showAuthor ? STICKY_FOOTER_HEIGHT : 0;
-      const paddingBottom = node.showAuthor ? 0 : STICKY_PADDING;
+      const paddingBottom = node.showAuthor ? 16 : STICKY_PADDING;
       const totalNeeded = contentH + STICKY_PADDING + paddingBottom + footerH;
       const minH = node.width; // Square minimum
       const newH = Math.max(minH, totalNeeded);
@@ -334,7 +338,7 @@ function StickyNoteRenderer({ node }: { node: StickyNoteNode }) {
       style={{
         position: 'absolute',
         width: node.width,
-        height: node.height,
+        minHeight: node.height,
         opacity: node.opacity,
         transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
@@ -373,7 +377,7 @@ function StickyNoteRenderer({ node }: { node: StickyNoteNode }) {
         onBlur={isEditing ? commitAndStop : undefined}
         style={{
           padding: STICKY_PADDING,
-          paddingBottom: node.showAuthor ? 0 : STICKY_PADDING,
+          paddingBottom: node.showAuthor ? 16 : STICKY_PADDING,
           fontFamily: node.fontFamily,
           fontSize: node.fontSize,
           fontWeight: node.fontWeight,
@@ -410,6 +414,162 @@ function StickyNoteRenderer({ node }: { node: StickyNoteNode }) {
   );
 }
 
+/** Padding config for text inside shapes (as fraction of width/height or fixed px) */
+function getShapeTextPadding(type: string, width: number, height: number): { horizontal: number; vertical: number } {
+  switch (type) {
+    case 'ELLIPSE':
+      return { horizontal: width * 0.146, vertical: height * 0.146 };
+    case 'POLYGON':
+      return { horizontal: width * 0.2, vertical: height * 0.25 };
+    case 'STAR':
+      return { horizontal: width * 0.3, vertical: height * 0.3 };
+    default: // RECTANGLE
+      return { horizontal: 8, vertical: 8 };
+  }
+}
+
+/** Returns black or white text color for best contrast against the fill */
+function autoContrastColor(fill: Paint | undefined): string {
+  if (!fill || fill.type !== 'SOLID') return 'rgb(0, 0, 0)';
+  const { r, g, b } = fill.color;
+  // Relative luminance (sRGB)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)';
+}
+
+function ShapeTextOverlay({ node }: { node: ShapeWithTextNode }) {
+  const store = useSceneGraph();
+  const { editingNodeId, stopEditing, selectAllRef } = useTextEditing();
+  const isEditing = editingNodeId === node.id;
+  const elRef = useRef<HTMLDivElement>(null);
+
+  const [hasInput, setHasInput] = useState(false);
+
+  useEffect(() => {
+    if (isEditing) {
+      setHasInput(!!node.characters);
+    } else {
+      setHasInput(false);
+    }
+  }, [isEditing, node.characters]);
+
+  useEffect(() => {
+    if (!isEditing || !elRef.current) return;
+    const el = elRef.current;
+    const onInput = () => {
+      setHasInput(!!el.textContent?.trim());
+    };
+    el.addEventListener('input', onInput);
+    return () => el.removeEventListener('input', onInput);
+  }, [isEditing]);
+
+  // Auto-focus when entering edit mode
+  useEffect(() => {
+    if (!isEditing || !elRef.current) return;
+    const id = requestAnimationFrame(() => {
+      const el = elRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      if (el.textContent) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        if (!selectAllRef.current) {
+          range.collapse(false);
+        }
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isEditing, selectAllRef]);
+
+  const commitAndStop = useCallback(() => {
+    const text = elRef.current?.innerText.trim() ?? '';
+    store.updateNode(node.id, { characters: text });
+    stopEditing();
+  }, [store, node.id, stopEditing]);
+
+  // Handle Escape key
+  useEffect(() => {
+    if (!isEditing || !elRef.current) return;
+    const el = elRef.current;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        commitAndStop();
+      }
+    }
+    el.addEventListener('keydown', handleKeyDown);
+    return () => el.removeEventListener('keydown', handleKeyDown);
+  }, [isEditing, commitAndStop]);
+
+  const fill = getFirstVisibleFill(node.fills);
+  const textColor = autoContrastColor(fill);
+  const padding = getShapeTextPadding(node.type, node.width, node.height);
+  const showPlaceholder = isEditing && !hasInput;
+  const hasText = !!node.characters;
+
+  // Don't render anything if not editing and no text
+  if (!isEditing && !hasText) return null;
+
+  return (
+    <>
+      {showPlaceholder && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: `${padding.vertical}px ${padding.horizontal}px`,
+            color: textColor,
+            opacity: 0.3,
+            fontFamily: node.fontFamily,
+            fontSize: node.fontSize,
+            fontWeight: node.fontWeight,
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        >
+          Add text
+        </div>
+      )}
+      <div
+        ref={elRef}
+        role={isEditing ? 'textbox' : undefined}
+        aria-multiline={isEditing ? true : undefined}
+        contentEditable={isEditing}
+        suppressContentEditableWarning
+        onBlur={isEditing ? commitAndStop : undefined}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: node.textAlignHorizontal === 'LEFT' ? 'flex-start' : node.textAlignHorizontal === 'RIGHT' ? 'flex-end' : 'center',
+          padding: `${padding.vertical}px ${padding.horizontal}px`,
+          fontFamily: node.fontFamily,
+          fontSize: node.fontSize,
+          fontWeight: node.fontWeight,
+          textAlign: node.textAlignHorizontal.toLowerCase() as 'left' | 'center' | 'right',
+          color: textColor,
+          lineHeight: 1.4,
+          wordBreak: 'break-word',
+          whiteSpace: 'pre-wrap',
+          overflow: 'hidden',
+          outline: 'none',
+          cursor: isEditing ? CURSORS.text : CURSORS.default,
+          userSelect: isEditing ? 'text' : 'none',
+        }}
+      >
+        {node.characters}
+      </div>
+    </>
+  );
+}
+
 function EllipseRenderer({ node }: { node: EllipseNode }) {
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
@@ -421,27 +581,36 @@ function EllipseRenderer({ node }: { node: EllipseNode }) {
   const inset = stroke?.position === 'INSIDE' ? strokeWeight : 0;
 
   return (
-    <svg
+    <div
       data-node-id={node.id}
       style={{
         position: 'absolute',
         width: node.width,
         height: node.height,
         opacity: node.opacity,
-        overflow: 'visible',
         transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
-      <ellipse
-        cx={rx}
-        cy={ry}
-        rx={rx - inset / 2}
-        ry={ry - inset / 2}
-        fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-        strokeWidth={strokeWeight}
-      />
-    </svg>
+      <svg
+        style={{
+          position: 'absolute',
+          width: node.width,
+          height: node.height,
+          overflow: 'visible',
+        }}
+      >
+        <ellipse
+          cx={rx}
+          cy={ry}
+          rx={rx - inset / 2}
+          ry={ry - inset / 2}
+          fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
+          stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
+          strokeWidth={strokeWeight}
+        />
+      </svg>
+      <ShapeTextOverlay node={node} />
+    </div>
   );
 }
 
@@ -515,16 +684,54 @@ function SectionRenderer({
 function SectionLabel({ node }: { node: SectionNode }) {
   const { state } = useViewport();
   const { isSelected } = useSelection();
+  const store = useSceneGraph();
   const selected = isSelected(node.id);
-  const fontSize = 11 / state.scale;
-  const iconSize = 10 / state.scale;
+  const [isEditing, setIsEditing] = useState(false);
+  const labelRef = useRef<HTMLDivElement>(null);
+  const fontSize = 13 / state.scale;
+  const iconSize = 12 / state.scale;
+  const iconPad = 3 / state.scale;
   const pillPadY = 2 / state.scale;
   const pillPadX = 4 / state.scale;
-  const gap = 3 / state.scale;
+  const iconLabelGap = 4 / state.scale;
   const pillRadius = 3 / state.scale;
 
   const fill = getFirstVisibleFill(node.fills);
   const pillBg = fill ? colorToCSS(fill.color, Math.min(fill.opacity, 0.6)) : 'rgba(255,255,255,0.6)';
+  const textColor = selected ? 'var(--color-fsTextSelectedOnLightCanvas)' : 'var(--color-fsTextOnLightCanvasSecondary)';
+
+  const commitRename = useCallback(() => {
+    if (!labelRef.current) return;
+    const newName = labelRef.current.textContent?.trim() || node.name;
+    store.updateNode(node.id, { name: newName });
+    setIsEditing(false);
+  }, [node.id, node.name, store]);
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditing(true);
+    // Select all text after the element becomes contentEditable
+    requestAnimationFrame(() => {
+      if (!labelRef.current) return;
+      labelRef.current.focus();
+      const range = document.createRange();
+      range.selectNodeContents(labelRef.current);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    });
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (labelRef.current) labelRef.current.textContent = node.name;
+      setIsEditing(false);
+    }
+  }, [commitRename, node.name]);
 
   return (
     <div
@@ -534,30 +741,58 @@ function SectionLabel({ node }: { node: SectionNode }) {
         transform: `translate(${node.x}px, ${node.y - fontSize - 12 / state.scale}px)`,
         display: 'flex',
         alignItems: 'center',
-        gap,
-        backgroundColor: pillBg,
-        borderRadius: pillRadius,
-        padding: `${pillPadY}px ${pillPadX}px`,
+        gap: iconLabelGap,
         fontSize,
         lineHeight: 1,
-        color: selected ? 'var(--color-fsTextSelectedOnLightCanvas)' : 'var(--color-fsTextOnLightCanvasSecondary)',
+        color: textColor,
         whiteSpace: 'nowrap',
         cursor: CURSORS.default,
         userSelect: 'none',
       }}
     >
-      <svg
-        width={iconSize}
-        height={iconSize}
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeDasharray="2 2"
+      {/* Icon button */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: pillBg,
+          borderRadius: pillRadius,
+          padding: iconPad,
+        }}
       >
-        <rect x="1" y="1" width="14" height="14" rx="2" />
-      </svg>
-      {node.name}
+        <svg
+          width={iconSize}
+          height={iconSize}
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeDasharray="2 2"
+        >
+          <rect x="1" y="1" width="14" height="14" rx="2" />
+        </svg>
+      </div>
+      {/* Label container */}
+      <div
+        ref={labelRef}
+        contentEditable={isEditing}
+        suppressContentEditableWarning
+        onDoubleClick={handleDoubleClick}
+        onBlur={isEditing ? commitRename : undefined}
+        onKeyDown={isEditing ? handleKeyDown : undefined}
+        style={{
+          backgroundColor: pillBg,
+          borderRadius: pillRadius,
+          padding: `${pillPadY}px ${pillPadX}px`,
+          cursor: isEditing ? 'text' : CURSORS.default,
+          userSelect: isEditing ? 'text' : 'none',
+          outline: 'none',
+          minWidth: 8 / state.scale,
+        }}
+      >
+        {node.name}
+      </div>
     </div>
   );
 }
@@ -647,25 +882,34 @@ function PolygonRenderer({ node }: { node: PolygonNode }) {
   }
 
   return (
-    <svg
+    <div
       data-node-id={node.id}
       style={{
         position: 'absolute',
         width: node.width,
         height: node.height,
         opacity: node.opacity,
-        overflow: 'visible',
         transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
-      <polygon
-        points={pts.join(' ')}
-        fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-        strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
-        paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
-      />
-    </svg>
+      <svg
+        style={{
+          position: 'absolute',
+          width: node.width,
+          height: node.height,
+          overflow: 'visible',
+        }}
+      >
+        <polygon
+          points={pts.join(' ')}
+          fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
+          stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
+          strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
+          paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
+        />
+      </svg>
+      <ShapeTextOverlay node={node} />
+    </div>
   );
 }
 
@@ -689,25 +933,34 @@ function StarRenderer({ node }: { node: StarNode }) {
   }
 
   return (
-    <svg
+    <div
       data-node-id={node.id}
       style={{
         position: 'absolute',
         width: node.width,
         height: node.height,
         opacity: node.opacity,
-        overflow: 'visible',
         transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
-      <polygon
-        points={pts.join(' ')}
-        fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-        strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
-        paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
-      />
-    </svg>
+      <svg
+        style={{
+          position: 'absolute',
+          width: node.width,
+          height: node.height,
+          overflow: 'visible',
+        }}
+      >
+        <polygon
+          points={pts.join(' ')}
+          fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
+          stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
+          strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
+          paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
+        />
+      </svg>
+      <ShapeTextOverlay node={node} />
+    </div>
   );
 }
 

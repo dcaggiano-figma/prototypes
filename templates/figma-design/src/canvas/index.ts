@@ -54,5 +54,12 @@ export type { ToolType } from './tools/provider';
 // Canvas component
 export { Canvas } from './components/Canvas';
 
+// Alignment
+export { alignNodes, distributeNodes } from './scene-graph/alignment';
+export type { AlignDirection, DistributeDirection } from './scene-graph/alignment';
+
+// Selection utilities
+export { computeGroupScreenBBox } from './scene-graph/selection-utils';
+
 // Utilities needed by external consumers
 export { isGeometryNode } from './scene-graph/world-position';

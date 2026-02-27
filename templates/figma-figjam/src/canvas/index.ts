@@ -12,6 +12,7 @@ export type {
   BaseNode,
   GeometryMixin,
   AppearanceMixin,
+  ShapeTextMixin,
   FrameNode,
   SectionNode,
   RectangleNode,
@@ -27,7 +28,11 @@ export type {
   SceneNode,
   GeometryNode,
   AppearanceNode,
+  ShapeWithTextNode,
+  TextCapableNode,
 } from './types';
+
+export { isShapeWithText, isTextCapableNode } from './types';
 
 // Scene Graph
 export {
@@ -57,3 +62,11 @@ export { Canvas } from './components/Canvas';
 
 // Utilities needed by external consumers
 export { isGeometryNode } from './scene-graph/world-position';
+
+// Selection utilities
+export { getSelectionBBox, collectDraggableIds, pointInRect } from './scene-graph/selection-utils';
+export type { Rect } from './scene-graph/selection-utils';
+
+// Alignment & layout utilities
+export { alignNodes, distributeNodes, wrapInSection } from './scene-graph/alignment';
+export type { AlignDirection, DistributeDirection } from './scene-graph/alignment';

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import { useAction } from '../../actions/provider';
 import type { NodeType } from '../types';
+import { isTextCapableNode } from '../types';
 import { usePageBackground, useSceneGraph } from '../scene-graph/provider';
 import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
 import { SelectionOverlay } from '../selection/overlay';
@@ -10,10 +11,14 @@ import { useActiveTool } from '../tools/provider';
 import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
+import { useComments } from '@prototype/shared';
 import { useTextEditing } from '../text-editing/provider';
 import { CanvasRenderer } from './canvas-renderer';
 import type { Point } from '../tools/path-smoothing';
 import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from '../tools/path-smoothing';
+import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
+import { collectDraggableIds, getSelectionBBox, pointInRect } from '../scene-graph/selection-utils';
+import type { ContextMenuState } from '../../components/CanvasContextMenu';
 
 /** Shape tools that support click-drag-to-create */
 const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
@@ -25,7 +30,6 @@ const GHOST_SHAPE_TOOLS = new Set(['RECTANGLE', 'ELLIPSE', 'POLYGON']);
 const SHAPE_GHOST_SIZE = 100;
 
 /** Default fills for newly created shapes */
-const SHAPE_FILL = { type: 'SOLID' as const, color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true };
 const FRAME_FILL = { type: 'SOLID' as const, color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true };
 const TEXT_FILL = { type: 'SOLID' as const, color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true };
 
@@ -48,14 +52,19 @@ const PEN_MIN_DISTANCE = 2;
 /** RDP simplification epsilon */
 const PEN_RDP_EPSILON = 2.0;
 
-export function Canvas() {
+interface CanvasProps {
+  onOpenContextMenu?: (state: ContextMenuState) => void;
+}
+
+export function Canvas({ onOpenContextMenu }: CanvasProps) {
   const viewport = useViewport();
   const { containerRef, transform, screenToWorld } = viewport;
   const selection = useSelection();
   const store = useSceneGraph();
   const pageBg = usePageBackground();
-  const { effectiveTool, setActiveTool, stickyColor, sectionFillColor, markerColor, highlighterColor, markerSubType } = useActiveTool();
+  const { effectiveTool, setActiveTool, stickyColor, sectionFillColor, shapeColor, markerColor, highlighterColor, markerSubType } = useActiveTool();
   const textEditing = useTextEditing();
+  const { interaction, setInteraction } = useComments();
 
   /** Screen-space mouse position for sticky note ghost preview */
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
@@ -253,6 +262,27 @@ export function Canvas() {
     });
   }, [store, containerRef, viewport]);
 
+  const onContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+
+      // Hit-test to determine if a node was right-clicked
+      const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
+
+      if (hitId) {
+        // Select the node if not already selected
+        if (!selection.isSelected(hitId)) {
+          selection.select(hitId);
+        }
+        onOpenContextMenu?.({ x: e.clientX, y: e.clientY, type: 'node' });
+      } else {
+        selection.clear();
+        onOpenContextMenu?.({ x: e.clientX, y: e.clientY, type: 'canvas' });
+      }
+    },
+    [selection, onOpenContextMenu],
+  );
+
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       const rect = containerRef.current?.getBoundingClientRect();
@@ -269,6 +299,33 @@ export function Canvas() {
       const localX = e.clientX - rect.left;
       const localY = e.clientY - rect.top;
       const world = screenToWorld(localX, localY);
+
+      // Comment tool: click-to-place a comment pin
+      if (effectiveTool === 'COMMENT') {
+        const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
+        if (hitId) {
+          const node = store.getNode(hitId);
+          if (node && 'x' in node) {
+            const nodeX = (node as { x: number }).x;
+            const nodeY = (node as { y: number }).y;
+            setInteraction({
+              type: 'placing',
+              worldX: world.x,
+              worldY: world.y,
+              nodeId: hitId,
+              nodeOffsetX: world.x - nodeX,
+              nodeOffsetY: world.y - nodeY,
+            });
+          }
+        } else {
+          setInteraction({
+            type: 'placing',
+            worldX: world.x,
+            worldY: world.y,
+          });
+        }
+        return;
+      }
 
       // Text tool: click-to-place a text node and enter editing
       if (effectiveTool === 'TEXT') {
@@ -340,7 +397,8 @@ export function Canvas() {
         const isLine = nodeType === 'LINE';
         const isSection = nodeType === 'SECTION';
         const sectionFill = { type: 'SOLID' as const, color: sectionFillColor, opacity: 1, visible: true };
-        const fills = isLine ? [] : isSection ? [sectionFill] : nodeType === 'FRAME' ? [FRAME_FILL] : [SHAPE_FILL];
+        const shapeFill = { type: 'SOLID' as const, color: shapeColor, opacity: 1, visible: true };
+        const fills = isLine ? [] : isSection ? [sectionFill] : nodeType === 'FRAME' ? [FRAME_FILL] : [shapeFill];
         const extra: Record<string, unknown> = {};
         if (nodeType === 'FRAME') extra.clipsContent = true;
         if (isSection) {
@@ -441,7 +499,7 @@ export function Canvas() {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       }
     },
-    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, stickyColor, sectionFillColor, markerColor, highlighterColor, markerSubType],
+    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, stickyColor, sectionFillColor, markerColor, highlighterColor, markerSubType, interaction, setInteraction],
   );
 
   const onPointerMove = useCallback(
@@ -646,6 +704,7 @@ export function Canvas() {
           paths: [{ d }],
         });
 
+        applyNodeReparenting(store, [node.id]);
         selection.select(node.id);
         // PEN tool stays active for consecutive draws
         return;
@@ -680,6 +739,11 @@ export function Canvas() {
           }
         }
         selection.select(creation.nodeId);
+        if (creation.nodeType === 'SECTION') {
+          applySectionReparenting(store, creation.nodeId);
+        } else {
+          applyNodeReparenting(store, [creation.nodeId]);
+        }
         setActiveTool('MOVE');
         return;
       }
@@ -700,6 +764,10 @@ export function Canvas() {
       // If we were dragging, don't do click-to-select
       if (drag.dragging) {
         selection.setDragging(false);
+        const sectionIds = drag.nodeIds.filter((id) => store.getNode(id)?.type === 'SECTION');
+        const nonSectionIds = drag.nodeIds.filter((id) => store.getNode(id)?.type !== 'SECTION');
+        for (const sid of sectionIds) applySectionReparenting(store, sid);
+        applyNodeReparenting(store, nonSectionIds);
         lastClickRef.current = null;
         return;
       }
@@ -712,10 +780,15 @@ export function Canvas() {
       const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
 
       if (hitId) {
-        if (e.shiftKey) {
-          selection.toggle(hitId);
-        } else {
-          selection.select(hitId);
+        // Skip shift+click toggle if we already toggled this node on mouse down
+        // (otherwise we'd double-toggle: add on down, remove on up)
+        const alreadyHandled = e.shiftKey && !drag.wasAlreadySelected;
+        if (!alreadyHandled) {
+          if (e.shiftKey) {
+            selection.toggle(hitId);
+          } else {
+            selection.select(hitId);
+          }
         }
       } else if (selection.enteredFrameId !== null) {
         // Click outside entered frame → exit frame
@@ -725,7 +798,7 @@ export function Canvas() {
         selection.clear();
       }
 
-      // Click on already-selected sticky note → enter text editing
+      // Click on already-selected text-capable node → enter text editing
       if (
         effectiveTool === 'MOVE'
         && hitId
@@ -733,7 +806,7 @@ export function Canvas() {
         && !textEditing.editingNodeId
       ) {
         const node = store.getNode(hitId);
-        if (node?.type === 'STICKY_NOTE') {
+        if (node && isTextCapableNode(node)) {
           textEditing.startEditing(hitId, false);
         }
       }
@@ -755,7 +828,7 @@ export function Canvas() {
             const node = store.getNode(hitId);
             if (node?.type === 'TEXT') {
               textEditing.startEditing(hitId);
-            } else if (node?.type === 'STICKY_NOTE') {
+            } else if (node && isTextCapableNode(node)) {
               if (textEditing.editingNodeId === hitId) {
                 // Already editing — select all text via DOM
                 requestAnimationFrame(() => {
@@ -801,6 +874,7 @@ export function Canvas() {
       case 'POLYGON':
       case 'STAR': return CURSORS.crosshair;
       case 'STICKY_NOTE': return CURSORS.default;
+      case 'COMMENT': return CURSORS.comment;
       default: return CURSORS.default;
     }
   })();
@@ -847,7 +921,7 @@ export function Canvas() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 overflow-hidden"
+      className="fixed inset-0 overflow-hidden pointer-events-auto"
       style={{
         backgroundColor: `rgb(${pageBg.color.r}, ${pageBg.color.g}, ${pageBg.color.b})`,
         backgroundImage: dotLayers.map((l) => l.image).join(', ') || 'none',
@@ -858,6 +932,7 @@ export function Canvas() {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onContextMenu={onContextMenu}
     >
       <div
         style={{
@@ -974,56 +1049,6 @@ function resolveHitNode(el: HTMLElement, enteredFrameId: string | null): string 
 
   // Click landed directly on the entered frame (no deeper child)
   return enteredFrameId;
-}
-
-interface Rect {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
-/** Compute the combined world-space bounding box of all selected nodes */
-function getSelectionBBox(
-  store: ReturnType<typeof useSceneGraph>,
-  selectedIds: Set<string>,
-): Rect | null {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  for (const id of selectedIds) {
-    const node = store.getNode(id);
-    if (!node || !isGeometryNode(node)) continue;
-    const pos = getWorldPosition(store, node);
-    minX = Math.min(minX, pos.x);
-    minY = Math.min(minY, pos.y);
-    maxX = Math.max(maxX, pos.x + node.width);
-    maxY = Math.max(maxY, pos.y + node.height);
-  }
-
-  if (!isFinite(minX)) return null;
-  return {
-    x: minX, y: minY, w: maxX - minX, h: maxY - minY,
-  };
-}
-
-function pointInRect(px: number, py: number, r: Rect): boolean {
-  return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
-}
-
-/** Collect IDs of all selected geometry nodes for dragging */
-function collectDraggableIds(
-  store: ReturnType<typeof useSceneGraph>,
-  selectedIds: Set<string>,
-): string[] {
-  const ids: string[] = [];
-  for (const id of selectedIds) {
-    const node = store.getNode(id);
-    if (node && isGeometryNode(node)) ids.push(id);
-  }
-  return ids;
 }
 
 /** Parse a CSS color string (#hex or rgb()) into an { r, g, b } object */

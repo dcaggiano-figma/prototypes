@@ -5,11 +5,18 @@ import {
   Icon24Filter,
   Icon24More,
 } from '@figma/fpl-icons';
+import { CommentListItem, useComments } from '@prototype/shared';
 
 import { useViewport } from '../../canvas';
 
 export function CommentsPanelContent() {
   const { state: { scale } } = useViewport();
+  const { threads, setSelectedThreadId, setInteraction } = useComments();
+
+  const handleThreadClick = (threadId: string) => {
+    setSelectedThreadId(threadId);
+    setInteraction({ type: 'viewing', threadId });
+  };
 
   return (
     <>
@@ -40,17 +47,27 @@ export function CommentsPanelContent() {
         </IconButton>
       </div>
 
-      {/* Empty state */}
+      {/* Comment threads */}
       <ScrollContainer scroll="y" fill>
-        <div className="flex items-start justify-center pl-2 pr-3 py-3 gap-2">
-          <div className="text-icon-tertiary">
-            <Icon24Comment />
+        {threads.length === 0 ? (
+          <div className="flex items-start justify-center pl-2 pr-3 py-3 gap-2">
+            <div className="text-icon-tertiary">
+              <Icon24Comment />
+            </div>
+            <p className="text-bodyMd text-text">
+              Give feedback, ask a question, or just leave a note of appreciation.
+              Click anywhere in the file to leave a comment.
+            </p>
           </div>
-          <p className="text-bodyMd text-text">
-            Give feedback, ask a question, or just leave a note of appreciation.
-            Click anywhere in the file to leave a comment.
-          </p>
-        </div>
+        ) : (
+          threads.map((thread) => (
+            <CommentListItem
+              key={thread.id}
+              thread={thread}
+              onClick={() => handleThreadClick(thread.id)}
+            />
+          ))
+        )}
       </ScrollContainer>
     </>
   );

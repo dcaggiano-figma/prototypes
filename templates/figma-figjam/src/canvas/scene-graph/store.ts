@@ -1,6 +1,7 @@
 import type {
-  AppearanceMixin, GeometryMixin, NodeType, Paint, SceneNode, StickyNoteNode,
+  AppearanceMixin, GeometryMixin, GeometryNode, NodeType, Paint, SceneNode, ShapeTextMixin, StickyNoteNode,
 } from '../types';
+import { getWorldPosition, isGeometryNode } from './world-position';
 
 // ── Defaults ──────────────────────────────────────────────────────────
 
@@ -62,14 +63,22 @@ const STICKY_NOTE_DEFAULTS: Omit<StickyNoteNode, keyof import('../types').BaseNo
   showAuthor: true,
 };
 
+const SHAPE_TEXT_DEFAULTS: ShapeTextMixin = {
+  characters: '',
+  fontFamily: 'Inter',
+  fontSize: 16,
+  fontWeight: 400,
+  textAlignHorizontal: 'CENTER',
+};
+
 function getTypeDefaults(type: NodeType): Partial<SceneNode> {
   switch (type) {
     case 'FRAME':
       return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, ...FRAME_DEFAULTS };
     case 'RECTANGLE':
-      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS };
+      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, ...SHAPE_TEXT_DEFAULTS };
     case 'ELLIPSE':
-      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS };
+      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, ...SHAPE_TEXT_DEFAULTS };
     case 'TEXT':
       return { ...GEOMETRY_DEFAULTS, ...TEXT_APPEARANCE, ...TEXT_DEFAULTS, width: 120, height: 22 };
     case 'LINE':
@@ -82,9 +91,9 @@ function getTypeDefaults(type: NodeType): Partial<SceneNode> {
         }],
       };
     case 'POLYGON':
-      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, sides: 3 };
+      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, ...SHAPE_TEXT_DEFAULTS, sides: 3 };
     case 'STAR':
-      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, points: 5, innerRadius: 0.382 };
+      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, ...SHAPE_TEXT_DEFAULTS, points: 5, innerRadius: 0.382 };
     case 'VECTOR':
       return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, paths: [] };
     case 'SECTION':
@@ -145,6 +154,9 @@ export interface SceneGraphStore {
 
   /** Move a node to a new parent at a given index */
   reparentNode(id: string, newParentId: string | null, index: number): void
+
+  /** Reparent a node while preserving its world position (adjusts local coords) */
+  reparentNodeAdjusted(id: string, newParentId: string | null): void
 
   /** Reorder a node within its siblings */
   reorderNode(id: string, newIndex: number): void
@@ -334,6 +346,59 @@ export function createSceneGraph(initialNodes?: SceneNode[]): SceneGraphStore {
       notify();
     },
 
+    reparentNodeAdjusted(id, newParentId) {
+      const node = nodes.get(id);
+      if (!node || !isGeometryNode(node)) return;
+
+      // Already at the target parent — nothing to do
+      if (node.parentId === newParentId) return;
+
+      // Snapshot world position before reparenting
+      const worldPos = getWorldPosition(store, node as GeometryNode);
+
+      // Remove from old parent
+      if (node.parentId) {
+        const oldParent = nodes.get(node.parentId);
+        if (oldParent) {
+          oldParent.children = oldParent.children.filter((cid) => cid !== id);
+        }
+      } else {
+        rootIds = rootIds.filter((rid) => rid !== id);
+      }
+
+      // Compute new parent's world position
+      let newParentWorldX = 0;
+      let newParentWorldY = 0;
+      if (newParentId) {
+        const newParent = nodes.get(newParentId);
+        if (newParent && isGeometryNode(newParent)) {
+          const parentWorld = getWorldPosition(store, newParent as GeometryNode);
+          newParentWorldX = parentWorld.x;
+          newParentWorldY = parentWorld.y;
+        }
+      }
+
+      // Attach to new parent
+      node.parentId = newParentId;
+      if (newParentId) {
+        const newParent = nodes.get(newParentId);
+        if (newParent) {
+          newParent.children.push(id);
+        }
+      } else {
+        rootIds.push(id);
+      }
+
+      // Adjust local coords to preserve world position
+      node.x = worldPos.x - newParentWorldX;
+      node.y = worldPos.y - newParentWorldY;
+
+      // Update the map entry so React sees the change
+      nodes.set(id, { ...node } as SceneNode);
+
+      notify();
+    },
+
     reorderNode(id, newIndex) {
       const node = nodes.get(id);
       if (!node) return;
@@ -516,12 +581,17 @@ export const DEMO_SCENE: SceneNode[] = [
     fills: [{ type: 'SOLID', color: { r: 196, g: 167, b: 255 }, opacity: 1, visible: true }],
     strokes: [],
     effects: [],
+    characters: 'Ideas',
+    fontFamily: 'Inter',
+    fontSize: 16,
+    fontWeight: 400,
+    textAlignHorizontal: 'CENTER',
   } as SceneNode,
-  // Blue diamond (rotated rectangle)
+  // Blue diamond (4-sided polygon)
   {
     id: 'diamond_1',
     name: 'Diamond 1',
-    type: 'RECTANGLE',
+    type: 'POLYGON',
     parentId: null,
     children: [],
     visible: true,
@@ -530,12 +600,18 @@ export const DEMO_SCENE: SceneNode[] = [
     y: 80,
     width: 80,
     height: 80,
-    rotation: 45,
+    rotation: 0,
     opacity: 1,
     cornerRadius: 0,
     fills: [{ type: 'SOLID', color: { r: 147, g: 197, b: 253 }, opacity: 1, visible: true }],
     strokes: [],
     effects: [],
+    sides: 4,
+    characters: 'Action',
+    fontFamily: 'Inter',
+    fontSize: 16,
+    fontWeight: 400,
+    textAlignHorizontal: 'CENTER',
   } as SceneNode,
   // Connector line
   {
