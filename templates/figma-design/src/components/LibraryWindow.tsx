@@ -1,10 +1,8 @@
 import { SearchInput, Tabs, Window } from '@figma/fpl-components';
 import {
   Icon24Refresh,
-  Icon24Star,
   Icon24Team,
   Icon24Company,
-  Icon24Component,
   Icon24Library,
   Icon24BulbOn,
   Icon24Community,
