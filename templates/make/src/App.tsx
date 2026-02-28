@@ -422,7 +422,7 @@ function App() {
     <ThemeProvider initialVersion="ui3">
       <AppThemeProvider initial="light">
         <HashRouter>
-          <UserConfigProvider config={{ name: 'Josh Ferrell' }}>
+          <UserConfigProvider config={{ name: 'Josh Ferrell', color: 'yellow' }}>
             <WorkingStateProvider>
               <Routes>
               <Route element={<HomeLayout />}>

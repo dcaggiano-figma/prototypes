@@ -895,7 +895,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       case 'LINE':
       case 'POLYGON':
       case 'STAR': return CURSORS.crosshair;
-      case 'COMMENT': return CURSORS.comment;
+      case 'COMMENT': return CURSORS.commentNext;
       default: return CURSORS.default;
     }
   })();

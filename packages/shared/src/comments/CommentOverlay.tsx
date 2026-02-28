@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useUserConfig } from '../user-config';
 import { CommentPopover } from './CommentPopover';
 import { CommentHoverPreview } from './CommentHoverPreview';
@@ -55,6 +55,20 @@ export function CommentOverlay({
   }, [setInteraction]);
 
   const selectedThread = selectedThreadId ? threads.find((t) => t.id === selectedThreadId) : undefined;
+
+  // Close thread window on Escape (when focus is outside the reply input)
+  useEffect(() => {
+    if (interaction.type !== 'viewing' || !selectedThread) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setSelectedThreadId(null);
+        setInteraction({ type: 'none' });
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [interaction.type, selectedThread, setSelectedThreadId, setInteraction]);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50">

@@ -48,9 +48,8 @@ import {
   Icon24CommentNewLarge,
   Icon24ConnectorElbowLarge,
 } from '@figma/fpl-icons';
-import { Toolbar as SharedToolbar, type SubTool } from '@prototype/shared';
+import { Toolbar as SharedToolbar, ModeSwitcher, type SubTool } from '@prototype/shared';
 import styles from './Toolbar.module.css';
-import { ModeSwitcher } from './ModeSwitcher';
 import { PenIllustration, BrushIllustration, PencilIllustration } from './ToolIllustrations';
 import { QUICK_ACTIONS_TABS } from './quickActionsData';
 import type { Mode } from './menuTypes';
@@ -250,6 +249,12 @@ function getAllToolIds(moveTool: ToolConfig, mainTools: ToolConfig[], mode: Mode
 // ---------------------------------------------------------------------------
 
 const MODE_ORDER: Mode[] = ['draw', 'design', 'dev'];
+
+const MODE_OPTIONS = [
+  { value: 'draw', icon: Icon24Draw, label: 'Draw view' },
+  { value: 'design', icon: Icon24Design, label: 'Design view' },
+  { value: 'dev', icon: Icon24Dev, label: 'Dev view' },
+];
 
 // ---------------------------------------------------------------------------
 // Toolbar component
@@ -602,17 +607,12 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
 
         {/* Mode switcher — always visible */}
         <div className="flex items-center p-8px border-l border-solid border-border">
-          <ModeSwitcher value={activeMode} onChange={handleModeChange} legend="Editor mode">
-            <ModeSwitcher.Option value="draw" aria-label="Draw view">
-              <Icon24Draw />
-            </ModeSwitcher.Option>
-            <ModeSwitcher.Option value="design" aria-label="Design view">
-              <Icon24Design />
-            </ModeSwitcher.Option>
-            <ModeSwitcher.Option value="dev" aria-label="Dev view">
-              <Icon24Dev />
-            </ModeSwitcher.Option>
-          </ModeSwitcher>
+          <ModeSwitcher
+            value={activeMode}
+            onChange={handleModeChange}
+            legend="Editor mode"
+            options={MODE_OPTIONS}
+          />
         </div>
     </div>
     </div>

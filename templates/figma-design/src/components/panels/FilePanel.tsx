@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
 import { Button, ButtonGroup, ButtonPrimitive, Collapse, IconButton, Input, InputPrimitive, Menu } from '@figma/fpl-components';
+import { NavList } from '@prototype/shared';
 
 import {
   Icon16ChevronDown,
@@ -37,7 +38,7 @@ const PAGES: Page[] = [
 
 export function FilePanel() {
   const { toggleMinimize, fileName, setFileName } = useMinimizeUI();
-  const [selectedPage, setSelectedPage] = useState(0);
+  const [selectedPage, setSelectedPage] = useState(PAGES[0].name);
 
   // File name inline editing
   const [isEditingFileName, setIsEditingFileName] = useState(false);
@@ -190,24 +191,15 @@ export function FilePanel() {
               </Collapse.Trail>
             </Collapse.Header>
             <Collapse.Content>
-              <ul className="flex flex-col pb-2">
-              {PAGES.map((page, i) => (
-                <li className='flex flex-col px-2 py-1' key={page.name}>
-                  <ButtonPrimitive
-                    aria-label={page.name}
-                    className={clsx(
-                      'flex items-center gap-2 px-2 py-1 rounded-md text-bodyMd cursor-pointer',
-                      selectedPage === i
-                        ? 'bg-bg-secondary text-text text-bodyMdStrong'
-                        : 'text-text hover:bg-bg-hover',
-                    )}
-                    onClick={() => setSelectedPage(i)}
-                  >
-                  {page.name}
-                </ButtonPrimitive>
-                </li>
-              ))}
-              </ul>
+              <NavList
+                value={selectedPage}
+                onChange={setSelectedPage}
+                size="md"
+                selectedVariant="highlighted"
+                aria-label="Pages"
+                className="pb-2"
+                items={PAGES.map((p) => ({ value: p.name, label: p.name }))}
+              />
             </Collapse.Content>
           </Collapse.Root>
 

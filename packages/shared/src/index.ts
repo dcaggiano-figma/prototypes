@@ -1,6 +1,6 @@
 export { useResizablePanel } from './useResizablePanel';
 export { ResizeHandle } from './ResizeHandle';
-export { Avatar } from './Avatar';
+export { Avatar, type MultiplayerColor } from './Avatar';
 export { Card } from './Card';
 
 // Comments
@@ -75,6 +75,14 @@ export { ModelSelector } from './ai-chat/ModelSelector';
 export { AttachMenu } from './ai-chat/AttachMenu';
 export { PromptLanding } from './ai-chat/PromptLanding';
 export { PromptPanel } from './ai-chat/PromptPanel';
+
+// Mode Switcher
+export { ModeSwitcher } from './ModeSwitcher';
+export type { ModeSwitcherOption } from './ModeSwitcher';
+
+// Nav List
+export { NavList } from './NavList';
+export type { NavListItemDef } from './NavList';
 
 // User Config
 export type { UserConfig } from './user-config';
