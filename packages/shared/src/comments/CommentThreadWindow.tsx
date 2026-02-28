@@ -42,7 +42,11 @@ export function CommentThreadWindow({
     if (e.key === 'Escape') {
       e.stopPropagation();
       if (!replyText.trim()) {
-        setExpanded(false);
+        if (expanded) {
+          setExpanded(false);
+        } else {
+          onClose();
+        }
         return;
       }
       escapeCountRef.current++;

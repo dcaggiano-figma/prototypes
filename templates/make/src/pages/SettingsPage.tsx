@@ -4,7 +4,6 @@ import {
   useRef,
   type ReactElement,
 } from 'react';
-import clsx from 'clsx';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu,
@@ -38,40 +37,16 @@ import {
   Icon24Plugin,
   Icon24Github,
 } from '@figma/fpl-icons';
-import { useController } from 'react-hook-form';
 import { z } from 'zod';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
-import { useResizablePanel, UserAvatar, ResizeHandle } from '@prototype/shared';
-
-/* ------------------------------------------------------------------ */
-/*  Form-connected Textarea (no built-in Form.Textarea exists)          */
-/* ------------------------------------------------------------------ */
-
-function FormTextarea({ name, placeholder, rows }: { name: string; placeholder?: string; rows?: number }) {
-  const { field } = useController({ name });
-  return (
-    <Textarea
-      id={name}
-      placeholder={placeholder}
-      rows={rows}
-      value={field.value as string}
-      onChange={field.onChange}
-    />
-  );
-}
+import { useResizablePanel, UserAvatar, ResizeHandle, NavList } from '@prototype/shared';
 
 /* ------------------------------------------------------------------ */
 /*  Navigation data                                                     */
 /* ------------------------------------------------------------------ */
 
-type NavItem = {
-  id: string;
-  label: string;
-  icon: typeof Icon24Adjust;
-};
-
-const SITE_NAV_ITEMS: NavItem[] = [
+const SITE_NAV_ITEMS = [
   { id: 'general', label: 'General', icon: Icon24Adjust },
   { id: 'design-libraries', label: 'Design libraries', icon: Icon24Library },
   { id: 'domains', label: 'Domains', icon: Icon24Public },
@@ -79,7 +54,7 @@ const SITE_NAV_ITEMS: NavItem[] = [
   { id: 'chat', label: 'Chat', icon: Icon24Chat },
 ];
 
-const INTEGRATION_NAV_ITEMS: NavItem[] = [
+const INTEGRATION_NAV_ITEMS = [
   { id: 'supabase', label: 'Supabase', icon: Icon24Plugin },
   { id: 'figma-npm-registry', label: 'Figma npm registry', icon: Icon24Figma },
   { id: 'github', label: 'GitHub', icon: Icon24Github },
@@ -131,8 +106,8 @@ function GeneralSettings() {
           </Form.Row>
 
           <Form.Row name="metaDescription" label={<Form.Label>Meta description</Form.Label>}>
-            <FormTextarea
-              name="metaDescription"
+            <Textarea
+              id="metaDescription"
               placeholder="Create and manage user accounts effortlessly with a streamlined sign-up form designed for businesses and developers to enhance user engagement."
               rows={4}
             />
@@ -248,19 +223,19 @@ function GeneralSettings() {
           <h2 className="text-bodyLgStrong text-text pb-4">Custom code</h2>
 
           <Form.Row name="headStart" label={<Form.Label>{'Start of <head>'}</Form.Label>}>
-            <FormTextarea name="headStart" placeholder="Include any custom code for ad tracking or analytics" rows={2} />
+            <Textarea id="headStart" placeholder="Include any custom code for ad tracking or analytics" rows={2} />
           </Form.Row>
 
           <Form.Row name="headEnd" label={<Form.Label>{'End of <head>'}</Form.Label>}>
-            <FormTextarea name="headEnd" placeholder="Include any custom code for ad tracking or analytics" rows={2} />
+            <Textarea id="headEnd" placeholder="Include any custom code for ad tracking or analytics" rows={2} />
           </Form.Row>
 
           <Form.Row name="bodyStart" label={<Form.Label>{'Start of <body>'}</Form.Label>}>
-            <FormTextarea name="bodyStart" placeholder="Include any custom code for ad tracking or analytics" rows={2} />
+            <Textarea id="bodyStart" placeholder="Include any custom code for ad tracking or analytics" rows={2} />
           </Form.Row>
 
           <Form.Row name="bodyEnd" label={<Form.Label>{'End of <body>'}</Form.Label>}>
-            <FormTextarea name="bodyEnd" placeholder="Include any custom code for ad tracking or analytics" rows={2} />
+            <Textarea id="bodyEnd" placeholder="Include any custom code for ad tracking or analytics" rows={2} />
           </Form.Row>
         </div>
       </div>
@@ -403,34 +378,6 @@ const SETTINGS_PANELS: Record<string, () => ReactElement> = {
   'figma-npm-registry': FigmaNpmRegistrySettings,
   github: GithubSettings,
 };
-
-/* ------------------------------------------------------------------ */
-/*  Nav item button                                                     */
-/* ------------------------------------------------------------------ */
-
-function NavItemButton({
-  item,
-  isActive,
-  onClick,
-}: {
-  item: NavItem;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  const IconComponent = item.icon;
-  return (
-    <ButtonPrimitive
-      onClick={onClick}
-      className={clsx(
-        'flex items-center gap-8px px-4px rounded-md text-bodyMd w-full',
-        isActive ? 'bg-bg-selected text-text' : 'text-text hover:bg-bg-transparent-hover',
-      )}
-    >
-      <IconComponent />
-      {item.label}
-    </ButtonPrimitive>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Settings page                                                       */
@@ -668,27 +615,25 @@ export function SettingsPage() {
           {/* Site section */}
           <div className="flex flex-col gap-4px px-2 py-2">
             <span className="text-bodyMd text-text px-2 py-2">Make</span>
-            {SITE_NAV_ITEMS.map((item) => (
-              <NavItemButton
-                key={item.id}
-                item={item}
-                isActive={activeSection === item.id}
-                onClick={() => setActiveSection(item.id)}
-              />
-            ))}
+            <NavList
+              value={activeSection}
+              onChange={setActiveSection}
+              size="lg"
+              aria-label="Site settings"
+              items={SITE_NAV_ITEMS.map((i) => ({ value: i.id, label: i.label, icon: i.icon }))}
+            />
           </div>
 
           {/* Integrations section */}
           <div className="flex flex-col gap-4px border-t border-border px-2 py-2">
             <span className="text-bodyMd text-text px-8px py-2">Integrations</span>
-            {INTEGRATION_NAV_ITEMS.map((item) => (
-              <NavItemButton
-                key={item.id}
-                item={item}
-                isActive={activeSection === item.id}
-                onClick={() => setActiveSection(item.id)}
-              />
-            ))}
+            <NavList
+              value={activeSection}
+              onChange={setActiveSection}
+              size="lg"
+              aria-label="Integration settings"
+              items={INTEGRATION_NAV_ITEMS.map((i) => ({ value: i.id, label: i.label, icon: i.icon }))}
+            />
           </div>
         </nav>
         <ResizeHandle onMouseDown={onResizeMouseDown} />

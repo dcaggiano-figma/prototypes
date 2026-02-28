@@ -37,6 +37,7 @@ import { MinimizedRightPanel } from '../components/MinimizedRightPanel';
 import { DesignMainMenu } from '../components/DesignMainMenu';
 import { FilePanel, SearchPanel, AiChatPanel, AssetsPanel } from '../components/panels';
 import { VariablesPanel } from '../components/variables';
+import { LibraryWindow } from '../components/LibraryWindow';
 
 // ---------------------------------------------------------------------------
 // Panel content per nav item
@@ -101,6 +102,7 @@ function EditorContent() {
   const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => readStoredTheme());
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [variablesViewMode, setVariablesViewMode] = useState<VariablesViewMode>('hidden');
+  const [showLibrary, setShowLibrary] = useState(false);
 
   // Minimize UI state
   const [isMinimized, setIsMinimized] = useState(false);
@@ -242,7 +244,7 @@ function EditorContent() {
             <IconButton
               size="lg"
               aria-label="Library"
-              onClick={() => console.log('Clicked')}
+              onClick={() => setShowLibrary((v) => !v)}
             >
               <Icon24Library />
             </IconButton>
@@ -281,6 +283,9 @@ function EditorContent() {
           onClose={handleVariablesClose}
         />
       )}
+
+      {/* Library window */}
+      {showLibrary && <LibraryWindow onClose={() => setShowLibrary(false)} />}
 
       {/* Context menu — always mounted, visibility managed by FPL */}
       <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} />

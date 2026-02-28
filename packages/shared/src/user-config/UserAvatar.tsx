@@ -1,11 +1,12 @@
-import { Avatar } from '../Avatar';
+import { Avatar, type MultiplayerColor } from '../Avatar';
 import { useUserConfig } from './provider';
 
 interface UserAvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xlg';
+  color?: MultiplayerColor;
 }
 
-export function UserAvatar({ size = 'md' }: UserAvatarProps) {
+export function UserAvatar({ size = 'md', color }: UserAvatarProps) {
   const { config, initial } = useUserConfig();
   return (
     <Avatar
@@ -13,6 +14,7 @@ export function UserAvatar({ size = 'md' }: UserAvatarProps) {
       src={config.avatarUrl}
       initial={initial}
       alt={config.name}
+      color={color ?? config.color}
     />
   );
 }
