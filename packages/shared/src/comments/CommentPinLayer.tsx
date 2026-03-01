@@ -151,6 +151,7 @@ export function CommentPinLayer({
             <CommentPin
               authorInitial={firstComment.authorInitial}
               avatarUrl={firstComment.avatarUrl}
+              color={firstComment.color}
               selected={isSelected}
               hovered={isHovered}
               resolved={thread.resolved}

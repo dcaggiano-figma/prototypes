@@ -13,9 +13,9 @@ import {
   Button,
   ButtonGroup,
   Badge,
-  CardPrimitive,
   Input,
 } from '@figma/fpl-components';
+import { Card } from '@prototype/shared';
 import {
   Icon16ChevronDown,
   Icon24FigmaLarge,
@@ -31,7 +31,8 @@ import {
   Icon24Adjust,
 } from '@figma/fpl-icons';
 import { ThemeProvider } from '@figma/fpl-tokens';
-import { PromptLanding, UserConfigProvider, type PromptSubmission } from '@prototype/shared';
+import { UserConfigProvider, type PromptSubmission } from '@prototype/shared';
+import { PromptLanding } from './components/PromptLanding';
 import { AppThemeProvider, useTheme, type ThemeSetting } from './helpers/theme';
 import { WorkingStateProvider, useWorkingState } from './helpers/workingState';
 import { WorkingPage } from './pages/WorkingPage';
@@ -391,20 +392,15 @@ function HomePage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
             {CARDS.map((card) => (
-              <CardPrimitive.Root
+              <Card
                 key={card.id}
-                className="relative flex flex-col gap-2 p-2"
+                size="lg"
+                label={card.title}
+                subtext={card.subtitle}
+                onClick={() => console.log(card.id)}
               >
-                <CardPrimitive.MainButton
-                  onClick={() => console.log(card.id)}
-                  className="absolute inset-0 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-border-selected"
-                />
-                <div className="overflow-hidden border border-border rounded-lg aspect-[16/9] bg-bg-secondary"> </div>
-                <div className="flex flex-col">
-                  <span className="text-bodyLg text-text">{card.title}</span>
-                  <span className="text-bodyMd text-text-secondary">{card.subtitle}</span>
-                </div>
-              </CardPrimitive.Root>
+                <div className="overflow-hidden border border-border rounded-lg aspect-[16/9] bg-bg-secondary" />
+              </Card>
             ))}
           </div>
         </div>

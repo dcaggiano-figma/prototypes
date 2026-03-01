@@ -58,6 +58,32 @@ export function findNodeAtWorldPoint(
   return undefined;
 }
 
+/** Find the topmost geometry node within a padded safe zone of a world-space point */
+export function findNodeNearWorldPoint(
+  store: SceneGraphStore,
+  wx: number,
+  wy: number,
+  padding: number,
+): string | undefined {
+  const roots = store.getRootNodes();
+  for (let i = roots.length - 1; i >= 0; i--) {
+    const node = roots[i];
+    if (!isGeometryNode(node)) continue;
+    if (node.type === 'SECTION') continue;
+    if (node.type === 'CONNECTOR' || node.type === 'LINE' || node.type === 'VECTOR') continue;
+    const pos = getWorldPosition(store, node);
+    if (pointInRect(wx, wy, {
+      x: pos.x - padding,
+      y: pos.y - padding,
+      w: node.width + padding * 2,
+      h: node.height + padding * 2,
+    })) {
+      return node.id;
+    }
+  }
+  return undefined;
+}
+
 /** Collect IDs of all selected geometry nodes for dragging */
 export function collectDraggableIds(
   store: SceneGraphStore,

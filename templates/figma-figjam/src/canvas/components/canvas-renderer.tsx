@@ -5,6 +5,7 @@ import { useRootNodes, useSceneGraph } from '../scene-graph/provider';
 import { useTextEditing } from '../text-editing/provider';
 import type {
   Color,
+  ConnectorNode,
   EllipseNode,
   FrameNode,
   LineNode,
@@ -20,9 +21,11 @@ import type {
   TextNode,
   VectorNode,
 } from '../types';
+import { ConnectorRenderer } from '../connectors/ConnectorRenderer';
 import { CURSORS } from '../cursors';
 import { useSelection } from '../selection/provider';
 import { useViewport } from '../viewport/provider';
+
 
 export function CanvasRenderer() {
   const rootNodes = useRootNodes();
@@ -81,6 +84,8 @@ function SceneNodeRenderer({
           <SectionRenderer node={node as SectionNode} store={store} />
         </>
       );
+    case 'CONNECTOR':
+      return <ConnectorRenderer node={node as ConnectorNode} />;
     default:
       return null;
   }
@@ -690,16 +695,14 @@ function SectionLabel({ node }: { node: SectionNode }) {
   const [isEditing, setIsEditing] = useState(false);
   const labelRef = useRef<HTMLInputElement>(null);
   const fontSize = 13 / state.scale;
-  const iconSize = 12 / state.scale;
-  const iconPad = 3 / state.scale;
-  const pillPadY = 2 / state.scale;
+  const pillPadY = 4 / state.scale;
   const pillPadX = 4 / state.scale;
   const iconLabelGap = 4 / state.scale;
   const pillRadius = 3 / state.scale;
 
   const fill = getFirstVisibleFill(node.fills);
   const pillBg = fill ? colorToCSS(fill.color, Math.min(fill.opacity, 0.6)) : 'rgba(255,255,255,0.6)';
-  const textColor = selected ? 'var(--color-fsTextSelectedOnLightCanvas)' : 'var(--color-fsTextOnLightCanvasSecondary)';
+  const textColor = selected ? 'var(--color-fsTextOnLightCanvas' : 'var(--color-fsTextOnLightCanvas)';
 
   const commitRename = useCallback(() => {
     if (!labelRef.current) return;
@@ -733,7 +736,7 @@ function SectionLabel({ node }: { node: SectionNode }) {
       data-node-id={node.id}
       style={{
         position: 'absolute',
-        transform: `translate(${node.x}px, ${node.y - fontSize - 12 / state.scale}px)`,
+        transform: `translate(${node.x}px, ${node.y - fontSize - 16 / state.scale}px)`,
         display: 'flex',
         alignItems: 'center',
         gap: iconLabelGap,
@@ -745,29 +748,6 @@ function SectionLabel({ node }: { node: SectionNode }) {
         userSelect: 'none',
       }}
     >
-      {/* Icon button */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: pillBg,
-          borderRadius: pillRadius,
-          padding: iconPad,
-        }}
-      >
-        <svg
-          width={iconSize}
-          height={iconSize}
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeDasharray="2 2"
-        >
-          <rect x="1" y="1" width="14" height="14" rx="2" />
-        </svg>
-      </div>
       {/* Label container */}
       {isEditing ? (
         <InputPrimitive
@@ -781,12 +761,13 @@ function SectionLabel({ node }: { node: SectionNode }) {
             borderRadius: pillRadius,
             padding: `${pillPadY}px ${pillPadX}px`,
             cursor: 'text',
-            outline: 'none',
-            minWidth: 8 / state.scale,
+            outline: 'solid 2px var(--color-border-selected)',
+            minWidth: 80 / state.scale,
             border: 'none',
             font: 'inherit',
             color: 'inherit',
             lineHeight: 'inherit',
+            height: '34px',
           }}
         />
       ) : (
@@ -798,7 +779,7 @@ function SectionLabel({ node }: { node: SectionNode }) {
             padding: `${pillPadY}px ${pillPadX}px`,
             cursor: CURSORS.default,
             userSelect: 'none',
-            outline: 'none',
+            outline: 'solid 1px rgba(0, 0, 0, 0.2)',
             minWidth: 8 / state.scale,
             border: 'none',
             font: 'inherit',

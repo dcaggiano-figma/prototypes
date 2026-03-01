@@ -62,6 +62,8 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
 
       // Lines render their selection outline via DOM in ResizeHandles
       if (node.type === 'LINE') continue;
+      // Connectors handle their own selection highlight in ConnectorRenderer
+      if (node.type === 'CONNECTOR') continue;
 
       // Convert world-space bounds to screen-space
       const world = getWorldPosition(store, node);

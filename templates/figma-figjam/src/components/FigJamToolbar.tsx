@@ -25,7 +25,7 @@ import {
   Icon24ShapeCylinderLarge,
 } from '@figma/fpl-icons';
 import { useActiveTool, useSelection, useSceneGraph } from '../canvas';
-import type { ToolType, Color } from '../canvas';
+import type { ToolType, Color, ConnectorLineShape } from '../canvas';
 import { MarkerIllustration, HighlighterIllustration, TapeIllustration } from './toolbar-illustrations';
 import { StickyToolButton } from './StickyToolButton';
 import { ShapesToolButton } from './ShapesToolButton';
@@ -52,11 +52,19 @@ interface ShapeOption {
 // Shape & connector options for secondary toolbar
 // ---------------------------------------------------------------------------
 
+/** Map connector option IDs to ConnectorLineShape */
+const CONNECTOR_SHAPE_MAP: Record<string, ConnectorLineShape> = {
+  'connector-curve': 'CURVE',
+  'connector-elbow': 'ELBOW',
+  'connector-straight': 'STRAIGHT',
+  'connector-line': 'LINE',
+};
+
 const ALL_SHAPE_OPTIONS: ShapeOption[] = [
-  { id: 'connector-curve', label: 'Curve', Icon: Icon24ConnectorCurveLarge, toolType: 'LINE' },
-  { id: 'connector-elbow', label: 'Elbow', Icon: Icon24ConnectorElbowLarge, toolType: 'LINE' },
-  { id: 'connector-straight', label: 'Straight', Icon: Icon24ConnectorStraightLarge, toolType: 'LINE' },
-  { id: 'connector-line', label: 'Line', Icon: Icon24FigjamLineLarge, toolType: 'LINE' },
+  { id: 'connector-curve', label: 'Curve', Icon: Icon24ConnectorCurveLarge, toolType: 'CONNECTOR' },
+  { id: 'connector-elbow', label: 'Elbow', Icon: Icon24ConnectorElbowLarge, toolType: 'CONNECTOR' },
+  { id: 'connector-straight', label: 'Straight', Icon: Icon24ConnectorStraightLarge, toolType: 'CONNECTOR' },
+  { id: 'connector-line', label: 'Line', Icon: Icon24FigjamLineLarge, toolType: 'CONNECTOR' },
   { id: 'shape-rect', label: 'Rectangle', Icon: Icon24RectangleLarge, toolType: 'RECTANGLE' },
   { id: 'shape-ellipse', label: 'Circle', Icon: Icon24EllipseLarge, toolType: 'ELLIPSE' },
   { id: 'shape-diamond', label: 'Diamond', Icon: Icon24DiamondLarge, toolType: 'POLYGON' },
@@ -100,6 +108,7 @@ export function FigJamToolbar() {
     markerColor, setMarkerColor,
     highlighterColor, setHighlighterColor,
     markerSubType, setMarkerSubType,
+    setConnectorLineShape,
   } = useActiveTool();
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -131,7 +140,7 @@ export function FigJamToolbar() {
     if (activeRaised === 'marker' && activeTool !== 'PEN') {
       setActiveRaised(null);
     }
-    if (activeRaised === 'shapes' && !['RECTANGLE', 'ELLIPSE', 'POLYGON', 'LINE'].includes(activeTool)) {
+    if (activeRaised === 'shapes' && !['RECTANGLE', 'ELLIPSE', 'POLYGON', 'LINE', 'CONNECTOR'].includes(activeTool)) {
       setActiveRaised(null);
     }
   }, [activeTool, activeRaised]);
@@ -162,6 +171,9 @@ export function FigJamToolbar() {
     setActiveShapeOption(optionId);
     const opt = ALL_SHAPE_OPTIONS.find((s) => s.id === optionId);
     if (opt?.toolType) setActiveTool(opt.toolType);
+    // Set connector line shape when a connector option is selected
+    const connectorShape = CONNECTOR_SHAPE_MAP[optionId];
+    if (connectorShape) setConnectorLineShape(connectorShape);
   };
 
   // Handle direct shape clicks from the ShapesToolButton

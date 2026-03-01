@@ -18,7 +18,7 @@ export function CommentHoverPreview({ thread, style }: CommentHoverPreviewProps)
       style={{ width: 240, ...style }}
     >
       <div className="flex gap-2 p-2.5">
-        <Avatar size="md" initial={lastComment.authorInitial} src={lastComment.avatarUrl} alt={lastComment.authorName} />
+        <Avatar size="md" initial={lastComment.authorInitial} src={lastComment.avatarUrl} color={lastComment.color} alt={lastComment.authorName} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
             <span className="text-bodyMd text-text truncate">{lastComment.authorName}</span>

@@ -1,10 +1,12 @@
 import clsx from 'clsx';
 import { Avatar } from '../Avatar';
+import type { MultiplayerColor } from '../Avatar';
 import styles from './comments.module.css';
 
 interface CommentPinProps {
   authorInitial: string;
   avatarUrl?: string;
+  color?: MultiplayerColor;
   selected?: boolean;
   hovered?: boolean;
   resolved?: boolean;
@@ -17,6 +19,7 @@ interface CommentPinProps {
 export function CommentPin({
   authorInitial,
   avatarUrl,
+  color,
   selected = false,
   hovered = false,
   resolved = false,
@@ -54,6 +57,7 @@ export function CommentPin({
             size="md"
             initial={authorInitial}
             src={avatarUrl}
+            color={color}
             alt={authorInitial}
           />
         )}

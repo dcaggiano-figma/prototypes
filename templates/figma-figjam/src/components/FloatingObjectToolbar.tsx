@@ -22,9 +22,22 @@ import {
   Icon24LayoutAlignBottom,
   Icon24LayoutDistributeHorizontalSpacing,
   Icon24Section,
+  Icon24ConnectorCurveLarge,
+  Icon24ConnectorElbowLarge,
+  Icon24ConnectorStraightLarge,
+  Icon24FigjamStroke,
+  Icon24FigjamStrokeThick,
+  Icon24StrokeSolid,
+  Icon24StrokeDashed,
+  Icon24StrokeWeight,
+  Icon24StrokeLineArrow,
+  Icon24StrokeTriangleArrow,
+  Icon24StrokeReversedTriangle,
+  Icon24StrokeCircleArrow,
+  Icon24StrokeDiamondArrow,
 } from '@figma/fpl-icons';
-import { useSelection, useSceneGraph, useViewport, useActiveTool, isShapeWithText, isTextCapableNode, alignNodes, distributeNodes, wrapInSection } from '../canvas';
-import type { AppearanceNode, ShapeWithTextNode, TextCapableNode } from '../canvas';
+import { useSelection, useSceneGraph, useViewport, useActiveTool, isShapeWithText, isTextCapableNode, isConnectorNode, alignNodes, distributeNodes, wrapInSection } from '../canvas';
+import type { AppearanceNode, ConnectorCap, ConnectorLineShape, ConnectorNode, ShapeWithTextNode, TextCapableNode } from '../canvas';
 import { isGeometryNode, getWorldPosition } from '../canvas/scene-graph/world-position';
 import { STICKY_COLORS } from './FigJamToolbar';
 
@@ -73,6 +86,9 @@ export function FloatingObjectToolbar() {
   const { setStickyColor, activeTool, sectionFillColor } = useActiveTool();
   const { manager: fontMenuManager, getTriggerProps: getFontTriggerProps } = Menu.useMenu();
   const { manager: sizeMenuManager, getTriggerProps: getSizeTriggerProps } = Menu.useMenu();
+  // Subscribe to store changes so toolbar updates when node properties change
+  const [, bump] = useState(0);
+  useEffect(() => store.subscribe(() => bump((n) => n + 1)), [store]);
   const [showColors, setShowColors] = useState(false);
   const colorPopoverRef = useRef<HTMLDivElement>(null);
   const colorTriggerRef = useRef<HTMLButtonElement>(null);
@@ -176,6 +192,7 @@ export function FloatingObjectToolbar() {
   const isTextSelected = firstNode?.type === 'TEXT';
   const isTextCapable = isStickySelected || isShapeSelected || isTextSelected;
   const isSectionSelected = firstNode?.type === 'SECTION';
+  const isConnectorSelected = firstNode ? isConnectorNode(firstNode) : false;
 
   const topY = minY - 48;
 
@@ -185,6 +202,19 @@ export function FloatingObjectToolbar() {
       <MixedSelectionToolbar
         centerX={centerX}
         topY={topY}
+        selection={selection}
+        store={store}
+      />
+    );
+  }
+
+  // Render connector-specific toolbar
+  if (isConnectorSelected && firstNode) {
+    return (
+      <ConnectorToolbar
+        centerX={centerX}
+        topY={topY}
+        node={firstNode as ConnectorNode}
         selection={selection}
         store={store}
       />
@@ -827,6 +857,417 @@ function MixedSelectionToolbar({ centerX, topY, selection, store }: MixedSelecti
           onClick={() => wrapInSection(store, selection)}>
           <Icon24Section />
         </IconButton>
+      </div>
+    </div>
+  );
+}
+
+// ── Connector Toolbar ────────────────────────────────────────────────
+
+const CONNECTOR_COLORS = [
+  { id: 'dark-gray', label: 'Dark gray', rgb: { r: 100, g: 100, b: 100 }, css: 'rgb(100, 100, 100)' },
+  { id: 'black', label: 'Black', rgb: { r: 0, g: 0, b: 0 }, css: 'rgb(0, 0, 0)' },
+  { id: 'red', label: 'Red', rgb: { r: 224, g: 49, b: 49 }, css: 'rgb(224, 49, 49)' },
+  { id: 'orange', label: 'Orange', rgb: { r: 253, g: 126, b: 20 }, css: 'rgb(253, 126, 20)' },
+  { id: 'green', label: 'Green', rgb: { r: 55, g: 178, b: 77 }, css: 'rgb(55, 178, 77)' },
+  { id: 'blue', label: 'Blue', rgb: { r: 34, g: 139, b: 230 }, css: 'rgb(34, 139, 230)' },
+  { id: 'purple', label: 'Purple', rgb: { r: 132, g: 94, b: 247 }, css: 'rgb(132, 94, 247)' },
+  { id: 'pink', label: 'Pink', rgb: { r: 230, g: 73, b: 128 }, css: 'rgb(230, 73, 128)' },
+];
+
+const LINE_SHAPE_OPTIONS: { shape: ConnectorLineShape; Icon: React.ComponentType; label: string }[] = [
+  { shape: 'CURVE', Icon: Icon24ConnectorCurveLarge, label: 'Curve' },
+  { shape: 'ELBOW', Icon: Icon24ConnectorElbowLarge, label: 'Elbow' },
+  { shape: 'STRAIGHT', Icon: Icon24ConnectorStraightLarge, label: 'Straight' },
+];
+
+const CAP_OPTIONS: { cap: ConnectorCap; Icon: React.ComponentType; label: string }[] = [
+  { cap: 'NONE', Icon: Icon24StrokeSolid, label: 'None' },
+  { cap: 'LINE_ARROW', Icon: Icon24StrokeLineArrow, label: 'Line arrow' },
+  { cap: 'FILLED_ARROW', Icon: Icon24StrokeTriangleArrow, label: 'Triangle arrow' },
+  { cap: 'REVERSE_TRIANGLE', Icon: Icon24StrokeReversedTriangle, label: 'Reverse triangle' },
+  { cap: 'CIRCLE', Icon: Icon24StrokeCircleArrow, label: 'Circle' },
+  { cap: 'DIAMOND', Icon: Icon24StrokeDiamondArrow, label: 'Diamond' },
+];
+
+/** Hook that manages a popover with click-outside-to-close */
+function usePopover() {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        popoverRef.current?.contains(target) ||
+        triggerRef.current?.contains(target)
+      ) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [open]);
+
+  return { open, setOpen, triggerRef, popoverRef };
+}
+
+interface ConnectorToolbarProps {
+  centerX: number
+  topY: number
+  node: ConnectorNode
+  selection: ReturnType<typeof useSelection>
+  store: ReturnType<typeof useSceneGraph>
+}
+
+function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorToolbarProps) {
+  const color = usePopover();
+  const lineStyle = usePopover();
+  const startCap = usePopover();
+  const connShape = usePopover();
+  const endCap = usePopover();
+
+  const strokeColor = node.strokes[0]?.paint?.color;
+  const swatchBg = strokeColor
+    ? `rgb(${strokeColor.r}, ${strokeColor.g}, ${strokeColor.b})`
+    : 'rgb(100, 100, 100)';
+  const activeColorId = CONNECTOR_COLORS.find(
+    (c) =>
+      strokeColor &&
+      c.rgb.r === strokeColor.r &&
+      c.rgb.g === strokeColor.g &&
+      c.rgb.b === strokeColor.b,
+  )?.id;
+
+  const strokeWeight = node.strokes[0]?.weight ?? 2;
+  const dashPattern = node.strokes[0]?.dashPattern;
+  const isDashed = dashPattern != null && dashPattern.length > 0;
+
+  // ── Handlers ──
+
+  const handleColorChange = (colorId: string) => {
+    const entry = CONNECTOR_COLORS.find((c) => c.id === colorId);
+    if (!entry) return;
+    for (const id of selection.selectedIds) {
+      const n = store.getNode(id);
+      if (n && isConnectorNode(n)) {
+        const connector = n as ConnectorNode;
+        store.updateNode(id, {
+          strokes: [{
+            ...connector.strokes[0],
+            paint: { type: 'SOLID', color: entry.rgb, opacity: 1, visible: true },
+          }],
+        });
+      }
+    }
+  };
+
+  const handleWeightChange = (weight: number) => {
+    for (const id of selection.selectedIds) {
+      const n = store.getNode(id);
+      if (n && isConnectorNode(n)) {
+        const connector = n as ConnectorNode;
+        store.updateNode(id, {
+          strokes: [{ ...connector.strokes[0], weight }],
+        });
+      }
+    }
+  };
+
+  const handleDashChange = (dash: number[] | undefined) => {
+    for (const id of selection.selectedIds) {
+      const n = store.getNode(id);
+      if (n && isConnectorNode(n)) {
+        const connector = n as ConnectorNode;
+        store.updateNode(id, {
+          strokes: [{ ...connector.strokes[0], dashPattern: dash }],
+        });
+      }
+    }
+  };
+
+  const handleCapChange = (endpoint: 'startCap' | 'endCap', cap: ConnectorCap) => {
+    for (const id of selection.selectedIds) {
+      const n = store.getNode(id);
+      if (n && isConnectorNode(n)) {
+        store.updateNode(id, { [endpoint]: cap });
+      }
+    }
+  };
+
+  const handleLineShapeChange = (shape: ConnectorLineShape) => {
+    for (const id of selection.selectedIds) {
+      const n = store.getNode(id);
+      if (n && isConnectorNode(n)) {
+        store.updateNode(id, { lineShape: shape });
+      }
+    }
+  };
+
+  // ── Current cap icons for triggers ──
+
+  const CurrentStartCapIcon = CAP_OPTIONS.find((o) => o.cap === node.startCap)?.Icon ?? Icon24StrokeSolid;
+  const CurrentEndCapIcon = CAP_OPTIONS.find((o) => o.cap === node.endCap)?.Icon ?? Icon24StrokeSolid;
+  const CurrentShapeIcon = LINE_SHAPE_OPTIONS.find((o) => o.shape === node.lineShape)?.Icon ?? Icon24ConnectorCurveLarge;
+
+  return (
+    <div
+      className="fixed z-nav pointer-events-auto"
+      style={{
+        left: centerX,
+        top: topY,
+        transform: 'translateX(-50%)',
+      }}
+    >
+      <div
+        data-preferred-theme="dark"
+        className="flex items-center bg-bg rounded-lg shadow-300"
+      >
+        {/* ── 1. Color swatch ── */}
+        <div className="relative p-1 flex items-center">
+          <ButtonPrimitive
+            ref={color.triggerRef}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed',
+              color.open && 'bg-bg-secondary',
+            )}
+            onClick={() => color.setOpen((v) => !v)}
+          >
+            <div
+              className="w-3 h-3 rounded-full border border-solid border-border"
+              style={{ backgroundColor: swatchBg }}
+            />
+            <Icon16ChevronDown />
+          </ButtonPrimitive>
+
+          {color.open && (
+            <div
+              ref={color.popoverRef}
+              data-preferred-theme="dark"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-2 gap-2"
+            >
+              {CONNECTOR_COLORS.map((c) => (
+                <ButtonPrimitive
+                  key={c.id}
+                  aria-label={c.label}
+                  aria-pressed={activeColorId === c.id}
+                  onClick={() => handleColorChange(c.id)}
+                  className={clsx(
+                    'rounded-full w-4 h-4 shrink-0',
+                    activeColorId === c.id
+                      ? 'ring-2 ring-border-selected ring-offset-2 ring-offset-bg'
+                      : '',
+                  )}
+                  style={{ backgroundColor: c.css }}
+                >
+                  <span className="sr-only">{c.label}</span>
+                </ButtonPrimitive>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── 2. Line style (thickness + dash) ── */}
+        <div className="relative flex items-center p-1 border-l border-border">
+          <ButtonPrimitive
+            ref={lineStyle.triggerRef}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              lineStyle.open && 'bg-bg-secondary',
+            )}
+            onClick={() => lineStyle.setOpen((v) => !v)}
+          >
+            <Icon24StrokeWeight />
+            <Icon16ChevronDown />
+          </ButtonPrimitive>
+
+          {lineStyle.open && (
+            <div
+              ref={lineStyle.popoverRef}
+              data-preferred-theme="dark"
+              data-editor-theme="whiteboard"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1"
+            >
+              <ButtonPrimitive
+                aria-label="Thin stroke"
+                aria-pressed={strokeWeight <= 2}
+                onClick={() => handleWeightChange(2)}
+                className={clsx(
+                  'flex items-center justify-center w-32px h-32px rounded-md',
+                  strokeWeight <= 2
+                    ? 'bg-bg-brand text-text-onbrand'
+                    : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                )}
+              >
+                <Icon24FigjamStroke />
+              </ButtonPrimitive>
+              <ButtonPrimitive
+                aria-label="Thick stroke"
+                aria-pressed={strokeWeight > 2}
+                onClick={() => handleWeightChange(4)}
+                className={clsx(
+                  'flex items-center justify-center w-32px h-32px rounded-md',
+                  strokeWeight > 2
+                    ? 'bg-bg-brand text-text-onbrand'
+                    : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                )}
+              >
+                <Icon24FigjamStrokeThick />
+              </ButtonPrimitive>
+              <div className="w-px h-5 bg-border" />
+              <ButtonPrimitive
+                aria-label="Solid line"
+                aria-pressed={!isDashed}
+                onClick={() => handleDashChange(undefined)}
+                className={clsx(
+                  'flex items-center justify-center w-32px h-32px rounded-md',
+                  !isDashed
+                    ? 'bg-bg-brand text-text-onbrand'
+                    : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                )}
+              >
+                <Icon24StrokeSolid />
+              </ButtonPrimitive>
+              <ButtonPrimitive
+                aria-label="Dashed line"
+                aria-pressed={isDashed}
+                onClick={() => handleDashChange([8, 6])}
+                className={clsx(
+                  'flex items-center justify-center w-32px h-32px rounded-md',
+                  isDashed
+                    ? 'bg-bg-brand text-text-onbrand'
+                    : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                )}
+              >
+                <Icon24StrokeDashed />
+              </ButtonPrimitive>
+            </div>
+          )}
+        </div>
+
+        {/* ── 3. Start cap ── */}
+        <div className="relative flex items-center p-1 border-l border-border">
+          <ButtonPrimitive
+            ref={startCap.triggerRef}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              startCap.open && 'bg-bg-secondary',
+            )}
+            onClick={() => startCap.setOpen((v) => !v)}
+          >
+            <span><CurrentStartCapIcon /></span>
+            <Icon16ChevronDown />
+          </ButtonPrimitive>
+
+          {startCap.open && (
+            <div
+              ref={startCap.popoverRef}
+              data-preferred-theme="dark"
+              data-editor-theme="whiteboard"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1"
+            >
+              {CAP_OPTIONS.map(({ cap, Icon, label }) => (
+                <ButtonPrimitive
+                  key={cap}
+                  aria-label={label}
+                  aria-pressed={node.startCap === cap}
+                  onClick={() => handleCapChange('startCap', cap)}
+                  className={clsx(
+                    'flex items-center justify-center w-32px h-32px rounded-md',
+                    node.startCap === cap
+                      ? 'bg-bg-brand text-text-onbrand'
+                      : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                  )}
+                >
+                  <span><Icon /></span>
+                </ButtonPrimitive>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── 4. Connection shape ── */}
+        <div className="relative flex items-center p-1 border-l border-border">
+          <ButtonPrimitive
+            ref={connShape.triggerRef}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              connShape.open && 'bg-bg-secondary',
+            )}
+            onClick={() => connShape.setOpen((v) => !v)}
+          >
+            <CurrentShapeIcon />
+            <Icon16ChevronDown />
+          </ButtonPrimitive>
+
+          {connShape.open && (
+            <div
+              ref={connShape.popoverRef}
+              data-preferred-theme="dark"
+              data-editor-theme="whiteboard"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1"
+            >
+              {LINE_SHAPE_OPTIONS.map(({ shape, Icon, label }) => (
+                <ButtonPrimitive
+                  key={shape}
+                  aria-label={label}
+                  aria-pressed={node.lineShape === shape}
+                  onClick={() => handleLineShapeChange(shape)}
+                  className={clsx(
+                    'flex items-center justify-center w-32px h-32px rounded-md',
+                    node.lineShape === shape
+                      ? 'bg-bg-brand text-text-onbrand'
+                      : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                  )}
+                >
+                  <Icon />
+                </ButtonPrimitive>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── 5. End cap ── */}
+        <div className="relative flex items-center p-1 border-l border-border">
+          <ButtonPrimitive
+            ref={endCap.triggerRef}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              endCap.open && 'bg-bg-secondary',
+            )}
+            onClick={() => endCap.setOpen((v) => !v)}
+          >
+            <span className="rotate-180"><CurrentEndCapIcon /></span>
+            <Icon16ChevronDown />
+          </ButtonPrimitive>
+
+          {endCap.open && (
+            <div
+              ref={endCap.popoverRef}
+              data-preferred-theme="dark"
+              data-editor-theme="whiteboard"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1"
+            >
+              {CAP_OPTIONS.map(({ cap, Icon, label }) => (
+                <ButtonPrimitive
+                  key={cap}
+                  aria-label={label}
+                  aria-pressed={node.endCap === cap}
+                  onClick={() => handleCapChange('endCap', cap)}
+                  className={clsx(
+                    'flex items-center justify-center w-32px h-32px rounded-md',
+                    node.endCap === cap
+                      ? 'bg-bg-brand text-text-onbrand'
+                      : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                  )}
+                >
+                  <span className="rotate-180"><Icon /></span>
+                </ButtonPrimitive>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

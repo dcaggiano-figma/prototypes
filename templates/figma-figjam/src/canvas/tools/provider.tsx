@@ -2,9 +2,9 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
 
-import type { Color } from '../types';
+import type { Color, ConnectorLineShape } from '../types';
 
-export type ToolType = 'MOVE' | 'FRAME' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'PEN' | 'HAND' | 'COMMENT' | 'LINE' | 'POLYGON' | 'STAR' | 'STICKY_NOTE'
+export type ToolType = 'MOVE' | 'FRAME' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'PEN' | 'HAND' | 'COMMENT' | 'LINE' | 'POLYGON' | 'STAR' | 'STICKY_NOTE' | 'CONNECTOR'
 
 export type MarkerSubType = 'marker' | 'highlighter' | 'tape';
 
@@ -41,6 +41,10 @@ export interface ToolAPI {
   shapeColor: Color
   /** Set the active shape fill color */
   setShapeColor(color: Color): void
+  /** Active connector line shape for creation */
+  connectorLineShape: ConnectorLineShape
+  /** Set the active connector line shape */
+  setConnectorLineShape(shape: ConnectorLineShape): void
 }
 
 const DEFAULT_STICKY_COLOR: Color = { r: 255, g: 226, b: 153 };
@@ -61,6 +65,7 @@ export function ToolProvider({ children }: { children: React.ReactNode }) {
   const [markerSubType, setMarkerSubType] = useState<MarkerSubType>('marker');
   const [sectionFillColor, setSectionFillColor] = useState<Color>(DEFAULT_SECTION_COLOR);
   const [shapeColor, setShapeColor] = useState<Color>(DEFAULT_SHAPE_COLOR);
+  const [connectorLineShape, setConnectorLineShape] = useState<ConnectorLineShape>('CURVE');
 
   const setActiveTool = useCallback((tool: ToolType) => {
     setActiveToolState(tool);
@@ -100,8 +105,9 @@ export function ToolProvider({ children }: { children: React.ReactNode }) {
       markerSubType, setMarkerSubType,
       sectionFillColor, setSectionFillColor,
       shapeColor, setShapeColor,
+      connectorLineShape, setConnectorLineShape,
     }),
-    [activeTool, effectiveTool, isSpacePanning, setActiveTool, stickyColor, markerColor, highlighterColor, markerSubType, sectionFillColor, shapeColor],
+    [activeTool, effectiveTool, isSpacePanning, setActiveTool, stickyColor, markerColor, highlighterColor, markerSubType, sectionFillColor, shapeColor, connectorLineShape],
   );
 
   return <ToolContext.Provider value={api}>{children}</ToolContext.Provider>;

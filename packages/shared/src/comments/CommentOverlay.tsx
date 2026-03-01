@@ -43,6 +43,7 @@ export function CommentOverlay({
       authorName: config.name,
       authorInitial: initial,
       avatarUrl: config.avatarUrl,
+      color: config.color,
       body,
       createdAt: Date.now(),
     });
@@ -157,6 +158,7 @@ export function CommentOverlay({
                     authorName: config.name,
                     authorInitial: initial,
                     avatarUrl: config.avatarUrl,
+                    color: config.color,
                     body,
                     createdAt: Date.now(),
                   });

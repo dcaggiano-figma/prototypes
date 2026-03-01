@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAction } from '../../actions/provider';
 import { useSceneGraph } from '../scene-graph/provider';
-import type { GeometryNode } from '../types';
+import type { ConnectorEndpoint, ConnectorNode, GeometryNode } from '../types';
+import { isConnectorNode } from '../types';
 import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
 import { useActiveTool } from '../tools/provider';
 import { useViewport } from '../viewport/provider';
@@ -10,6 +11,10 @@ import { useViewport } from '../viewport/provider';
 import { CURSORS } from '../cursors';
 import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
 import { useSelection } from './provider';
+import { resolveEndpointPosition, snapToConnectionPoint } from '../connectors/connector-resolve';
+import { updateConnectorBounds } from '../connectors/connector-utils';
+import { capInsetDistance, computeElbowWaypoints, computePathTangents } from '../connectors/connector-paths';
+import type { CapType } from '../connectors/connector-paths';
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
@@ -247,6 +252,17 @@ export function ResizeHandles() {
 
   const node = store.getNode(nodeId);
   if (!node || !isGeometryNode(node) || node.locked) return null;
+
+  // --- Connector endpoint handles ---
+  if (isConnectorNode(node)) {
+    return (
+      <ConnectorEndpointHandles
+        node={node}
+        store={store}
+        viewport={viewport}
+      />
+    );
+  }
 
   const world = getWorldPosition(store, node);
   const isLine = node.type === 'LINE';
@@ -766,5 +782,283 @@ export function ResizeHandles() {
         </div>
       )}
     </>
+  );
+}
+
+// ── Connector endpoint handles ────────────────────────────────────────
+
+function ConnectorEndpointHandles({
+  node,
+  store,
+  viewport,
+}: {
+  node: ConnectorNode
+  store: ReturnType<typeof useSceneGraph>
+  viewport: { scale: number; origin: { x: number; y: number } }
+}) {
+  const [, forceUpdate] = useState(0);
+
+  const dragState = useRef<{
+    endpoint: 'start' | 'end'
+    startClientX: number
+    startClientY: number
+  } | null>(null);
+
+  const startPt = resolveEndpointPosition(store, node.startEndpoint);
+  const endPt = resolveEndpointPosition(store, node.endEndpoint);
+  if (!startPt || !endPt) return null;
+
+  // Convert to screen space
+  const startSX = startPt.x * viewport.scale + viewport.origin.x;
+  const startSY = startPt.y * viewport.scale + viewport.origin.y;
+  const endSX = endPt.x * viewport.scale + viewport.origin.x;
+  const endSY = endPt.y * viewport.scale + viewport.origin.y;
+
+  const half = HANDLE_SIZE / 2;
+
+  function onEndpointPointerDown(endpoint: 'start' | 'end', e: React.PointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    dragState.current = {
+      endpoint,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onEndpointPointerMove(e: React.PointerEvent) {
+    const drag = dragState.current;
+    if (!drag) return;
+
+    // Convert screen delta to world delta
+    const worldX = (e.clientX - viewport.origin.x) / viewport.scale;
+    const worldY = (e.clientY - viewport.origin.y) / viewport.scale;
+
+    const newEndpoint: ConnectorEndpoint = { type: 'free', x: worldX, y: worldY };
+
+    if (drag.endpoint === 'start') {
+      store.updateNode(node.id, { startEndpoint: newEndpoint });
+    } else {
+      store.updateNode(node.id, { endEndpoint: newEndpoint });
+    }
+    forceUpdate((n) => n + 1);
+  }
+
+  function onEndpointPointerUp(e: React.PointerEvent) {
+    const drag = dragState.current;
+    if (!drag) return;
+
+    const worldX = (e.clientX - viewport.origin.x) / viewport.scale;
+    const worldY = (e.clientY - viewport.origin.y) / viewport.scale;
+
+    // Try to snap to a node's connection point
+    let finalEndpoint: ConnectorEndpoint = { type: 'free', x: worldX, y: worldY };
+
+    const allNodes = store.getAllNodes();
+    let bestDist = Infinity;
+    for (const n of allNodes) {
+      if (!isGeometryNode(n) || isConnectorNode(n) || n.type === 'LINE' || n.type === 'VECTOR') continue;
+      const snapped = snapToConnectionPoint(store, n, worldX, worldY, 30);
+      if (snapped) {
+        const dx = snapped.x - worldX;
+        const dy = snapped.y - worldY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < bestDist) {
+          bestDist = dist;
+          if (snapped.pointIndex !== null) {
+            finalEndpoint = { type: 'connected', nodeId: n.id, pointIndex: snapped.pointIndex };
+          } else {
+            const nodeWorld = getWorldPosition(store, n);
+            const xFrac = n.width > 0 ? (snapped.x - nodeWorld.x) / n.width : 0.5;
+            const yFrac = n.height > 0 ? (snapped.y - nodeWorld.y) / n.height : 0.5;
+            finalEndpoint = { type: 'edge', nodeId: n.id, xFraction: xFrac, yFraction: yFrac };
+          }
+        }
+      }
+    }
+
+    if (drag.endpoint === 'start') {
+      store.updateNode(node.id, { startEndpoint: finalEndpoint });
+    } else {
+      store.updateNode(node.id, { endEndpoint: finalEndpoint });
+    }
+    updateConnectorBounds(store, node.id);
+
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    dragState.current = null;
+  }
+
+  const sharedProps = {
+    onPointerMove: onEndpointPointerMove,
+    onPointerUp: onEndpointPointerUp,
+  };
+
+  const endpoints = [
+    { key: 'start' as const, cx: startSX, cy: startSY },
+    { key: 'end' as const, cx: endSX, cy: endSY },
+  ];
+
+  return (
+    <>
+      {endpoints.map(({ key, cx, cy }) => (
+        <div
+          key={key}
+          style={{
+            position: 'absolute',
+            left: cx - half,
+            top: cy - half,
+            width: HANDLE_SIZE,
+            height: HANDLE_SIZE,
+            backgroundColor: '#ffffff',
+            border: `2px solid ${SELECTION_COLOR}`,
+            borderRadius: '50%',
+            cursor: 'grab',
+            zIndex: 11,
+          }}
+          onPointerDown={(e) => onEndpointPointerDown(key, e)}
+          {...sharedProps}
+        />
+      ))}
+      {node.lineShape === 'ELBOW' && startPt && endPt && (
+        <ElbowMidpointHandles
+          node={node}
+          store={store}
+          viewport={viewport}
+          startPt={startPt}
+          endPt={endPt}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Elbow midpoint drag handles ──────────────────────────────────────
+
+function ElbowMidpointHandles({
+  node,
+  store,
+  viewport,
+  startPt,
+  endPt,
+}: {
+  node: ConnectorNode
+  store: ReturnType<typeof useSceneGraph>
+  viewport: { scale: number; origin: { x: number; y: number } }
+  startPt: { x: number; y: number; exitDirection: { dx: number; dy: number } }
+  endPt: { x: number; y: number; exitDirection: { dx: number; dy: number } }
+}) {
+  const dragRef = useRef<{
+    axis: 'x' | 'y'
+    rangeMin: number
+    rangeMax: number
+  } | null>(null);
+
+  const [, forceUpdate] = useState(0);
+
+  // Compute inset endpoints to match the visible connector path.
+  // The ConnectorRenderer shortens the line for cap shapes; we must use the
+  // same inset endpoints so the handle sits exactly on the visible path.
+  const startPathPt = { x: startPt.x, y: startPt.y, exitDirection: startPt.exitDirection };
+  const endPathPt = { x: endPt.x, y: endPt.y, exitDirection: endPt.exitDirection };
+  const tangents = computePathTangents('ELBOW', startPathPt, endPathPt, node.elbowMidpointOffset);
+  const startInset = capInsetDistance(node.startCap as CapType);
+  const endInset = capInsetDistance(node.endCap as CapType);
+
+  const insetStart = {
+    x: startPt.x + tangents.startTangent.dx * startInset,
+    y: startPt.y + tangents.startTangent.dy * startInset,
+    exitDirection: startPt.exitDirection,
+  };
+  const insetEnd = {
+    x: endPt.x - tangents.endTangent.dx * endInset,
+    y: endPt.y - tangents.endTangent.dy * endInset,
+    exitDirection: endPt.exitDirection,
+  };
+
+  const waypoints = computeElbowWaypoints(insetStart, insetEnd, node.elbowMidpointOffset);
+
+  // Only show the bridge segment handle (p2→p3).
+  // Stub-adjacent segments can't be independently moved with a single offset.
+  const bridgeSeg = waypoints.adjustableSegments.find(
+    (s) => s.startIdx === 2 && s.endIdx === 3,
+  );
+  if (!bridgeSeg) return null;
+
+  const { axis: dragAxis, rangeMin, rangeMax } = bridgeSeg;
+  const pStart = waypoints.points[bridgeSeg.startIdx];
+  const pEnd = waypoints.points[bridgeSeg.endIdx];
+
+  // Skip zero-length bridge (endpoints are nearly coincident)
+  const segDx = Math.abs(pEnd.x - pStart.x);
+  const segDy = Math.abs(pEnd.y - pStart.y);
+  if (segDx < 0.5 && segDy < 0.5) return null;
+
+  // Midpoint of bridge segment in world space
+  const midWX = (pStart.x + pEnd.x) / 2;
+  const midWY = (pStart.y + pEnd.y) / 2;
+
+  // Convert to screen space
+  const midSX = midWX * viewport.scale + viewport.origin.x;
+  const midSY = midWY * viewport.scale + viewport.origin.y;
+
+  // Segment orientation determines handle shape; drag axis is perpendicular
+  const isVerticalSegment = segDy > segDx;
+  const handleWidth = isVerticalSegment ? 6 : 20;
+  const handleHeight = isVerticalSegment ? 20 : 6;
+  const cursor = dragAxis === 'x' ? 'ew-resize' : 'ns-resize';
+
+  function onPointerDown(e: React.PointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    dragRef.current = {
+      axis: dragAxis,
+      rangeMin,
+      rangeMax,
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const drag = dragRef.current;
+    if (!drag) return;
+
+    const worldPos = drag.axis === 'x'
+      ? (e.clientX - viewport.origin.x) / viewport.scale
+      : (e.clientY - viewport.origin.y) / viewport.scale;
+
+    const range = drag.rangeMax - drag.rangeMin;
+    if (Math.abs(range) < 0.01) return;
+
+    const newOffset = (worldPos - drag.rangeMin) / range;
+
+    store.updateNode(node.id, { elbowMidpointOffset: newOffset });
+    forceUpdate((n) => n + 1);
+  }
+
+  function onPointerUp(e: React.PointerEvent) {
+    if (!dragRef.current) return;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    dragRef.current = null;
+    updateConnectorBounds(store, node.id);
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: midSX - handleWidth / 2,
+        top: midSY - handleHeight / 2,
+        width: handleWidth,
+        height: handleHeight,
+        backgroundColor: SELECTION_COLOR,
+        borderRadius: 3,
+        cursor,
+        zIndex: 12,
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    />
   );
 }

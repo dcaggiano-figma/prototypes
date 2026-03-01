@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ButtonPrimitive, InputPrimitive } from '@figma/fpl-components';
 
 import { useRootNodes, useSceneGraph } from '../scene-graph/provider';
 import { useTextEditing } from '../text-editing/provider';
@@ -330,50 +331,101 @@ function SectionRenderer({
 function SectionLabel({ node }: { node: SectionNode }) {
   const { state } = useViewport();
   const { isSelected } = useSelection();
+  const store = useSceneGraph();
   const selected = isSelected(node.id);
+  const [isEditing, setIsEditing] = useState(false);
+  const labelRef = useRef<HTMLInputElement>(null);
   const fontSize = 11 / state.scale;
-  const iconSize = 10 / state.scale;
-  const pillPadY = 2 / state.scale;
+  const pillPadY = 4 / state.scale;
   const pillPadX = 4 / state.scale;
-  const gap = 3 / state.scale;
   const pillRadius = 3 / state.scale;
 
-  // Use section's first fill color for pill background, fallback to light gray
   const fill = getFirstVisibleFill(node.fills);
   const pillBg = fill ? colorToCSS(fill.color, Math.min(fill.opacity, 0.6)) : 'rgba(255,255,255,0.6)';
+  const textColor = selected ? 'var(--color-fsTextOnLightCanvas' : 'var(--color-fsTextOnLightCanvas)';
+
+  const commitRename = useCallback(() => {
+    if (!labelRef.current) return;
+    const newName = labelRef.current.value.trim() || node.name;
+    store.updateNode(node.id, { name: newName });
+    setIsEditing(false);
+  }, [node.id, node.name, store]);
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditing(true);
+    requestAnimationFrame(() => {
+      if (!labelRef.current) return;
+      labelRef.current.focus();
+      labelRef.current.select();
+    });
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsEditing(false);
+    }
+  }, [commitRename]);
 
   return (
     <div
       data-node-id={node.id}
       style={{
         position: 'absolute',
-        transform: `translate(${node.x}px, ${node.y - fontSize - 12 / state.scale}px)`,
-        display: 'flex',
-        alignItems: 'center',
-        gap,
-        backgroundColor: pillBg,
-        borderRadius: pillRadius,
-        padding: `${pillPadY}px ${pillPadX}px`,
+        transform: `translate(${node.x}px, ${node.y - fontSize - 16 / state.scale}px)`,
         fontSize,
         lineHeight: 1,
-        color: selected ? 'var(--color-fsTextSelectedOnLightCanvas)' : 'var(--color-fsTextOnLightCanvasSecondary)',
+        color: textColor,
         whiteSpace: 'nowrap',
         cursor: CURSORS.default,
         userSelect: 'none',
       }}
     >
-      <svg
-        width={iconSize}
-        height={iconSize}
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeDasharray="2 2"
-      >
-        <rect x="1" y="1" width="14" height="14" rx="2" />
-      </svg>
-      {node.name}
+      {/* Label — editable on double-click */}
+      {isEditing ? (
+        <InputPrimitive
+          id={`section-rename-${node.id}`}
+          ref={labelRef}
+          defaultValue={node.name}
+          onBlur={commitRename}
+          onKeyDown={handleKeyDown}
+          style={{
+            backgroundColor: pillBg,
+            borderRadius: pillRadius,
+            padding: `${pillPadY}px ${pillPadX}px`,
+            cursor: 'text',
+            outline: 'solid 1px var(--color-border-selected)',
+            minWidth: 80 / state.scale,
+            height: '19px',
+            border: 'none',
+            font: 'inherit',
+            color: 'inherit',
+            lineHeight: 'inherit',
+          }}
+        />
+      ) : (
+        <ButtonPrimitive
+          onDoubleClick={handleDoubleClick}
+          style={{
+            backgroundColor: pillBg,
+            borderRadius: pillRadius,
+            padding: `${pillPadY}px ${pillPadX}px`,
+            cursor: CURSORS.default,
+            userSelect: 'none',
+            outline: 'solid 1px rgba(0, 0, 0, 0.2)',
+            border: 'none',
+            font: 'inherit',
+            color: 'inherit',
+            lineHeight: 'inherit',
+          }}
+        >
+          {node.name}
+        </ButtonPrimitive>
+      )}
     </div>
   );
 }

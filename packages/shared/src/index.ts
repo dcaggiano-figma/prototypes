@@ -3,6 +3,10 @@ export { ResizeHandle } from './ResizeHandle';
 export { Avatar, type MultiplayerColor } from './Avatar';
 export { Card } from './Card';
 
+// Property Layout
+export { PropertySection, PropertyRow, PlaceholderSection } from './PropertyLayout';
+export type { PropertySectionProps, PropertyRowProps, PlaceholderSectionProps } from './PropertyLayout';
+
 // Comments
 export type {
   Comment,
@@ -73,7 +77,6 @@ export { FileCard } from './ai-chat/FileCard';
 export { getElementIcon } from './ai-chat/elementIcons';
 export { ModelSelector } from './ai-chat/ModelSelector';
 export { AttachMenu } from './ai-chat/AttachMenu';
-export { PromptLanding } from './ai-chat/PromptLanding';
 export { PromptPanel } from './ai-chat/PromptPanel';
 
 // Mode Switcher

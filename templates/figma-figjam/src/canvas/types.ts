@@ -1,5 +1,5 @@
 /** Discriminator for node behavior */
-export type NodeType = 'FRAME' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'LINE' | 'GROUP' | 'VECTOR' | 'POLYGON' | 'STAR' | 'STICKY_NOTE'
+export type NodeType = 'FRAME' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'LINE' | 'GROUP' | 'VECTOR' | 'POLYGON' | 'STAR' | 'STICKY_NOTE' | 'CONNECTOR'
 
 /** RGB color with channels 0-255 */
 export interface Color {
@@ -23,6 +23,7 @@ export interface Stroke {
   paint: Paint
   weight: number
   position: 'INSIDE' | 'CENTER' | 'OUTSIDE'
+  dashPattern?: number[]
 }
 
 /** Visual effect (shadows, blurs) */
@@ -173,11 +174,62 @@ export interface GroupNode extends BaseNode {
   type: 'GROUP'
 }
 
+// ── Connector types ──────────────────────────────────────────────────
+
+export type ConnectorCap = 'NONE' | 'LINE_ARROW' | 'FILLED_ARROW' | 'REVERSE_TRIANGLE' | 'CIRCLE' | 'DIAMOND'
+
+export type ConnectorLineShape = 'CURVE' | 'ELBOW' | 'STRAIGHT' | 'LINE'
+
+/** Endpoint attached to a fixed connection point on a node (by index) */
+export interface ConnectorEndpointConnected {
+  type: 'connected'
+  nodeId: string
+  pointIndex: number
+}
+
+/** Endpoint attached to a node's edge at an arbitrary position */
+export interface ConnectorEndpointEdge {
+  type: 'edge'
+  nodeId: string
+  xFraction: number
+  yFraction: number
+}
+
+/** Endpoint floating freely in world space */
+export interface ConnectorEndpointFree {
+  type: 'free'
+  x: number
+  y: number
+}
+
+export type ConnectorEndpoint =
+  | ConnectorEndpointConnected
+  | ConnectorEndpointEdge
+  | ConnectorEndpointFree
+
+/** Connector node — connects two points/nodes with a path */
+export interface ConnectorNode extends BaseNode, GeometryMixin {
+  type: 'CONNECTOR'
+  startEndpoint: ConnectorEndpoint
+  endEndpoint: ConnectorEndpoint
+  lineShape: ConnectorLineShape
+  startCap: ConnectorCap
+  endCap: ConnectorCap
+  strokes: Stroke[]
+  /** Offset for elbow midpoint (0.1–0.9), controls where the first turn happens */
+  elbowMidpointOffset: number
+}
+
+/** Check if a node is a connector */
+export function isConnectorNode(node: SceneNode): node is ConnectorNode {
+  return node.type === 'CONNECTOR';
+}
+
 /** Union of all scene node types */
-export type SceneNode = FrameNode | SectionNode | RectangleNode | EllipseNode | TextNode | LineNode | GroupNode | VectorNode | PolygonNode | StarNode | StickyNoteNode
+export type SceneNode = FrameNode | SectionNode | RectangleNode | EllipseNode | TextNode | LineNode | GroupNode | VectorNode | PolygonNode | StarNode | StickyNoteNode | ConnectorNode
 
 /** Nodes that have geometry (position/size) */
-export type GeometryNode = FrameNode | SectionNode | RectangleNode | EllipseNode | TextNode | LineNode | VectorNode | PolygonNode | StarNode | StickyNoteNode
+export type GeometryNode = FrameNode | SectionNode | RectangleNode | EllipseNode | TextNode | LineNode | VectorNode | PolygonNode | StarNode | StickyNoteNode | ConnectorNode
 
 /** Nodes that have appearance (fills/strokes) */
 export type AppearanceNode = FrameNode | SectionNode | RectangleNode | EllipseNode | TextNode | VectorNode | PolygonNode | StarNode | StickyNoteNode

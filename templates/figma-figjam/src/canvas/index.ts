@@ -25,6 +25,13 @@ export type {
   VectorPath,
   VectorNode,
   GroupNode,
+  ConnectorNode,
+  ConnectorEndpoint,
+  ConnectorEndpointConnected,
+  ConnectorEndpointEdge,
+  ConnectorEndpointFree,
+  ConnectorCap,
+  ConnectorLineShape,
   SceneNode,
   GeometryNode,
   AppearanceNode,
@@ -32,7 +39,7 @@ export type {
   TextCapableNode,
 } from './types';
 
-export { isShapeWithText, isTextCapableNode } from './types';
+export { isShapeWithText, isTextCapableNode, isConnectorNode } from './types';
 
 // Scene Graph
 export {
