@@ -71,17 +71,9 @@ export function computeElbowWaypoints(
     const startSign = start.exitDirection.dx >= 0 ? 1 : -1;
     const endSign = end.exitDirection.dx >= 0 ? 1 : -1;
 
-    // Compute available space and stubs
-    const gap = Math.abs((start.x + startSign * STUB_LENGTH) - (end.x + endSign * STUB_LENGTH));
-    const totalStubNeeded = STUB_LENGTH * 2;
-    const rawDist = Math.abs(
-      (startSign > 0 ? end.x - start.x : start.x - end.x) +
-      (endSign > 0 ? 0 : 0),
-    );
     // If stubs would overlap, shrink proportionally
     let stubStart = STUB_LENGTH;
     let stubEnd = STUB_LENGTH;
-    const directDist = Math.abs((end.x + endSign * STUB_LENGTH) - (start.x + startSign * STUB_LENGTH));
     // Only shrink if the stubs end up on the same side and overlapping
     const stubEndX1 = start.x + startSign * STUB_LENGTH;
     const stubEndX2 = end.x + endSign * STUB_LENGTH;

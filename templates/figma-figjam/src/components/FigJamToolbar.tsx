@@ -390,7 +390,7 @@ function ShapesSecondaryToolbar({
         <ButtonPrimitive
           ref={colorTriggerRef}
           className={clsx(
-            'flex items-center gap-1 rounded-[8px] px-2 py-2 hover:bg-bg-hover active:bg-bg-pressed',
+            'flex items-center gap-1 rounded-md px-2 py-2 hover:bg-bg-hover active:bg-bg-pressed',
             showColors && 'bg-bg-secondary',
           )}
           onClick={() => setShowColors((v) => !v)}

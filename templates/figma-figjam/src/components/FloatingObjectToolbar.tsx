@@ -324,7 +324,7 @@ export function FloatingObjectToolbar() {
           <ButtonPrimitive
             ref={colorTriggerRef}
             className={clsx(
-              'flex items-center gap-1 rounded-[8px] px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed',
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed',
               colorsOpen && 'bg-bg-secondary',
             )}
             onClick={() => setShowColors((v) => !v)}
@@ -369,7 +369,7 @@ export function FloatingObjectToolbar() {
           <>
             <ButtonPrimitive
               {...getFontTriggerProps()}
-              className="flex items-center gap-1 rounded-[8px] h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-headingMd text-text whitespace-nowrap"
+              className="flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-headingMd text-text whitespace-nowrap"
             >
               <span style={{ fontFamily: FONT_FAMILY_PRESETS.find((p) => p.value === currentFontFamily)?.fontFamily }} className="w-3 text-center">Aa</span>
               <Icon16ChevronDown />
@@ -391,7 +391,7 @@ export function FloatingObjectToolbar() {
             </Menu.Root>
           </>
         ) : (
-          <ButtonPrimitive className="flex items-center gap-1 rounded-[8px] h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap">
+          <ButtonPrimitive className="flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap">
             Aa
             <Icon16ChevronDown />
           </ButtonPrimitive>
@@ -403,7 +403,7 @@ export function FloatingObjectToolbar() {
           <>
             <ButtonPrimitive
               {...getSizeTriggerProps()}
-              className="flex items-center gap-1 rounded-[8px] p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap"
+              className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap"
             >
               <span className="w-[120px]">{getFontSizeLabel(currentFontSize)}</span>
               <Icon16ChevronDown />
@@ -425,7 +425,7 @@ export function FloatingObjectToolbar() {
             </Menu.Root>
           </>
         ) : (
-          <ButtonPrimitive className="flex items-center gap-1 rounded-[8px] p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap">
+          <ButtonPrimitive className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap">
             Small
             <Icon16ChevronDown />
           </ButtonPrimitive>
@@ -458,7 +458,7 @@ export function FloatingObjectToolbar() {
               <ButtonPrimitive
                 ref={alignTriggerRef}
                 aria-label="Text alignment"
-                className="flex items-center justify-center w-32px h-32px rounded-[8px] hover:bg-bg-hover active:bg-bg-pressed text-text"
+                className="flex items-center justify-center w-32px h-32px rounded-md hover:bg-bg-hover active:bg-bg-pressed text-text"
                 onClick={() => setShowAlign((v) => !v)}
               >
                 {currentAlign === 'LEFT' ? <Icon24TextAlignLeft /> : currentAlign === 'RIGHT' ? <Icon24TextAlignRight /> : <Icon24TextAlignCenter />}
@@ -480,7 +480,7 @@ export function FloatingObjectToolbar() {
                       aria-pressed={currentAlign === value}
                       onClick={() => handleAlignChange(value)}
                       className={clsx(
-                        'flex items-center justify-center w-32px h-32px rounded-[8px]',
+                        'flex items-center justify-center w-32px h-32px rounded-md',
                         currentAlign === value
                           ? 'bg-bg-brand text-text-onbrand'
                           : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
@@ -617,7 +617,7 @@ function SectionToolbar({
           <ButtonPrimitive
             ref={colorTriggerRef}
             className={clsx(
-              'flex items-center gap-1 rounded-[8px] p-2 hover:bg-bg-hover active:bg-bg-pressed',
+              'flex items-center gap-1 rounded-md p-2 hover:bg-bg-hover active:bg-bg-pressed',
               showColors && 'bg-bg-secondary',
             )}
             onClick={() => setShowColors((v: boolean) => !v)}
@@ -660,7 +660,7 @@ function SectionToolbar({
         {/* Alignment dropdown */}
         <ButtonPrimitive
           {...getAlignTriggerProps()}
-          className="flex items-center gap-1 rounded-[8px] p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap"
+          className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <line x1="2" y1="3" x2="14" y2="3" />
@@ -694,7 +694,7 @@ function SectionToolbar({
             {/* Lock dropdown */}
             <ButtonPrimitive
               {...getLockTriggerProps()}
-              className="flex items-center gap-1 rounded-[8px] p-1 hover:bg-bg-hover active:bg-bg-pressed text-text"
+              className="flex items-center gap-1 rounded-md p-1 hover:bg-bg-hover active:bg-bg-pressed text-text"
             >
               <Icon24LockOpen />
               <Icon16ChevronDown />
@@ -719,7 +719,7 @@ function SectionToolbar({
             {/* Layout dropdown */}
             <ButtonPrimitive
               {...getLayoutTriggerProps()}
-              className="flex items-center gap-1 rounded-[8px] p-1 hover:bg-bg-hover active:bg-bg-pressed text-text"
+              className="flex items-center gap-1 rounded-md p-1 hover:bg-bg-hover active:bg-bg-pressed text-text"
             >
               <Icon24AlLayoutGrid />
               <Icon16ChevronDown />
@@ -821,7 +821,7 @@ function MixedSelectionToolbar({ centerX, topY, selection, store }: MixedSelecti
         <ButtonPrimitive
           ref={alignTriggerRef}
           className={clsx(
-            'flex items-center gap-1 rounded-[8px] p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text',
+            'flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text',
             showAlign && 'bg-bg-secondary',
           )}
           onClick={() => setShowAlign((v) => !v)}
@@ -835,7 +835,7 @@ function MixedSelectionToolbar({ centerX, topY, selection, store }: MixedSelecti
         {/* Distribute dropdown */}
         <ButtonPrimitive
           {...getDistributeTriggerProps()}
-          className="flex items-center gap-1 rounded-[8px] p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text"
+          className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text"
         >
           <Icon24LayoutDistributeHorizontalSpacing />
           <Icon16ChevronDown />
@@ -1029,7 +1029,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
           <ButtonPrimitive
             ref={color.triggerRef}
             className={clsx(
-              'flex items-center gap-1 rounded-[8px] px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed',
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed',
               color.open && 'bg-bg-secondary',
             )}
             onClick={() => color.setOpen((v) => !v)}
@@ -1073,7 +1073,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
           <ButtonPrimitive
             ref={lineStyle.triggerRef}
             className={clsx(
-              'flex items-center gap-1 rounded-[8px] px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
               lineStyle.open && 'bg-bg-secondary',
             )}
             onClick={() => lineStyle.setOpen((v) => !v)}
@@ -1094,7 +1094,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
                 aria-pressed={strokeWeight <= 2}
                 onClick={() => handleWeightChange(2)}
                 className={clsx(
-                  'flex items-center justify-center w-32px h-32px rounded-[8px]',
+                  'flex items-center justify-center w-32px h-32px rounded-md',
                   strokeWeight <= 2
                     ? 'bg-bg-brand text-text-onbrand'
                     : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
@@ -1107,7 +1107,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
                 aria-pressed={strokeWeight > 2}
                 onClick={() => handleWeightChange(4)}
                 className={clsx(
-                  'flex items-center justify-center w-32px h-32px rounded-[8px]',
+                  'flex items-center justify-center w-32px h-32px rounded-md',
                   strokeWeight > 2
                     ? 'bg-bg-brand text-text-onbrand'
                     : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
@@ -1121,7 +1121,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
                 aria-pressed={!isDashed}
                 onClick={() => handleDashChange(undefined)}
                 className={clsx(
-                  'flex items-center justify-center w-32px h-32px rounded-[8px]',
+                  'flex items-center justify-center w-32px h-32px rounded-md',
                   !isDashed
                     ? 'bg-bg-brand text-text-onbrand'
                     : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
@@ -1134,7 +1134,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
                 aria-pressed={isDashed}
                 onClick={() => handleDashChange([8, 6])}
                 className={clsx(
-                  'flex items-center justify-center w-32px h-32px rounded-[8px]',
+                  'flex items-center justify-center w-32px h-32px rounded-md',
                   isDashed
                     ? 'bg-bg-brand text-text-onbrand'
                     : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
@@ -1151,7 +1151,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
           <ButtonPrimitive
             ref={startCap.triggerRef}
             className={clsx(
-              'flex items-center gap-1 rounded-[8px] px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
               startCap.open && 'bg-bg-secondary',
             )}
             onClick={() => startCap.setOpen((v) => !v)}
@@ -1174,7 +1174,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
                   aria-pressed={node.startCap === cap}
                   onClick={() => handleCapChange('startCap', cap)}
                   className={clsx(
-                    'flex items-center justify-center w-32px h-32px rounded-[8px]',
+                    'flex items-center justify-center w-32px h-32px rounded-md',
                     node.startCap === cap
                       ? 'bg-bg-brand text-text-onbrand'
                       : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
@@ -1192,7 +1192,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
           <ButtonPrimitive
             ref={connShape.triggerRef}
             className={clsx(
-              'flex items-center gap-1 rounded-[8px] px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
               connShape.open && 'bg-bg-secondary',
             )}
             onClick={() => connShape.setOpen((v) => !v)}
@@ -1215,7 +1215,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
                   aria-pressed={node.lineShape === shape}
                   onClick={() => handleLineShapeChange(shape)}
                   className={clsx(
-                    'flex items-center justify-center w-32px h-32px rounded-[8px]',
+                    'flex items-center justify-center w-32px h-32px rounded-md',
                     node.lineShape === shape
                       ? 'bg-bg-brand text-text-onbrand'
                       : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
@@ -1233,7 +1233,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
           <ButtonPrimitive
             ref={endCap.triggerRef}
             className={clsx(
-              'flex items-center gap-1 rounded-[8px] px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
               endCap.open && 'bg-bg-secondary',
             )}
             onClick={() => endCap.setOpen((v) => !v)}
@@ -1256,7 +1256,7 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
                   aria-pressed={node.endCap === cap}
                   onClick={() => handleCapChange('endCap', cap)}
                   className={clsx(
-                    'flex items-center justify-center w-32px h-32px rounded-[8px]',
+                    'flex items-center justify-center w-32px h-32px rounded-md',
                     node.endCap === cap
                       ? 'bg-bg-brand text-text-onbrand'
                       : 'hover:bg-bg-hover active:bg-bg-pressed text-text',

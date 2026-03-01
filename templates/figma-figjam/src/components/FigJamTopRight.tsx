@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ButtonPrimitive, IconButton, Button } from '@figma/fpl-components';
-import { Icon16ChevronDown, Icon24AiLarge, Icon24TimerLarge, Icon24TemplateLarge } from '@figma/fpl-icons';
+import { ButtonPrimitive, Button } from '@figma/fpl-components';
+import { Icon16ChevronDown, Icon24TimerLarge } from '@figma/fpl-icons';
 import { UserAvatar } from '@prototype/shared';
 import { ShareModal } from './ShareModal';
 import { TimerPanel } from './TimerPanel';
