@@ -1,3 +1,5 @@
+import type { MultiplayerColor } from '../Avatar';
+
 /** A single comment message within a thread */
 export interface Comment {
   id: string;
@@ -5,6 +7,7 @@ export interface Comment {
   authorName: string;
   authorInitial: string;
   avatarUrl?: string;
+  color?: MultiplayerColor;
   body: string;
   createdAt: number;
 }

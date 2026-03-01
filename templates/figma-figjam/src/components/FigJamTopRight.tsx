@@ -17,14 +17,6 @@ export function FigJamTopRight() {
         <Icon16ChevronDown />
       </ButtonPrimitive>
 
-      {/* Action icons */}
-      <IconButton size="lg" aria-label="AI" variant="ghost">
-        <Icon24AiLarge />
-      </IconButton>
-      <IconButton size="lg" aria-label="Table" variant="ghost">
-        <Icon24TemplateLarge />
-      </IconButton>
-
       {/* Timer widget */}
       <ButtonPrimitive
         className="flex items-center gap-1 rounded-md px-2 py-1 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg font-bold"

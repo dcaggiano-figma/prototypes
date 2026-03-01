@@ -40,7 +40,13 @@ export function useChatScript(script: ScriptStep[], enabled = true) {
   const restart = useCallback(() => {
     hasStartedRef.current = false;
     store.restart();
-  }, [store]);
+    // The useEffect won't re-fire if `enabled` hasn't changed (e.g. still true),
+    // so we need to re-start the store directly.
+    if (enabled) {
+      hasStartedRef.current = true;
+      store.start();
+    }
+  }, [store, enabled]);
 
   return {
     items: snapshot.items,

@@ -103,6 +103,7 @@ export function CommentThreadWindow({
             authorName={comment.authorName}
             authorInitial={comment.authorInitial}
             avatarUrl={comment.avatarUrl}
+            color={comment.color}
             body={comment.body}
             createdAt={comment.createdAt}
           />

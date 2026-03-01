@@ -79,7 +79,7 @@ import type {
   TextNode,
 } from '../../canvas';
 import { IconButtonGroup } from '../icon-button-group';
-import { PropertySection, PropertyRow, PlaceholderSection } from '../property-layout';
+import { PropertySection, PropertyRow, PlaceholderSection } from '@prototype/shared';
 import { NumericField, positiveFormatter, percentFormatter } from '../numeric-field';
 import { ColorSwatch, HexInput, OpacityInput, PercentSuffix, hexToRgb } from '../color-inputs';
 
@@ -897,44 +897,49 @@ function AppearanceSection({ node }: { node: GeometryNode }) {
 
 function FillSection({ node }: { node: AppearanceNode }) {
   const store = useSceneGraph();
-  const fill = node.fills[0];
 
   const handleColorChange = useCallback(
-    (hex: string) => {
+    (index: number, hex: string) => {
       const color = hexToRgb(hex);
       if (!color) return;
       const newFills = [...node.fills];
-      newFills[0] = { ...newFills[0], color };
+      newFills[index] = { ...newFills[index], color };
       store.updateNode(node.id, { fills: newFills });
     },
     [store, node.id, node.fills],
   );
 
   const handleOpacityChange = useCallback(
-    (value: number) => {
+    (index: number, value: number) => {
       const newFills = [...node.fills];
-      newFills[0] = { ...newFills[0], opacity: value / 100 };
+      newFills[index] = { ...newFills[index], opacity: value / 100 };
       store.updateNode(node.id, { fills: newFills });
     },
     [store, node.id, node.fills],
   );
 
-  const toggleVisibility = useCallback(() => {
-    const newFills = [...node.fills];
-    newFills[0] = { ...newFills[0], visible: !newFills[0].visible };
-    store.updateNode(node.id, { fills: newFills });
-  }, [store, node.id, node.fills]);
+  const toggleVisibility = useCallback(
+    (index: number) => {
+      const newFills = [...node.fills];
+      newFills[index] = { ...newFills[index], visible: !newFills[index].visible };
+      store.updateNode(node.id, { fills: newFills });
+    },
+    [store, node.id, node.fills],
+  );
 
   const addFill = useCallback(() => {
     const newFill: Paint = { type: 'SOLID', color: { r: 196, g: 196, b: 196 }, opacity: 1, visible: true };
     store.updateNode(node.id, { fills: [...node.fills, newFill] });
   }, [store, node.id, node.fills]);
 
-  const removeFill = useCallback(() => {
-    store.updateNode(node.id, { fills: node.fills.slice(1) });
-  }, [store, node.id, node.fills]);
+  const removeFill = useCallback(
+    (index: number) => {
+      store.updateNode(node.id, { fills: node.fills.filter((_, i) => i !== index) });
+    },
+    [store, node.id, node.fills],
+  );
 
-  if (!fill) return <PlaceholderSection title="Fill" actions onAdd={addFill} />;
+  if (node.fills.length === 0) return <PlaceholderSection title="Fill" actions onAdd={addFill} />;
 
   return (
     <PropertySection
@@ -946,27 +951,32 @@ function FillSection({ node }: { node: AppearanceNode }) {
         </>
       )}
     >
-      <PropertyRow columns="1fr auto auto" style={{ opacity: fill.visible ? 1 : 0.4 }}>
-        <Input.Group columns="1fr 52px">
-          <Input.Root>
-            <ColorSwatch color={fill.color} onChange={handleColorChange} />
-            <HexInput color={fill.color} onChange={handleColorChange} />
-          </Input.Root>
-          <Input.Root>
-            <OpacityInput
-              value={fill.opacity}
-              onChange={handleOpacityChange}
-            />
-            <PercentSuffix />
-          </Input.Root>
-        </Input.Group>
-        <IconButton aria-label="Toggle visibility" onClick={toggleVisibility}>
-          {fill.visible ? <Icon24Eye /> : <Icon24Hidden />}
-        </IconButton>
-        <IconButton aria-label="Remove fill" onClick={removeFill}>
-          <Icon24Minus />
-        </IconButton>
-      </PropertyRow>
+      {[...node.fills].reverse().map((fill, reverseIndex) => {
+        const index = node.fills.length - 1 - reverseIndex;
+        return (
+          <PropertyRow key={index} columns="1fr auto auto" style={{ opacity: fill.visible ? 1 : 0.4 }}>
+            <Input.Group columns="1fr 52px">
+              <Input.Root>
+                <ColorSwatch color={fill.color} onChange={(hex) => handleColorChange(index, hex)} />
+                <HexInput color={fill.color} onChange={(hex) => handleColorChange(index, hex)} />
+              </Input.Root>
+              <Input.Root>
+                <OpacityInput
+                  value={fill.opacity}
+                  onChange={(value) => handleOpacityChange(index, value)}
+                />
+                <PercentSuffix />
+              </Input.Root>
+            </Input.Group>
+            <IconButton aria-label="Toggle visibility" onClick={() => toggleVisibility(index)}>
+              {fill.visible ? <Icon24Eye /> : <Icon24Hidden />}
+            </IconButton>
+            <IconButton aria-label="Remove fill" onClick={() => removeFill(index)}>
+              <Icon24Minus />
+            </IconButton>
+          </PropertyRow>
+        );
+      })}
     </PropertySection>
   );
 }

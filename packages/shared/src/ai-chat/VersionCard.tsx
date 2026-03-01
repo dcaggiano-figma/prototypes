@@ -26,7 +26,7 @@ export function VersionCard({
             <span className="text-bodyLgStrong text-text-success">{label}</span>
             <span className="text-text-secondary">Current version</span>
           </div>
-          <div className="flex items-center gap-2 text-text-success">
+          <div className="flex items-center gap-2 icon-success">
             <Icon24VersionCurrent />
           </div>
         </div>

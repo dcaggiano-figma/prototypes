@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useAction } from '../../actions/provider';
-import type { NodeType } from '../types';
-import { isTextCapableNode } from '../types';
+import type { ConnectorEndpoint, ConnectorLineShape, NodeType } from '../types';
+import { isConnectorNode, isTextCapableNode } from '../types';
 import { usePageBackground, useSceneGraph } from '../scene-graph/provider';
 import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
 import { SelectionOverlay } from '../selection/overlay';
@@ -17,7 +17,10 @@ import { CanvasRenderer } from './canvas-renderer';
 import type { Point } from '../tools/path-smoothing';
 import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from '../tools/path-smoothing';
 import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
-import { collectDraggableIds, findNodeAtWorldPoint, getSelectionBBox, pointInRect } from '../scene-graph/selection-utils';
+import { collectDraggableIds, findNodeAtWorldPoint, findNodeNearWorldPoint, getSelectionBBox, pointInRect } from '../scene-graph/selection-utils';
+import { snapToConnectionPoint } from '../connectors/connector-resolve';
+import { ConnectorPointsOverlay } from '../connectors/ConnectorPointsOverlay';
+import { updateConnectorBounds, updateConnectorsForNodes } from '../connectors/connector-utils';
 /** Shape tools that support click-drag-to-create */
 const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
 
@@ -60,7 +63,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   const selection = useSelection();
   const store = useSceneGraph();
   const pageBg = usePageBackground();
-  const { effectiveTool, setActiveTool, stickyColor, sectionFillColor, shapeColor, markerColor, highlighterColor, markerSubType } = useActiveTool();
+  const { effectiveTool, setActiveTool, stickyColor, sectionFillColor, shapeColor, markerColor, highlighterColor, markerSubType, connectorLineShape } = useActiveTool();
   const textEditing = useTextEditing();
   const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
   const { config: userConfig } = useUserConfig();
@@ -127,6 +130,31 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     subType: 'marker' | 'highlighter'
   } | null>(null);
 
+  /** Tracks active connector creation */
+  const connectorRef = useRef<{
+    connectorId: string
+    lineShape: ConnectorLineShape
+  } | null>(null);
+
+  /** World-space mouse position for connector point overlay */
+  const [connectorMouseWorld, setConnectorMouseWorld] = useState<{ x: number; y: number } | null>(null);
+
+  /** Node ID currently hovered during connector tool (for showing connector points only on hovered/selected nodes) */
+  const [connectorHoverNodeId, setConnectorHoverNodeId] = useState<string | null>(null);
+
+  /** Set of node IDs whose connector points should be visible */
+  const connectorVisibleNodeIds = useMemo(() => {
+    const ids = new Set<string>();
+    // Always show points for selected non-connector nodes
+    for (const id of selection.selectedIds) {
+      const node = store.getNode(id);
+      if (node && node.type !== 'CONNECTOR') ids.add(id);
+    }
+    // When connector tool active or during drag, also show hovered node's points
+    if (connectorHoverNodeId) ids.add(connectorHoverNodeId);
+    return ids.size > 0 ? ids : null;
+  }, [connectorHoverNodeId, selection.selectedIds, store]);
+
   /** SVG overlay for live pen preview */
   const penOverlayRef = useRef<SVGSVGElement>(null);
 
@@ -145,6 +173,11 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         pen.pathEl.remove();
         penRef.current = null;
       }
+    }
+    // Clean up connector tool state (but not for MOVE or CONNECTOR tools, or active drags)
+    if (effectiveTool !== 'CONNECTOR' && effectiveTool !== 'MOVE' && !connectorRef.current) {
+      setConnectorMouseWorld(null);
+      setConnectorHoverNodeId(null);
     }
   }, [effectiveTool]);
 
@@ -240,6 +273,59 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         },
       });
     }, [store, containerRef, viewport]),
+  );
+
+  const MIN_SCALE = 0.02;
+  const MAX_SCALE = 256;
+
+  useAction(
+    'zoom-in',
+    useCallback(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      viewport.setState((prev) => {
+        const newScale = Math.min(prev.scale * 2, MAX_SCALE);
+        const worldX = (cx - prev.origin.x) / prev.scale;
+        const worldY = (cy - prev.origin.y) / prev.scale;
+        return { scale: newScale, origin: { x: cx - worldX * newScale, y: cy - worldY * newScale } };
+      });
+    }, [containerRef, viewport]),
+  );
+
+  useAction(
+    'zoom-out',
+    useCallback(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      viewport.setState((prev) => {
+        const newScale = Math.max(prev.scale / 2, MIN_SCALE);
+        const worldX = (cx - prev.origin.x) / prev.scale;
+        const worldY = (cy - prev.origin.y) / prev.scale;
+        return { scale: newScale, origin: { x: cx - worldX * newScale, y: cy - worldY * newScale } };
+      });
+    }, [containerRef, viewport]),
+  );
+
+  useAction(
+    'zoom-to-100',
+    useCallback(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      viewport.setState((prev) => {
+        const worldX = (cx - prev.origin.x) / prev.scale;
+        const worldY = (cy - prev.origin.y) / prev.scale;
+        return { scale: 1, origin: { x: cx - worldX, y: cy - worldY } };
+      });
+    }, [containerRef, viewport]),
   );
 
   // Center content before first paint (useLayoutEffect fires before browser paints)
@@ -414,6 +500,56 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         return;
       }
 
+      // CONNECTOR tool: click to start a connector
+      if (effectiveTool === 'CONNECTOR') {
+        // Hit-test for a node to connect from
+        let startEndpoint: ConnectorEndpoint = { type: 'free', x: world.x, y: world.y };
+
+        // Check all geometry nodes for a connection point near the click
+        const allNodes = store.getAllNodes();
+        let bestDist = Infinity;
+        for (const n of allNodes) {
+          if (!isGeometryNode(n) || isConnectorNode(n) || n.type === 'LINE' || n.type === 'VECTOR') continue;
+          const snapped = snapToConnectionPoint(store, n, world.x, world.y, 30);
+          if (snapped) {
+            const dx = snapped.x - world.x;
+            const dy = snapped.y - world.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < bestDist) {
+              bestDist = dist;
+              if (snapped.pointIndex !== null) {
+                startEndpoint = { type: 'connected', nodeId: n.id, pointIndex: snapped.pointIndex };
+              } else {
+                // Edge position — compute fractions
+                const nodeWorld = getWorldPosition(store, n);
+                const xFrac = n.width > 0 ? (snapped.x - nodeWorld.x) / n.width : 0.5;
+                const yFrac = n.height > 0 ? (snapped.y - nodeWorld.y) / n.height : 0.5;
+                startEndpoint = { type: 'edge', nodeId: n.id, xFraction: xFrac, yFraction: yFrac };
+              }
+            }
+          }
+        }
+
+        const connector = store.createNode('CONNECTOR', {
+          x: world.x,
+          y: world.y,
+          width: 0,
+          height: 0,
+          startEndpoint,
+          endEndpoint: { type: 'free', x: world.x, y: world.y },
+          lineShape: connectorLineShape,
+          startCap: 'NONE',
+          endCap: 'FILLED_ARROW',
+        });
+
+        connectorRef.current = {
+          connectorId: connector.id,
+          lineShape: connectorLineShape,
+        };
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        return;
+      }
+
       // Shape creation tools: create a node at click position and start drag-to-resize
       if (CREATION_TOOLS.has(effectiveTool)) {
         const nodeType = effectiveTool as NodeType;
@@ -452,6 +588,42 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       }
 
       if (effectiveTool === 'MOVE') {
+        // Check if clicking on a visible connector point — start a connector drag
+        // Check all geometry nodes whose connector points are currently visible
+        const allNodes = store.getAllNodes();
+        for (const n of allNodes) {
+          if (!isGeometryNode(n) || isConnectorNode(n) || n.type === 'LINE' || n.type === 'VECTOR') continue;
+          // Only check nodes whose connector points are visible (selected or hovered)
+          const isVisible = selection.selectedIds.has(n.id) || connectorHoverNodeId === n.id;
+          if (!isVisible) continue;
+          const snapped = snapToConnectionPoint(store, n, world.x, world.y, 20);
+          if (!snapped) continue;
+          const dx = snapped.x - world.x;
+          const dy = snapped.y - world.y;
+          if (Math.sqrt(dx * dx + dy * dy) > 20) continue;
+          // Build start endpoint
+          let startEndpoint: ConnectorEndpoint;
+          if (snapped.pointIndex !== null) {
+            startEndpoint = { type: 'connected', nodeId: n.id, pointIndex: snapped.pointIndex };
+          } else {
+            const nodeWorld = getWorldPosition(store, n);
+            const xFrac = n.width > 0 ? (snapped.x - nodeWorld.x) / n.width : 0.5;
+            const yFrac = n.height > 0 ? (snapped.y - nodeWorld.y) / n.height : 0.5;
+            startEndpoint = { type: 'edge', nodeId: n.id, xFraction: xFrac, yFraction: yFrac };
+          }
+          const connector = store.createNode('CONNECTOR', {
+            x: world.x, y: world.y, width: 0, height: 0,
+            startEndpoint,
+            endEndpoint: { type: 'free', x: world.x, y: world.y },
+            lineShape: connectorLineShape,
+            startCap: 'NONE',
+            endCap: 'FILLED_ARROW',
+          });
+          connectorRef.current = { connectorId: connector.id, lineShape: connectorLineShape };
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+          return;
+        }
+
         // If we have a multi-selection, check if click is inside the combined
         // bounding box — if so, start dragging all selected nodes
         if (selection.selectedIds.size > 1) {
@@ -522,7 +694,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       }
     },
-    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, stickyColor, sectionFillColor, markerColor, highlighterColor, markerSubType, interaction, setInteraction, userConfig],
+    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, stickyColor, sectionFillColor, markerColor, highlighterColor, markerSubType, connectorLineShape, interaction, setInteraction, userConfig, connectorHoverNodeId],
   );
 
   const onPointerMove = useCallback(
@@ -533,6 +705,43 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         if (rect) {
           setGhostPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
         }
+      }
+
+      // Track mouse for connector point overlay (connector tool hover + selected node highlights)
+      if (effectiveTool === 'CONNECTOR') {
+        const rect2 = containerRef.current?.getBoundingClientRect();
+        if (rect2) {
+          const w = screenToWorld(e.clientX - rect2.left, e.clientY - rect2.top);
+          setConnectorMouseWorld(w);
+          const hoveredId = findNodeAtWorldPoint(store, w.x, w.y);
+          setConnectorHoverNodeId(hoveredId ?? null);
+        }
+      } else if (effectiveTool === 'MOVE') {
+        const rect2 = containerRef.current?.getBoundingClientRect();
+        if (rect2) {
+          const w = screenToWorld(e.clientX - rect2.left, e.clientY - rect2.top);
+          setConnectorMouseWorld(w);
+          // Track hovered node so its connector points become visible
+          const hoveredId = findNodeAtWorldPoint(store, w.x, w.y);
+          setConnectorHoverNodeId(hoveredId ?? null);
+        }
+      }
+
+      // Connector creation drag — update end endpoint and hover detection
+      const connectorDrag = connectorRef.current;
+      if (connectorDrag) {
+        const rect2 = containerRef.current?.getBoundingClientRect();
+        if (!rect2) return;
+        const w = screenToWorld(e.clientX - rect2.left, e.clientY - rect2.top);
+        setConnectorMouseWorld(w);
+        // Use safe zone (16px in screen space) so connection points appear before cursor enters node
+        const safeZoneWorld = 16 / viewport.state.scale;
+        const hoveredId = findNodeNearWorldPoint(store, w.x, w.y, safeZoneWorld);
+        setConnectorHoverNodeId(hoveredId ?? null);
+        store.updateNode(connectorDrag.connectorId, {
+          endEndpoint: { type: 'free', x: w.x, y: w.y },
+        });
+        return;
       }
 
       // Pen/marker drawing — accumulate points
@@ -657,14 +866,20 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       const worldDy = world.y - drag.lastWorld.y;
       drag.lastWorld = world;
 
-      // Update all dragged nodes
+      // Update all dragged nodes (skip connectors — they update reactively)
+      const movedIds: string[] = [];
       for (const id of drag.nodeIds) {
         const node = store.getNode(id);
-        if (!node || !isGeometryNode(node)) continue;
+        if (!node || !isGeometryNode(node) || isConnectorNode(node)) continue;
         store.updateNode(id, {
           x: node.x + worldDx,
           y: node.y + worldDy,
         });
+        movedIds.push(id);
+      }
+      // Update connector bounds for any connectors referencing moved nodes
+      if (movedIds.length > 0) {
+        updateConnectorsForNodes(store, movedIds);
       }
     },
     [containerRef, screenToWorld, store, selection, dragBox, viewport, effectiveTool],
@@ -680,6 +895,50 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         if (hitId !== textEditing.editingNodeId) {
           textEditing.stopEditing();
         }
+      }
+
+      // Finalize connector creation
+      const connectorDrag = connectorRef.current;
+      if (connectorDrag) {
+        connectorRef.current = null;
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          const w = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+          // Try to snap end to a node's connection point
+          let endEndpoint: ConnectorEndpoint = { type: 'free', x: w.x, y: w.y };
+          const allNodes = store.getAllNodes();
+          let bestDist = Infinity;
+          for (const n of allNodes) {
+            if (!isGeometryNode(n) || isConnectorNode(n) || n.type === 'LINE' || n.type === 'VECTOR') continue;
+            // Don't connect to the same node the start is on (unless it's a different point)
+            const snapped = snapToConnectionPoint(store, n, w.x, w.y, 30);
+            if (snapped) {
+              const dx = snapped.x - w.x;
+              const dy = snapped.y - w.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < bestDist) {
+                bestDist = dist;
+                if (snapped.pointIndex !== null) {
+                  endEndpoint = { type: 'connected', nodeId: n.id, pointIndex: snapped.pointIndex };
+                } else {
+                  const nodeWorld = getWorldPosition(store, n);
+                  const xFrac = n.width > 0 ? (snapped.x - nodeWorld.x) / n.width : 0.5;
+                  const yFrac = n.height > 0 ? (snapped.y - nodeWorld.y) / n.height : 0.5;
+                  endEndpoint = { type: 'edge', nodeId: n.id, xFraction: xFrac, yFraction: yFrac };
+                }
+              }
+            }
+          }
+
+          store.updateNode(connectorDrag.connectorId, { endEndpoint });
+          updateConnectorBounds(store, connectorDrag.connectorId);
+        }
+        selection.select(connectorDrag.connectorId);
+        setConnectorHoverNodeId(null);
+        setConnectorMouseWorld(null);
+        setActiveTool('MOVE');
+        return;
       }
 
       // Finalize pen/marker drawing
@@ -780,9 +1039,58 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
       const drag = dragRef.current;
       dragRef.current = null;
-      setDragBox(null);
 
-      if (!drag) return;
+      if (!drag) {
+        setDragBox(null);
+        return;
+      }
+
+      // Finalize box selection: select all nodes fully enclosed by the drag box
+      if (dragBox && drag.nodeIds.length === 0) {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          // Convert screen-space drag box to world-space
+          const boxMinX = Math.min(dragBox.startX, dragBox.currentX);
+          const boxMinY = Math.min(dragBox.startY, dragBox.currentY);
+          const boxMaxX = Math.max(dragBox.startX, dragBox.currentX);
+          const boxMaxY = Math.max(dragBox.startY, dragBox.currentY);
+
+          const wMinX = (boxMinX - viewport.state.origin.x) / viewport.state.scale;
+          const wMinY = (boxMinY - viewport.state.origin.y) / viewport.state.scale;
+          const wMaxX = (boxMaxX - viewport.state.origin.x) / viewport.state.scale;
+          const wMaxY = (boxMaxY - viewport.state.origin.y) / viewport.state.scale;
+
+          // Only finalize if the box has meaningful size; otherwise fall through
+          // to click-to-select logic so clicking empty canvas still clears selection
+          if (boxMaxX - boxMinX > 2 || boxMaxY - boxMinY > 2) {
+            // Get the candidate nodes: root-level, or children of entered frame
+            const candidates = selection.enteredFrameId
+              ? (store.getNode(selection.enteredFrameId)?.children ?? []).map((id) => store.getNode(id)).filter(Boolean)
+              : store.getRootNodes();
+
+            if (!e.shiftKey) {
+              selection.clear();
+            }
+
+            for (const candidate of candidates) {
+              if (!candidate || !isGeometryNode(candidate)) continue;
+              const world = getWorldPosition(store, candidate);
+              const nodeMaxX = world.x + candidate.width;
+              const nodeMaxY = world.y + candidate.height;
+
+              // Check if the node is fully enclosed
+              if (world.x >= wMinX && world.y >= wMinY && nodeMaxX <= wMaxX && nodeMaxY <= wMaxY) {
+                selection.add(candidate.id);
+              }
+            }
+
+            setDragBox(null);
+            return;
+          }
+        }
+      }
+
+      setDragBox(null);
 
       // If we were dragging, don't do click-to-select
       if (drag.dragging) {
@@ -880,7 +1188,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         lastClickRef.current = { time: now, clientX: e.clientX, clientY: e.clientY };
       }
     },
-    [selection, effectiveTool, store, setActiveTool, textEditing],
+    [selection, effectiveTool, store, setActiveTool, textEditing, viewport, containerRef, dragBox],
   );
 
   // ── Comment pin drag handlers ──────────────────────────────────────────
@@ -943,7 +1251,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       case 'ELLIPSE':
       case 'LINE':
       case 'POLYGON':
-      case 'STAR': return CURSORS.crosshair;
+      case 'STAR':
+      case 'CONNECTOR': return CURSORS.crosshair;
       case 'STICKY_NOTE': return CURSORS.default;
       case 'COMMENT': return CURSORS.commentNext;
       default: return CURSORS.default;
@@ -1015,6 +1324,13 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         }}
       >
         <CanvasRenderer />
+        <ConnectorPointsOverlay
+          active={connectorVisibleNodeIds != null}
+          connectorToolActive={effectiveTool === 'CONNECTOR'}
+          mouseWorldX={connectorMouseWorld?.x}
+          mouseWorldY={connectorMouseWorld?.y}
+          visibleNodeIds={connectorVisibleNodeIds}
+        />
         <CommentPinLayer
           commentsStore={commentsStore}
           interaction={interaction}

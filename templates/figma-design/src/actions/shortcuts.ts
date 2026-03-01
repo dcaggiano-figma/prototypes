@@ -45,6 +45,7 @@ export const SHORTCUT_MAP: Record<string, string> = {
   1: 'zoom-to-fit',
   'Shift+1': 'zoom-to-fit',
   'Shift+0': 'zoom-to-100',
+  'Mod+0': 'zoom-to-100',
 
   // View
   'Shift+Mod+\\': 'view.minimize-ui',

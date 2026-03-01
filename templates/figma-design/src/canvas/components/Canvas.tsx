@@ -216,6 +216,59 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     }, [store, containerRef, viewport]),
   );
 
+  const MIN_SCALE = 0.02;
+  const MAX_SCALE = 256;
+
+  useAction(
+    'zoom-in',
+    useCallback(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      viewport.setState((prev) => {
+        const newScale = Math.min(prev.scale * 2, MAX_SCALE);
+        const worldX = (cx - prev.origin.x) / prev.scale;
+        const worldY = (cy - prev.origin.y) / prev.scale;
+        return { scale: newScale, origin: { x: cx - worldX * newScale, y: cy - worldY * newScale } };
+      });
+    }, [containerRef, viewport]),
+  );
+
+  useAction(
+    'zoom-out',
+    useCallback(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      viewport.setState((prev) => {
+        const newScale = Math.max(prev.scale / 2, MIN_SCALE);
+        const worldX = (cx - prev.origin.x) / prev.scale;
+        const worldY = (cy - prev.origin.y) / prev.scale;
+        return { scale: newScale, origin: { x: cx - worldX * newScale, y: cy - worldY * newScale } };
+      });
+    }, [containerRef, viewport]),
+  );
+
+  useAction(
+    'zoom-to-100',
+    useCallback(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      viewport.setState((prev) => {
+        const worldX = (cx - prev.origin.x) / prev.scale;
+        const worldY = (cy - prev.origin.y) / prev.scale;
+        return { scale: 1, origin: { x: cx - worldX, y: cy - worldY } };
+      });
+    }, [containerRef, viewport]),
+  );
+
   // Center content before first paint (useLayoutEffect fires before browser paints)
   const didCenter = useRef(false);
   useLayoutEffect(() => {

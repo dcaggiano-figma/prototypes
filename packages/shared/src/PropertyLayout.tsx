@@ -27,6 +27,13 @@ export function PropertySection({ title, children, headerActions }: PropertySect
   );
 }
 
+export interface PropertyRowProps {
+  children: React.ReactNode
+  className?: string
+  columns?: string
+  style?: React.CSSProperties
+}
+
 /** A single property row that owns its horizontal padding and uses CSS grid for layout.
  * By default includes a trailing 24px icon slot to keep inputs aligned. */
 export function PropertyRow({
@@ -34,12 +41,7 @@ export function PropertyRow({
   className,
   columns = '1fr 1fr 24px',
   style,
-}: {
-  children: React.ReactNode
-  className?: string
-  columns?: string
-  style?: React.CSSProperties
-}) {
+}: PropertyRowProps) {
   return (
     <div
       className={clsx('grid gap-x-2 items-center pl-3 pr-2 py-1', className)}
@@ -50,7 +52,13 @@ export function PropertyRow({
   );
 }
 
-export function PlaceholderSection({ title, actions, onAdd }: { title: string; actions?: boolean; onAdd?: () => void }) {
+export interface PlaceholderSectionProps {
+  title: string
+  actions?: boolean
+  onAdd?: () => void
+}
+
+export function PlaceholderSection({ title, actions, onAdd }: PlaceholderSectionProps) {
   return (
     <div className="border-b border-border">
       <div className="flex items-center justify-between pl-3 pr-2 h-40px">

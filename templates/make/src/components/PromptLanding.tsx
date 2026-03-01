@@ -14,11 +14,8 @@ import {
   Icon24Send,
 } from '@figma/fpl-icons';
 
-import type { Attachment, ModelOption, PromptSubmission } from './types';
-import { AttachmentThumbnail } from './AttachmentThumbnail';
-import { ModelSelector } from './ModelSelector';
-import { AttachMenu } from './AttachMenu';
-import { DEFAULT_MODEL_OPTIONS } from './provider';
+import type { Attachment, ModelOption, PromptSubmission } from '@prototype/shared';
+import { AttachmentThumbnail, ModelSelector, AttachMenu, DEFAULT_MODEL_OPTIONS } from '@prototype/shared';
 
 /* ------------------------------------------------------------------ */
 /*  PromptLanding - the home-page single-line prompt                   */

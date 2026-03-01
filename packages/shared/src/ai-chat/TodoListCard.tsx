@@ -16,8 +16,8 @@ function getTaskIcon(status: TaskStatus) {
 function TodoItem({ task }: { task: Task }) {
   return (
     <li className={clsx('flex flex-col gap-1', task.status === 'in_progress' && 'text-text')}>
-      <div className="flex items-center gap-2">
-        {getTaskIcon(task.status)}
+      <div className="flex items-start gap-2">
+        <span className="w-4 icon-secondary">{getTaskIcon(task.status)}</span>
         <span>{task.label}</span>
       </div>
       {task.children}

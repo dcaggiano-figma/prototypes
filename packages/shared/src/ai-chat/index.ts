@@ -61,8 +61,5 @@ export type { ModelSelectorProps } from './ModelSelector';
 export { AttachMenu } from './AttachMenu';
 export type { AttachMenuProps } from './AttachMenu';
 
-export { PromptLanding } from './PromptLanding';
-export type { PromptLandingProps } from './PromptLanding';
-
 export { PromptPanel } from './PromptPanel';
 export type { PromptPanelProps } from './PromptPanel';

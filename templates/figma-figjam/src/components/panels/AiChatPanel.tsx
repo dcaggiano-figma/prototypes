@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Badge,
   Button,
@@ -225,8 +225,22 @@ const SUGGESTIONS = [
 ] as const;
 
 /* ------------------------------------------------------------------ */
+/*  Types                                                               */
+/* ------------------------------------------------------------------ */
+
+interface CompletedConversation {
+  prompt: string;
+  items: ChatItem[];
+  tasks: Task[];
+  versionNumber: number;
+}
+
+/* ------------------------------------------------------------------ */
 /*  AiChatPanel                                                         */
 /* ------------------------------------------------------------------ */
+
+/* Animation phases for the user message on subsequent prompts */
+type AnimPhase = 'settled' | 'measuring' | 'appearing' | 'rising';
 
 export function AiChatPanel() {
   const [openItem, setOpenItem] = useState<string | null>(null);
@@ -234,25 +248,121 @@ export function AiChatPanel() {
   const [selectedModel, setSelectedModel] = useState('default');
   const [phase, setPhase] = useState<'idle' | 'active'>('idle');
   const [submittedPrompt, setSubmittedPrompt] = useState('');
+  const [completedConversations, setCompletedConversations] = useState<CompletedConversation[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const msgRef = useRef<HTMLDivElement>(null);
+
+  /* Animation state for the "rise" transition on subsequent prompts */
+  const [animPhase, setAnimPhase] = useState<AnimPhase>('settled');
+  const [spacerHeight, setSpacerHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
+
+  /* Collapse animation for previous conversations */
+  const [collapsingConvVersion, setCollapsingConvVersion] = useState<number | null>(null);
+  const [collapsePhase, setCollapsePhase] = useState<'expand' | 'collapse'>('expand');
+  const prevConvCountRef = useRef(completedConversations.length);
 
   const script = useChatScript(DEFAULT_SCRIPT, phase === 'active');
   const toggleTipManager = ToggleTip.useUncontrolledToggleTip({ placement: 'top' });
 
-  /* Auto-scroll when new items arrive */
+  const effectiveIsWorking = animPhase !== 'settled' || script.isWorking;
+
+  /* Auto-scroll when new items arrive (only when settled) */
   useEffect(() => {
+    if (animPhase !== 'settled') return;
     const el = scrollRef.current;
     if (el) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [script.items, script.transient]);
+  }, [script.items, script.transient, animPhase]);
 
-  const handleSubmit = (submission: PromptSubmission) => {
-    if (!submission.text.trim()) return;
-    setSubmittedPrompt(submission.text);
-    setPrompt('');
-    setPhase('active');
+  /* Detect new completed conversation and start collapse animation */
+  useEffect(() => {
+    if (completedConversations.length > prevConvCountRef.current) {
+      const newConv = completedConversations[completedConversations.length - 1];
+      setCollapsingConvVersion(newConv.versionNumber);
+      setCollapsePhase('expand');
+    }
+    prevConvCountRef.current = completedConversations.length;
+  }, [completedConversations]);
+
+  /* Trigger collapse after browser paints the expanded state */
+  useEffect(() => {
+    if (collapsingConvVersion !== null && collapsePhase === 'expand') {
+      const frame = requestAnimationFrame(() => {
+        setCollapsePhase('collapse');
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    return undefined;
+  }, [collapsingConvVersion, collapsePhase]);
+
+  const handleCollapseTransitionEnd = (version: number) => {
+    if (collapsingConvVersion === version) {
+      setCollapsingConvVersion(null);
+    }
   };
+
+  /* Measure message height before paint so we can position it at the bottom */
+  useLayoutEffect(() => {
+    if (animPhase === 'measuring' && scrollRef.current && msgRef.current) {
+      const containerH = scrollRef.current.clientHeight;
+      setViewportHeight(containerH);
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const msgH = msgRef.current.offsetHeight;
+      const padding = 24; // py-3 = 12px × 2
+      setSpacerHeight(Math.max(0, containerH - msgH - padding));
+      setAnimPhase('appearing');
+    }
+  }, [animPhase]);
+
+  /* appearing → rising after a brief delay */
+  useEffect(() => {
+    if (animPhase === 'appearing') {
+      const timer = setTimeout(() => setAnimPhase('rising'), 300);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [animPhase]);
+
+  /* If spacer is already 0, settle immediately */
+  useEffect(() => {
+    if (animPhase === 'rising' && spacerHeight === 0) {
+      setAnimPhase('settled');
+    }
+  }, [animPhase, spacerHeight]);
+
+  const handleSpacerTransitionEnd = () => {
+    if (animPhase === 'rising') {
+      setAnimPhase('settled');
+    }
+  };
+
+  const handleSubmit = useCallback((submission: PromptSubmission) => {
+    if (!submission.text.trim()) return;
+
+    if (phase === 'active' && script.items.length > 0 && !effectiveIsWorking) {
+      // Subsequent prompt — archive current conversation, restart, and animate
+      setCompletedConversations((prev) => [
+        ...prev,
+        {
+          prompt: submittedPrompt,
+          items: [...script.items],
+          tasks: [...script.tasks],
+          versionNumber: prev.length + 1,
+        },
+      ]);
+      script.restart();
+      setSubmittedPrompt(submission.text);
+      setPrompt('');
+      setAnimPhase('measuring');
+    } else {
+      // First prompt — switch from idle to active view
+      setSubmittedPrompt(submission.text);
+      setPrompt('');
+      setPhase('active');
+    }
+  }, [phase, submittedPrompt, script, effectiveIsWorking]);
 
   if (phase === 'active') {
     return (
@@ -264,33 +374,96 @@ export function AiChatPanel() {
         </div>
 
         {/* Scrollable conversation */}
+        {/* eslint-disable react/forbid-dom-props -- dynamic px height from JS measurement */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 text-bodyLg text-text">
-          <div className="flex flex-col gap-3 py-3">
-            {/* User message */}
-            <ChatMessage sender="user">{submittedPrompt}</ChatMessage>
+          {/* Completed conversations */}
+          {completedConversations.map((conv) => {
+            const isCollapsing = collapsingConvVersion === conv.versionNumber;
+            const collapseStyle = isCollapsing
+              ? {
+                minHeight: collapsePhase === 'expand' ? `${String(viewportHeight)}px` : '0px',
+                transition: collapsePhase === 'collapse' ? 'min-height 400ms ease-out' : undefined,
+              }
+              : {};
 
-            {/* Script items */}
-            {script.items.map((item) => (
-              <ChatPanelItem
-                key={item.id}
-                item={item}
-                tasks={script.tasks}
-                awaitingUserAction={script.awaitingUserAction}
-                onStartTasks={script.onStartTasks}
-                onStreamComplete={script.onStreamComplete}
-                toggleTipManager={toggleTipManager}
-              />
-            ))}
+            return (
+              <div
+                key={`conv-${String(conv.versionNumber)}`}
+                className="flex flex-col gap-3 py-3"
+                style={collapseStyle}
+                onTransitionEnd={isCollapsing ? () => handleCollapseTransitionEnd(conv.versionNumber) : undefined}
+              >
+                <ChatMessage sender="user">{conv.prompt}</ChatMessage>
+                {conv.items.map((item) => (
+                  <ChatPanelItem
+                    key={item.id}
+                    item={item}
+                    tasks={conv.tasks}
+                    awaitingUserAction={false}
+                    onStartTasks={() => {}}
+                    onStreamComplete={() => {}}
+                    toggleTipManager={toggleTipManager}
+                  />
+                ))}
+              </div>
+            );
+          })}
 
-            {/* Transient element */}
-            {script.transient && (
-              <TransientElement
-                transient={script.transient}
-                onStreamComplete={script.onStreamComplete}
+          {/* Active conversation */}
+          <div
+            className="flex flex-col gap-3 py-3"
+            style={viewportHeight ? { minHeight: `${String(viewportHeight)}px` } : undefined}
+          >
+            {/* Spacer — pushes message to the bottom during animation */}
+            {(animPhase === 'appearing' || animPhase === 'rising') && (
+              <div
+                aria-hidden
+                className={clsx(
+                  'overflow-hidden',
+                  animPhase === 'rising' && 'transition-[height] duration-[800ms] ease-out',
+                )}
+                style={{ height: animPhase === 'rising' ? 0 : spacerHeight }}
+                onTransitionEnd={handleSpacerTransitionEnd}
               />
+            )}
+
+            {/* Current user message */}
+            <div
+              ref={msgRef}
+              className={clsx(
+                'transition-opacity duration-sm ease-in',
+                animPhase === 'measuring' ? 'opacity-0' : 'opacity-100',
+              )}
+            >
+              <ChatMessage sender="user">{submittedPrompt}</ChatMessage>
+            </div>
+
+            {/* Current script items — only visible once animation settled */}
+            {animPhase === 'settled' && (
+              <>
+                {script.items.map((item) => (
+                  <ChatPanelItem
+                    key={item.id}
+                    item={item}
+                    tasks={script.tasks}
+                    awaitingUserAction={script.awaitingUserAction}
+                    onStartTasks={script.onStartTasks}
+                    onStreamComplete={script.onStreamComplete}
+                    toggleTipManager={toggleTipManager}
+                  />
+                ))}
+
+                {script.transient && (
+                  <TransientElement
+                    transient={script.transient}
+                    onStreamComplete={script.onStreamComplete}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
+        {/* eslint-enable react/forbid-dom-props */}
 
         {/* Bottom prompt input */}
         <div className="p-3">
@@ -300,7 +473,7 @@ export function AiChatPanel() {
             onSubmit={handleSubmit}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
-            isWorking={script.isWorking}
+            isWorking={effectiveIsWorking}
             placeholder="Ask anything..."
           />
         </div>

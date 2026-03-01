@@ -1,7 +1,9 @@
 import type {
-  AppearanceMixin, GeometryMixin, GeometryNode, NodeType, Paint, SceneNode, ShapeTextMixin, StickyNoteNode,
+  AppearanceMixin, ConnectorNode, GeometryMixin, GeometryNode, NodeType, Paint, SceneNode, ShapeTextMixin, StickyNoteNode,
 } from '../types';
+import { isConnectorNode } from '../types';
 import { getWorldPosition, isGeometryNode } from './world-position';
+import { resolveEndpointPosition } from '../connectors/connector-resolve';
 
 // ── Defaults ──────────────────────────────────────────────────────────
 
@@ -122,6 +124,21 @@ function getTypeDefaults(type: NodeType): Partial<SceneNode> {
       };
     case 'GROUP':
       return {};
+    case 'CONNECTOR':
+      return {
+        ...GEOMETRY_DEFAULTS,
+        startEndpoint: { type: 'free', x: 0, y: 0 },
+        endEndpoint: { type: 'free', x: 100, y: 0 },
+        lineShape: 'CURVE',
+        startCap: 'NONE',
+        endCap: 'FILLED_ARROW',
+        strokes: [{
+          paint: { type: 'SOLID', color: { r: 100, g: 100, b: 100 }, opacity: 1, visible: true },
+          weight: 3,
+          position: 'CENTER' as const,
+        }],
+        elbowMidpointOffset: 0.5,
+      };
   }
 }
 
@@ -304,6 +321,13 @@ export function createSceneGraph(initialNodes?: SceneNode[]): SceneGraphStore {
         store.deleteNode(childId);
       }
 
+      // Before removing, resolve world positions for any connectors referencing this node
+      // so we can convert their endpoints to free positions
+      const deletedNodePositions = new Map<string, { x: number; y: number }>();
+      if (isGeometryNode(node)) {
+        deletedNodePositions.set(id, getWorldPosition(store, node));
+      }
+
       // Remove from parent's children
       if (node.parentId) {
         const parent = nodes.get(node.parentId);
@@ -315,6 +339,37 @@ export function createSceneGraph(initialNodes?: SceneNode[]): SceneGraphStore {
       }
 
       nodes.delete(id);
+
+      // Cascade: convert connector endpoints that reference the deleted node to free endpoints
+      for (const remaining of nodes.values()) {
+        if (!isConnectorNode(remaining)) continue;
+        const connector = remaining as ConnectorNode;
+        let updated = false;
+        const updates: Partial<ConnectorNode> = {};
+
+        if (
+          (connector.startEndpoint.type === 'connected' || connector.startEndpoint.type === 'edge')
+          && connector.startEndpoint.nodeId === id
+        ) {
+          const pos = resolveEndpointPosition(store, connector.startEndpoint);
+          updates.startEndpoint = { type: 'free', x: pos?.x ?? connector.x, y: pos?.y ?? connector.y };
+          updated = true;
+        }
+
+        if (
+          (connector.endEndpoint.type === 'connected' || connector.endEndpoint.type === 'edge')
+          && connector.endEndpoint.nodeId === id
+        ) {
+          const pos = resolveEndpointPosition(store, connector.endEndpoint);
+          updates.endEndpoint = { type: 'free', x: pos?.x ?? connector.x + connector.width, y: pos?.y ?? connector.y + connector.height };
+          updated = true;
+        }
+
+        if (updated) {
+          nodes.set(connector.id, { ...connector, ...updates } as SceneNode);
+        }
+      }
+
       notify();
     },
 
@@ -507,7 +562,7 @@ export const DEMO_SCENE: SceneNode[] = [
     fontFamily: 'Inter',
     fontSize: 24,
     fontWeight: 400,
-    authorName: 'You',
+    authorName: 'Brian Schlenker',
     showAuthor: true,
   } as SceneNode,
   // Pink sticky note
@@ -533,7 +588,7 @@ export const DEMO_SCENE: SceneNode[] = [
     fontFamily: 'Inter',
     fontSize: 24,
     fontWeight: 400,
-    authorName: 'You',
+    authorName: 'Elynn Lee',
     showAuthor: true,
   } as SceneNode,
   // Green sticky note
@@ -559,7 +614,7 @@ export const DEMO_SCENE: SceneNode[] = [
     fontFamily: 'Inter',
     fontSize: 24,
     fontWeight: 400,
-    authorName: 'You',
+    authorName: 'Tom Williams',
     showAuthor: true,
   } as SceneNode,
   // Purple circle
@@ -612,26 +667,5 @@ export const DEMO_SCENE: SceneNode[] = [
     fontSize: 16,
     fontWeight: 400,
     textAlignHorizontal: 'CENTER',
-  } as SceneNode,
-  // Connector line
-  {
-    id: 'line_1',
-    name: 'Connector',
-    type: 'LINE',
-    parentId: null,
-    children: [],
-    visible: true,
-    locked: false,
-    x: 75,
-    y: 55,
-    width: 125,
-    height: 0,
-    rotation: -25,
-    opacity: 1,
-    strokes: [{
-      paint: { type: 'SOLID', color: { r: 100, g: 100, b: 100 }, opacity: 1, visible: true },
-      weight: 2,
-      position: 'CENTER' as const,
-    }],
   } as SceneNode,
 ];

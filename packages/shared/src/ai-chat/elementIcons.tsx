@@ -14,6 +14,15 @@ const ICON_MAP: Record<string, ReactNode> = {
   ul: <Icon24ListView />,
   ol: <Icon24NumberList />,
   h1: <Icon24Text />,
+  h2: <Icon24Text />,
+  h3: <Icon24Text />,
+  h4: <Icon24Text />,
+  h5: <Icon24Text />,
+  h6: <Icon24Text />,
+  p: <Icon24Text />,
+  span: <Icon24Text />,
+  label: <Icon24Text />,
+  blockquote: <Icon24Text />,
   img: <Icon24Image />,
 };
 
