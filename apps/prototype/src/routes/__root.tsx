@@ -1,294 +1,193 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { createRootRoute } from '@tanstack/react-router';
 import {
-  createRootRoute,
-  Outlet,
-  Link,
-  useLocation,
-} from '@tanstack/react-router';
-import {
-  Menu,
-  IconButton,
-  ButtonPrimitive,
-  Input,
-} from '@figma/fpl-components';
-import {
-  Icon16ChevronDown,
-  Icon24ChevronRightLarge,
-  Icon24ChevronLeftLarge,
-  Icon24NotificationBell,
-  Icon24Home,
-  Icon24Recent,
-  Icon24Community,
-  Icon24Search,
   Icon24Page,
-  Icon24GridView,
-  Icon24Trash,
-  Icon24Settings,
-  Icon24Import,
-  Icon24Plus,
-  Icon16Plus,
-  Icon24Template,
-  Icon24Signout,
-  Icon24DesignBrandicon,
-  Icon24FigjamBrandicon,
-  Icon24SlidesBrandicon,
-  Icon24SitesBrandicon,
-  Icon24DrawBrandicon,
+  Icon24TemplateLarge,
+  Icon24Add,
+  Icon24AiAssistant,
+  Icon24Library,
+  Icon24Help,
+  Icon24Star,
 } from '@figma/fpl-icons';
-import { ThemeProvider } from '@figma/fpl-tokens';
-import { Avatar } from '@prototype/shared';
+import { Canvas, getWorldPosition, isGeometryNode, useActiveTool, useSceneGraph, useViewport } from '../canvas';
+import { CommentOverlay, ContextMenuRenderer, LeftSidebar, useComments, useContextMenu } from '@prototype/shared';
+import { CommentPanel } from '../components/CommentPanel';
+import { FigJamCanvasOverlay } from '../components/FigJamCanvasOverlay';
+import { FigJamFileHeader } from '../components/FigJamFileHeader';
+import { FigJamTopRight } from '../components/FigJamTopRight';
+import { FloatingObjectToolbar } from '../components/FloatingObjectToolbar';
+import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
+import { FigJamZoomControls } from '../components/FigJamZoomControls';
+import { FigJamMainMenu } from '../components/FigJamMainMenu';
+import { TemplatesPanel, AssetsPanel, AiChatPanel } from '../components/panels';
+import {
+  MODE_TO_BRAND,
+  applyTheme,
+  readStoredTheme,
+  type ThemeSetting,
+} from '../helpers/theme';
+import { ButtonPrimitive, IconButton, Menu } from '@figma/fpl-components';
+import { showToast } from '../components/toast';
+import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
+import { Providers } from '../providers';
 
-/* ------------------------------------------------------------------ */
-/*  Nav data                                                           */
-/* ------------------------------------------------------------------ */
+// ---------------------------------------------------------------------------
+// Panel content per nav item (file has no panel in FigJam)
+// ---------------------------------------------------------------------------
 
-const PRIMARY_NAV = [
-  { path: '/' as const, label: 'Home', icon: Icon24Home },
-  { path: '/recents' as const, label: 'Recents', icon: Icon24Recent },
-  { path: '/community' as const, label: 'Community', icon: Icon24Community },
+const PANELS: Record<string, React.ComponentType> = {
+  templates: TemplatesPanel,
+  assets: AssetsPanel,
+  ai: AiChatPanel,
+};
+
+// ---------------------------------------------------------------------------
+// Nav item definitions
+// ---------------------------------------------------------------------------
+
+const navItems = [
+  { Icon: Icon24Page, label: 'File', id: 'file' },
+  { Icon: Icon24TemplateLarge, label: 'Templates', id: 'templates' },
+  { Icon: Icon24Add, label: 'Assets', id: 'assets' },
+  { Icon: Icon24AiAssistant, label: 'AI Chat', id: 'ai' },
 ];
 
-const SECONDARY_NAV = [
-  { path: '/drafts' as const, label: 'Drafts', icon: Icon24Page },
-  { path: '/workspaces' as const, label: 'All workspaces', icon: Icon24GridView },
-  { path: '/trash' as const, label: 'Trash', icon: Icon24Trash },
-  { path: '/admin' as const, label: 'Admin', icon: Icon24Settings },
-];
+// ---------------------------------------------------------------------------
 
-/* ------------------------------------------------------------------ */
-/*  Theme helpers                                                      */
-/* ------------------------------------------------------------------ */
-
-type ThemeSetting = 'light' | 'dark' | 'system';
-
-function applyTheme(setting: ThemeSetting) {
-  let resolved: 'light' | 'dark' = 'light';
-  if (setting === 'dark') {
-    resolved = 'dark';
-  } else if (setting === 'system') {
-    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-  }
-  document.body.setAttribute('data-preferred-theme', resolved);
-}
-
-/* ------------------------------------------------------------------ */
-/*  Shell layout                                                       */
-/* ------------------------------------------------------------------ */
-
-function Shell() {
-  const [theme, setTheme] = useState<ThemeSetting>('light');
-  const { getTriggerProps, manager } = Menu.useMenu();
-  const { getTriggerProps: getCreateTriggerProps, manager: createManager } = Menu.useMenu();
-  const location = useLocation();
-
-  useEffect(() => {
-    applyTheme(theme);
-
-    if (theme !== 'system') return undefined;
-
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyTheme('system');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [theme]);
-
-  const allNavItems = [...PRIMARY_NAV, ...SECONDARY_NAV];
-  const currentLabel = allNavItems.find((item) => item.path === location.pathname)?.label ?? '';
-
+function EditorLayout() {
   return (
-    <div className="bg-bg min-h-screen flex">
-      {/* Sidebar */}
-      <aside className="w-[240px] bg-bg border-r border-border flex flex-col shrink-0">
-        <div className="p-8px border-b border-border flex items-center justify-between">
-          <Menu.Root manager={manager}>
-            <ButtonPrimitive {...getTriggerProps()} className="flex items-center gap-1 p-1 py-1 rounded-md hover:bg-bg-transparent active:bg-bg-transparent-secondary">
-              <span className="mr-1"><Avatar size="md" src="./assets/avatar.jpg" /></span>
-              <span className="text-bodyLg text-text">Kelly Shin</span>
-              <Icon16ChevronDown />
-            </ButtonPrimitive>
-            <Menu.Container>
-              <div className="flex flex-col items-center justify-center px-2 pt-2 pb-3 w-[200px]">
-                <span className="mb-2"><Avatar size="xlg" src="./assets/avatar.jpg" /></span>
-                <span className="text-bodyMd text-text">Kelly Shin</span>
-                <span className="text-bodyMd text-text-secondary">dylan@figma.com</span>
-              </div>
-              <Menu.Group>
-                <Menu.Item onClick={() => console.log('clicked')}>
-                  <Menu.ItemLead>
-                    <Icon24Settings />
-                  </Menu.ItemLead>
-                  <span>Settings</span>
-                </Menu.Item>
-                <Menu.SubMenu>
-                  <Menu.SubTrigger>
-                    <Menu.ItemLead>
-                      <Icon24Template />
-                    </Menu.ItemLead>
-                    <span>Theme</span>
-                  </Menu.SubTrigger>
-                  <Menu.SubContainer>
-                    <Menu.RadioGroup
-                      title={<Menu.HiddenTitle>Theme</Menu.HiddenTitle>}
-                      value={theme}
-                      onChange={(value) => setTheme(value as ThemeSetting)}
-                    >
-                      <Menu.RadioGroupItem value="light">Light</Menu.RadioGroupItem>
-                      <Menu.RadioGroupItem value="dark">Dark</Menu.RadioGroupItem>
-                      <Menu.RadioGroupItem value="system">System</Menu.RadioGroupItem>
-                    </Menu.RadioGroup>
-                  </Menu.SubContainer>
-                </Menu.SubMenu>
-              </Menu.Group>
-              <Menu.Group>
-                <Menu.Item onClick={() => console.log('clicked')}>
-                  <Menu.ItemLead>
-                    <Icon24Plus />
-                  </Menu.ItemLead>
-                  <span>Add account</span>
-                </Menu.Item>
-              </Menu.Group>
-              <Menu.Group>
-                <Menu.Item onClick={() => console.log('clicked')}>
-                  <Menu.ItemLead>
-                    <Icon24Signout />
-                  </Menu.ItemLead>
-                  <span>Log out</span>
-                </Menu.Item>
-              </Menu.Group>
-            </Menu.Container>
-          </Menu.Root>
-          <IconButton size="lg" aria-label="Notifications">
-            <Icon24NotificationBell />
-          </IconButton>
-        </div>
-        <div className="flex flex-col gap-4px overflow-auto">
-          {/* Search */}
-          <div className="px-8px pt-8px">
-            <Input.Root size="lg">
-              <div className="py-4px pl-4px pr-8px"><Icon24Search className="text-icon-tertiary shrink-0" /></div>
-              <Input id="sidebar-search" placeholder="Search" size="lg" />
-            </Input.Root>
-          </div>
-
-          {/* Primary nav */}
-          <nav className="flex flex-col gap-4px px-8px pb-8px pt-4px">
-            {PRIMARY_NAV.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                activeOptions={{ exact: item.path === '/' }}
-                activeProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline bg-bg-selected text-text' }}
-                inactiveProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline text-text hover:bg-bg-transparent-hover' }}
-              >
-                <item.icon />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          {/* Secondary nav */}
-          <nav className="flex flex-col gap-4px border-t border-border p-8px">
-            {SECONDARY_NAV.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                activeProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline bg-bg-selected text-text' }}
-                inactiveProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline text-text hover:bg-bg-transparent-hover' }}
-              >
-                <item.icon />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="p-8px gap-4 border-b border-border flex items-center justify-between">
-          <div className="flex items-center">
-            <IconButton size="lg" aria-label="Back" onClick={() => window.history.back()}>
-              <Icon24ChevronLeftLarge />
-            </IconButton>
-            <IconButton size="lg" aria-label="Forward" onClick={() => window.history.forward()}>
-              <Icon24ChevronRightLarge />
-            </IconButton>
-            <h1 className="text-bodyLg text-text pl-12px">{currentLabel}</h1>
-          </div>
-          <div className="flex items-center gap-8px">
-            <Menu.Root manager={createManager}>
-              <ButtonPrimitive
-                {...getCreateTriggerProps()}
-                className="flex items-center gap-4px h-32px px-12px rounded-md bg-bg border border-border text-bodyMd text-text hover:bg-bg-hover active:bg-bg-pressed cursor-default"
-              >
-                <Icon16Plus />
-                <span className="pl-4px pr-2px">Create new</span>
-                <Icon16ChevronDown />
-              </ButtonPrimitive>
-              <Menu.Container>
-                <Menu.Group>
-                  <Menu.Item onClick={() => console.log('New design file')}>
-                    <Menu.ItemLead>
-                      <Icon24DesignBrandicon />
-                    </Menu.ItemLead>
-                    <span>Design file</span>
-                  </Menu.Item>
-                  <Menu.Item onClick={() => console.log('New FigJam board')}>
-                    <Menu.ItemLead>
-                      <Icon24FigjamBrandicon />
-                    </Menu.ItemLead>
-                    <span>FigJam board</span>
-                  </Menu.Item>
-                  <Menu.Item onClick={() => console.log('New Slides deck')}>
-                    <Menu.ItemLead>
-                      <Icon24SlidesBrandicon />
-                    </Menu.ItemLead>
-                    <span>Slides deck</span>
-                  </Menu.Item>
-                  <Menu.Item onClick={() => console.log('New site')}>
-                    <Menu.ItemLead>
-                      <Icon24SitesBrandicon />
-                    </Menu.ItemLead>
-                    <span>Figma site</span>
-                  </Menu.Item>
-                  <Menu.Item onClick={() => console.log('New drawing')}>
-                    <Menu.ItemLead>
-                      <Icon24DrawBrandicon />
-                    </Menu.ItemLead>
-                    <span>Drawing</span>
-                  </Menu.Item>
-                </Menu.Group>
-              </Menu.Container>
-            </Menu.Root>
-            <IconButton size="lg" aria-label="Import">
-              <Icon24Import />
-            </IconButton>
-          </div>
-        </header>
-
-        {/* Routed content */}
-        <main className="flex-1 p-24px overflow-auto">
-          <Outlet />
-        </main>
-      </div>
-    </div>
+    <Providers>
+      <EditorContent />
+    </Providers>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Root layout (router + theme provider)                              */
-/* ------------------------------------------------------------------ */
+function EditorContent() {
+  const helpMenu = Menu.useMenu();
+  const featuresModal = PrototypeFeaturesModal();
+  const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => readStoredTheme());
+  const [activeRailItem, setActiveRailItem] = useState('file');
+  const contextMenu = useContextMenu();
+  const { activeTool, setActiveTool } = useActiveTool();
+  const viewport = useViewport();
+  const sceneStore = useSceneGraph();
+  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore, threads: commentThreads } = useComments();
 
-function RootLayout() {
+  /** Resolve the world position of a node by ID (for comment node-attachment) */
+  const getNodePosition = useCallback(
+    (nodeId: string): { x: number; y: number } | undefined => {
+      const node = sceneStore.getNode(nodeId);
+      if (!node || !isGeometryNode(node)) return undefined;
+      return getWorldPosition(sceneStore, node);
+    },
+    [sceneStore],
+  );
+
+  const contextMenuItems = (contextMenu.lastMenuType) === 'node'
+    ? getNodeMenuItems(contextMenu.close)
+    : getCanvasMenuItems(contextMenu.close);
+
+  // Apply FigJam theme (sulli brand)
+  useEffect(() => {
+    applyTheme(themeSetting, MODE_TO_BRAND.figjam);
+
+    if (themeSetting !== 'system') return undefined;
+
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => applyTheme('system', MODE_TO_BRAND.figjam);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [themeSetting]);
+
   return (
-    <ThemeProvider initialVersion="ui3">
-      <Shell />
-    </ThemeProvider>
+    <LeftSidebar.Provider activeItem={activeRailItem} onItemChange={setActiveRailItem}>
+    <div className="h-screen flex overflow-hidden pointer-events-none">
+      {/* Canvas — fixed behind everything */}
+      <Canvas onOpenContextMenu={contextMenu.handleOpen} />
+
+      {/* Left rail + panel */}
+      <div className="pointer-events-auto flex shrink-0">
+        <LeftSidebar.Rail>
+          <FigJamMainMenu themeSetting={themeSetting} onThemeChange={setThemeSetting} />
+          <LeftSidebar.Divider />
+          <LeftSidebar.NavGroup>
+            {navItems.map((item) => (
+              <LeftSidebar.NavItem key={item.id} id={item.id} icon={item.Icon} label={item.label} />
+            ))}
+          </LeftSidebar.NavGroup>
+          <LeftSidebar.Footer>
+            <IconButton
+              size="lg"
+              aria-label="Library"
+              onClick={() => console.log('Library clicked')}
+            >
+              <Icon24Library />
+            </IconButton>
+          </LeftSidebar.Footer>
+        </LeftSidebar.Rail>
+        <LeftSidebar.Panel panels={PANELS} />
+      </div>
+
+      {/* Main overlay with toolbar at bottom */}
+      <main className="flex-1 relative pointer-events-none">
+        <FigJamCanvasOverlay />
+        {activeRailItem === 'file' && <FigJamFileHeader />}
+      </main>
+
+      <FigJamTopRight />
+      <FloatingObjectToolbar />
+
+      {/* Context menu — always mounted, visibility managed by FPL */}
+      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} />
+
+      {activeTool === 'COMMENT' && (
+        <CommentPanel onClose={() => setActiveTool('MOVE')} />
+      )}
+
+      <CommentOverlay
+        interaction={interaction}
+        setInteraction={setInteraction}
+        selectedThreadId={selectedThreadId}
+        setSelectedThreadId={setSelectedThreadId}
+        store={commentsStore}
+        threads={commentThreads}
+        worldToScreen={viewport.worldToScreen}
+        getNodePosition={getNodePosition}
+      />
+
+      <div className="absolute bottom-16px right-16px gap-2 flex items-center">
+        <FigJamZoomControls />
+
+        {/* Floating Help Button */}
+        <Menu.Root manager={helpMenu.manager}>
+          <ButtonPrimitive
+            aria-label="Help"
+            className="bg-bg-elevated border-solid active:bg-bg-elevated-hover shadow-300 rounded-full p-1 bottom-3 z-nav pointer-events-auto"
+            {...helpMenu.getTriggerProps()}
+          >
+            <Icon24Help />
+          </ButtonPrimitive>
+          <Menu.Container>
+            <Menu.Item onClick={() => showToast({
+              icon: Icon24Star,
+              message: 'This is a test toast!',
+              button: { label: 'Action', onClick: () => console.log('Action clicked') },
+            })}>
+              Render test toast
+            </Menu.Item>
+            <Menu.Item onClick={featuresModal.trigger}>
+              Prototype features
+            </Menu.Item>
+          </Menu.Container>
+        </Menu.Root>
+        {featuresModal.modal}
+      </div>
+
+    </div>
+    </LeftSidebar.Provider>
   );
 }
 
 export const Route = createRootRoute({
-  component: RootLayout,
+  component: EditorLayout,
 });
