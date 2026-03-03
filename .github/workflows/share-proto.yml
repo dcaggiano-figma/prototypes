@@ -39,8 +39,8 @@ jobs:
           echo "Building with base=$BASE_PATH"
           pnpm run build --base "$BASE_PATH"
 
-          if [ ! -d "apps/prototype/dist" ]; then
-            echo "::error::Build produced no output — apps/prototype/dist/ does not exist."
+          if [ ! -d "dist" ]; then
+            echo "::error::Build produced no output — dist/ does not exist."
             exit 1
           fi
 
@@ -56,7 +56,7 @@ jobs:
           BRANCH="${{ github.ref_name }}"
 
           echo "Uploading $BRANCH/$SHORT_SHA to S3..."
-          aws s3 sync "apps/prototype/dist/" \
+          aws s3 sync "dist/" \
             "s3://figma-protov2/share/$BRANCH/$SHORT_SHA/" \
             --delete
 
