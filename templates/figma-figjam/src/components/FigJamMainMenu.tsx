@@ -3,7 +3,7 @@ import { IconButton, Menu } from '@figma/fpl-components';
 import { Icon24FigmaLarge, Icon24SearchLarge } from '@figma/fpl-icons';
 import { useActionRegistry } from '../actions/provider';
 import { renderMenuItems, type MenuItemDef } from './menuTypes';
-import { type ThemeSetting, applyTheme, persistTheme, MODE_TO_BRAND } from '../helpers/theme';
+import type { ThemeSetting } from '../helpers/theme';
 
 interface FigJamMainMenuProps {
   themeSetting: ThemeSetting;
@@ -49,10 +49,7 @@ export function FigJamMainMenu({ themeSetting, onThemeChange }: FigJamMainMenuPr
   const noop = () => {};
 
   const handleThemeChange = (v: string) => {
-    const setting = v as ThemeSetting;
-    onThemeChange(setting);
-    persistTheme(setting);
-    applyTheme(setting, MODE_TO_BRAND.figjam);
+    onThemeChange(v as ThemeSetting);
   };
 
   // -------------------------------------------------------------------------

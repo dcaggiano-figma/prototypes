@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useAppTheme, type ThemeSetting } from '@prototype/shared';
 import {
   createRootRoute,
   Outlet,
@@ -52,42 +52,13 @@ const SECONDARY_NAV = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Theme helpers                                                      */
-/* ------------------------------------------------------------------ */
-
-type ThemeSetting = 'light' | 'dark' | 'system';
-
-function applyTheme(setting: ThemeSetting) {
-  let resolved: 'light' | 'dark' = 'light';
-  if (setting === 'dark') {
-    resolved = 'dark';
-  } else if (setting === 'system') {
-    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-  }
-  document.body.setAttribute('data-preferred-theme', resolved);
-}
-
-/* ------------------------------------------------------------------ */
 /*  Shell layout                                                       */
 /* ------------------------------------------------------------------ */
 
 function Shell() {
-  const [theme, setTheme] = useState<ThemeSetting>('light');
+  const [theme, setTheme] = useAppTheme();
   const { getTriggerProps, manager } = Menu.useMenu();
   const location = useLocation();
-
-  useEffect(() => {
-    applyTheme(theme);
-
-    if (theme !== 'system') return undefined;
-
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyTheme('system');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [theme]);
 
   const allNavItems = [...PRIMARY_NAV, ...SECONDARY_NAV];
   const currentLabel = allNavItems.find((item) => item.path === location.pathname)?.label ?? '';

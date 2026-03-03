@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { createRootRoute } from '@tanstack/react-router';
 import {
   Icon24Page,
@@ -20,12 +20,8 @@ import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContex
 import { FigJamZoomControls } from '../components/FigJamZoomControls';
 import { FigJamMainMenu } from '../components/FigJamMainMenu';
 import { TemplatesPanel, AssetsPanel, AiChatPanel } from '../components/panels';
-import {
-  MODE_TO_BRAND,
-  applyTheme,
-  readStoredTheme,
-  type ThemeSetting,
-} from '../helpers/theme';
+import { useAppTheme } from '@prototype/shared';
+import { MODE_TO_BRAND } from '../helpers/theme';
 import { ButtonPrimitive, IconButton, Menu } from '@figma/fpl-components';
 import { showToast } from '../components/toast';
 import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
@@ -65,7 +61,10 @@ function EditorLayout() {
 function EditorContent() {
   const helpMenu = Menu.useMenu();
   const featuresModal = PrototypeFeaturesModal();
-  const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => readStoredTheme());
+  const [themeSetting, setThemeSetting] = useAppTheme({
+    storageKey: 'editor-shell-theme',
+    brand: MODE_TO_BRAND.figjam,
+  });
   const [activeRailItem, setActiveRailItem] = useState('file');
   const contextMenu = useContextMenu();
   const { activeTool, setActiveTool } = useActiveTool();
@@ -86,18 +85,6 @@ function EditorContent() {
   const contextMenuItems = (contextMenu.lastMenuType) === 'node'
     ? getNodeMenuItems(contextMenu.close)
     : getCanvasMenuItems(contextMenu.close);
-
-  // Apply FigJam theme (sulli brand)
-  useEffect(() => {
-    applyTheme(themeSetting, MODE_TO_BRAND.figjam);
-
-    if (themeSetting !== 'system') return undefined;
-
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyTheme('system', MODE_TO_BRAND.figjam);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [themeSetting]);
 
   return (
     <LeftSidebar.Provider activeItem={activeRailItem} onItemChange={setActiveRailItem}>

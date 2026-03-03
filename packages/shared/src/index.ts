@@ -1,3 +1,6 @@
+// Theme
+export { type ThemeSetting, useAppTheme } from './theme';
+
 export { useResizablePanel } from './useResizablePanel';
 export { ResizeHandle } from './ResizeHandle';
 export { Avatar, type MultiplayerColor } from './Avatar';

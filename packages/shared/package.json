@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./theme-init": "./src/theme-init.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1"

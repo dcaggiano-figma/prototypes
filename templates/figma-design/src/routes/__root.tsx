@@ -17,14 +17,8 @@ import { CanvasOverlay } from '../components/CanvasOverlay';
 import { VariablesView, VariablesWindow } from '../components/variables';
 import type { Mode } from '../components/menuTypes';
 import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
-import {
-  DEFAULT_MODE,
-  MODE_TO_BRAND,
-  applyTheme,
-  persistTheme,
-  readStoredTheme,
-  type ThemeSetting,
-} from '../helpers/theme';
+import { useAppTheme } from '@prototype/shared';
+import { DEFAULT_MODE, MODE_TO_BRAND } from '../helpers/theme';
 import { ButtonPrimitive, IconButton, Menu } from '@figma/fpl-components';
 import { showToast } from '../components/toast';
 import { CommentOverlay, ContextMenuRenderer, LeftSidebar, useComments, useContextMenu } from '@prototype/shared';
@@ -99,7 +93,10 @@ function EditorContent() {
   const contextMenu = useContextMenu();
   const [activeRailItem, setActiveRailItem] = useState('file');
   const [activeMode, setActiveMode] = useState<Mode>(DEFAULT_MODE);
-  const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => readStoredTheme());
+  const [themeSetting, setThemeSetting] = useAppTheme({
+    storageKey: 'editor-shell-theme',
+    brand: MODE_TO_BRAND[activeMode],
+  });
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [variablesViewMode, setVariablesViewMode] = useState<VariablesViewMode>('hidden');
   const [showLibrary, setShowLibrary] = useState(false);
@@ -118,11 +115,6 @@ function EditorContent() {
     () => ({ isMinimized, toggleMinimize: toggleMinimized, fileName, setFileName }),
     [isMinimized, toggleMinimized, fileName],
   );
-
-  const handleThemeChange = (next: ThemeSetting) => {
-    setThemeSetting(next);
-    persistTheme(next);
-  };
 
   // Nav item change handler — manages variablesViewMode transitions
   const handleRailItemChange = (id: string) => {
@@ -171,19 +163,6 @@ function EditorContent() {
     }
   }, [activeMode]);
 
-  // Apply theme attributes whenever mode or color setting changes
-  useEffect(() => {
-    applyTheme(themeSetting, MODE_TO_BRAND[activeMode]);
-
-    if (themeSetting !== 'system') return undefined;
-
-    // Re-apply when OS color scheme changes while set to "system"
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyTheme('system', MODE_TO_BRAND[activeMode]);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [activeMode, themeSetting]);
-
   // CMD+K opens QuickActions
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -226,7 +205,7 @@ function EditorContent() {
         <LeftSidebar.Rail>
           <DesignMainMenu
             themeSetting={themeSetting}
-            onThemeChange={handleThemeChange}
+            onThemeChange={setThemeSetting}
             onOpenActions={() => setIsActionsOpen(true)}
             onToggleMinimize={toggleMinimized}
           />
