@@ -1,294 +1,329 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import clsx from 'clsx';
+import { createRootRoute } from '@tanstack/react-router';
 import {
-  createRootRoute,
-  Outlet,
-  Link,
-  useLocation,
-} from '@tanstack/react-router';
-import {
-  Menu,
-  IconButton,
-  ButtonPrimitive,
-  Input,
-} from '@figma/fpl-components';
-import {
-  Icon16ChevronDown,
-  Icon24ChevronRightLarge,
-  Icon24ChevronLeftLarge,
-  Icon24NotificationBell,
-  Icon24Home,
-  Icon24Recent,
-  Icon24Community,
-  Icon24Search,
   Icon24Page,
-  Icon24GridView,
-  Icon24Trash,
-  Icon24Settings,
-  Icon24Import,
-  Icon24Plus,
-  Icon16Plus,
-  Icon24Template,
-  Icon24Signout,
-  Icon24DesignBrandicon,
-  Icon24FigjamBrandicon,
-  Icon24SlidesBrandicon,
-  Icon24SitesBrandicon,
-  Icon24DrawBrandicon,
+  Icon24Add,
+  Icon24Search,
+  Icon24AiAssistant,
+  Icon24Variable,
+  Icon24Library,
+  Icon24Help,
+  Icon24Star,
 } from '@figma/fpl-icons';
-import { ThemeProvider } from '@figma/fpl-tokens';
-import { Avatar } from '@prototype/shared';
+import { RightPanel } from '../components/RightPanel';
+import { Canvas, useViewport } from '../canvas';
+import { CanvasOverlay } from '../components/CanvasOverlay';
+import { VariablesView, VariablesWindow } from '../components/variables';
+import type { Mode } from '../components/menuTypes';
+import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
+import {
+  DEFAULT_MODE,
+  MODE_TO_BRAND,
+  applyTheme,
+  persistTheme,
+  readStoredTheme,
+  type ThemeSetting,
+} from '../helpers/theme';
+import { ButtonPrimitive, IconButton, Menu } from '@figma/fpl-components';
+import { showToast } from '../components/toast';
+import { CommentOverlay, ContextMenuRenderer, LeftSidebar, useComments, useContextMenu } from '@prototype/shared';
+import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
+import { Providers } from '../providers';
+import { useAction } from '../actions/provider';
+import { MinimizeUIProvider } from '../components/MinimizeUIContext';
+import { FloatingFileHeader } from '../components/FloatingFileHeader';
+import { MinimizedRightPanel } from '../components/MinimizedRightPanel';
+import { DesignMainMenu } from '../components/DesignMainMenu';
+import { FilePanel, SearchPanel, AiChatPanel, AssetsPanel } from '../components/panels';
+import { VariablesPanel } from '../components/variables';
+import { LibraryWindow } from '../components/LibraryWindow';
 
-/* ------------------------------------------------------------------ */
-/*  Nav data                                                           */
-/* ------------------------------------------------------------------ */
+// ---------------------------------------------------------------------------
+// Panel content per nav item
+// ---------------------------------------------------------------------------
 
-const PRIMARY_NAV = [
-  { path: '/' as const, label: 'Home', icon: Icon24Home },
-  { path: '/recents' as const, label: 'Recents', icon: Icon24Recent },
-  { path: '/community' as const, label: 'Community', icon: Icon24Community },
+const PANELS: Record<string, React.ComponentType> = {
+  file: FilePanel,
+  assets: AssetsPanel,
+  search: SearchPanel,
+  ai: AiChatPanel,
+  variables: VariablesPanel,
+};
+
+// ---------------------------------------------------------------------------
+// Nav item definitions
+// ---------------------------------------------------------------------------
+
+const mainNavItems = [
+  { Icon: Icon24Page, label: 'File', id: 'file' },
+  { Icon: Icon24Add, label: 'Assets', id: 'assets' },
+  { Icon: Icon24Search, label: 'Find', id: 'search' },
+  { Icon: Icon24AiAssistant, label: 'AI Chat', id: 'ai' },
 ];
 
-const SECONDARY_NAV = [
-  { path: '/drafts' as const, label: 'Drafts', icon: Icon24Page },
-  { path: '/workspaces' as const, label: 'All workspaces', icon: Icon24GridView },
-  { path: '/trash' as const, label: 'Trash', icon: Icon24Trash },
-  { path: '/admin' as const, label: 'Admin', icon: Icon24Settings },
-];
+// ---------------------------------------------------------------------------
+// Generic main content switching per nav item
+// ---------------------------------------------------------------------------
 
-/* ------------------------------------------------------------------ */
-/*  Theme helpers                                                      */
-/* ------------------------------------------------------------------ */
+type VariablesViewMode = 'hidden' | 'full' | 'minimized';
 
-type ThemeSetting = 'light' | 'dark' | 'system';
-
-function applyTheme(setting: ThemeSetting) {
-  let resolved: 'light' | 'dark' = 'light';
-  if (setting === 'dark') {
-    resolved = 'dark';
-  } else if (setting === 'system') {
-    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-  }
-  document.body.setAttribute('data-preferred-theme', resolved);
+interface NavViewConfig {
+  /** Custom main content component; undefined = show CanvasOverlay (default) */
+  mainContent?: React.FC<{ onMinimize: () => void }>;
+  /** Whether the right panel is visible; default true */
+  showRightPanel?: boolean;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Shell layout                                                       */
-/* ------------------------------------------------------------------ */
+const NAV_VIEW_CONFIG: Partial<Record<string, NavViewConfig>> = {
+  // file, assets, search, ai — all use defaults (CanvasOverlay + right panel)
+  variables: {
+    mainContent: VariablesView,
+    showRightPanel: false,
+  },
+};
 
-function Shell() {
-  const [theme, setTheme] = useState<ThemeSetting>('light');
-  const { getTriggerProps, manager } = Menu.useMenu();
-  const { getTriggerProps: getCreateTriggerProps, manager: createManager } = Menu.useMenu();
-  const location = useLocation();
+// ---------------------------------------------------------------------------
 
-  useEffect(() => {
-    applyTheme(theme);
-
-    if (theme !== 'system') return undefined;
-
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyTheme('system');
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, [theme]);
-
-  const allNavItems = [...PRIMARY_NAV, ...SECONDARY_NAV];
-  const currentLabel = allNavItems.find((item) => item.path === location.pathname)?.label ?? '';
-
+function EditorLayout() {
   return (
-    <div className="bg-bg min-h-screen flex">
-      {/* Sidebar */}
-      <aside className="w-[240px] bg-bg border-r border-border flex flex-col shrink-0">
-        <div className="p-8px border-b border-border flex items-center justify-between">
-          <Menu.Root manager={manager}>
-            <ButtonPrimitive {...getTriggerProps()} className="flex items-center gap-1 p-1 py-1 rounded-md hover:bg-bg-transparent active:bg-bg-transparent-secondary">
-              <span className="mr-1"><Avatar size="md" src="./assets/avatar.jpg" /></span>
-              <span className="text-bodyLg text-text">Kelly Shin</span>
-              <Icon16ChevronDown />
-            </ButtonPrimitive>
-            <Menu.Container>
-              <div className="flex flex-col items-center justify-center px-2 pt-2 pb-3 w-[200px]">
-                <span className="mb-2"><Avatar size="xlg" src="./assets/avatar.jpg" /></span>
-                <span className="text-bodyMd text-text">Kelly Shin</span>
-                <span className="text-bodyMd text-text-secondary">dylan@figma.com</span>
-              </div>
-              <Menu.Group>
-                <Menu.Item onClick={() => console.log('clicked')}>
-                  <Menu.ItemLead>
-                    <Icon24Settings />
-                  </Menu.ItemLead>
-                  <span>Settings</span>
-                </Menu.Item>
-                <Menu.SubMenu>
-                  <Menu.SubTrigger>
-                    <Menu.ItemLead>
-                      <Icon24Template />
-                    </Menu.ItemLead>
-                    <span>Theme</span>
-                  </Menu.SubTrigger>
-                  <Menu.SubContainer>
-                    <Menu.RadioGroup
-                      title={<Menu.HiddenTitle>Theme</Menu.HiddenTitle>}
-                      value={theme}
-                      onChange={(value) => setTheme(value as ThemeSetting)}
-                    >
-                      <Menu.RadioGroupItem value="light">Light</Menu.RadioGroupItem>
-                      <Menu.RadioGroupItem value="dark">Dark</Menu.RadioGroupItem>
-                      <Menu.RadioGroupItem value="system">System</Menu.RadioGroupItem>
-                    </Menu.RadioGroup>
-                  </Menu.SubContainer>
-                </Menu.SubMenu>
-              </Menu.Group>
-              <Menu.Group>
-                <Menu.Item onClick={() => console.log('clicked')}>
-                  <Menu.ItemLead>
-                    <Icon24Plus />
-                  </Menu.ItemLead>
-                  <span>Add account</span>
-                </Menu.Item>
-              </Menu.Group>
-              <Menu.Group>
-                <Menu.Item onClick={() => console.log('clicked')}>
-                  <Menu.ItemLead>
-                    <Icon24Signout />
-                  </Menu.ItemLead>
-                  <span>Log out</span>
-                </Menu.Item>
-              </Menu.Group>
-            </Menu.Container>
-          </Menu.Root>
-          <IconButton size="lg" aria-label="Notifications">
-            <Icon24NotificationBell />
-          </IconButton>
-        </div>
-        <div className="flex flex-col gap-4px overflow-auto">
-          {/* Search */}
-          <div className="px-8px pt-8px">
-            <Input.Root size="lg">
-              <div className="py-4px pl-4px pr-8px"><Icon24Search className="text-icon-tertiary shrink-0" /></div>
-              <Input id="sidebar-search" placeholder="Search" size="lg" />
-            </Input.Root>
-          </div>
-
-          {/* Primary nav */}
-          <nav className="flex flex-col gap-4px px-8px pb-8px pt-4px">
-            {PRIMARY_NAV.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                activeOptions={{ exact: item.path === '/' }}
-                activeProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline bg-bg-selected text-text' }}
-                inactiveProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline text-text hover:bg-bg-transparent-hover' }}
-              >
-                <item.icon />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          {/* Secondary nav */}
-          <nav className="flex flex-col gap-4px border-t border-border p-8px">
-            {SECONDARY_NAV.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                activeProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline bg-bg-selected text-text' }}
-                inactiveProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline text-text hover:bg-bg-transparent-hover' }}
-              >
-                <item.icon />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="p-8px gap-4 border-b border-border flex items-center justify-between">
-          <div className="flex items-center">
-            <IconButton size="lg" aria-label="Back" onClick={() => window.history.back()}>
-              <Icon24ChevronLeftLarge />
-            </IconButton>
-            <IconButton size="lg" aria-label="Forward" onClick={() => window.history.forward()}>
-              <Icon24ChevronRightLarge />
-            </IconButton>
-            <h1 className="text-bodyLg text-text pl-12px">{currentLabel}</h1>
-          </div>
-          <div className="flex items-center gap-8px">
-            <Menu.Root manager={createManager}>
-              <ButtonPrimitive
-                {...getCreateTriggerProps()}
-                className="flex items-center gap-4px h-32px px-12px rounded-md bg-bg border border-border text-bodyMd text-text hover:bg-bg-hover active:bg-bg-pressed cursor-default"
-              >
-                <Icon16Plus />
-                <span className="pl-4px pr-2px">Create new</span>
-                <Icon16ChevronDown />
-              </ButtonPrimitive>
-              <Menu.Container>
-                <Menu.Group>
-                  <Menu.Item onClick={() => console.log('New design file')}>
-                    <Menu.ItemLead>
-                      <Icon24DesignBrandicon />
-                    </Menu.ItemLead>
-                    <span>Design file</span>
-                  </Menu.Item>
-                  <Menu.Item onClick={() => console.log('New FigJam board')}>
-                    <Menu.ItemLead>
-                      <Icon24FigjamBrandicon />
-                    </Menu.ItemLead>
-                    <span>FigJam board</span>
-                  </Menu.Item>
-                  <Menu.Item onClick={() => console.log('New Slides deck')}>
-                    <Menu.ItemLead>
-                      <Icon24SlidesBrandicon />
-                    </Menu.ItemLead>
-                    <span>Slides deck</span>
-                  </Menu.Item>
-                  <Menu.Item onClick={() => console.log('New site')}>
-                    <Menu.ItemLead>
-                      <Icon24SitesBrandicon />
-                    </Menu.ItemLead>
-                    <span>Figma site</span>
-                  </Menu.Item>
-                  <Menu.Item onClick={() => console.log('New drawing')}>
-                    <Menu.ItemLead>
-                      <Icon24DrawBrandicon />
-                    </Menu.ItemLead>
-                    <span>Drawing</span>
-                  </Menu.Item>
-                </Menu.Group>
-              </Menu.Container>
-            </Menu.Root>
-            <IconButton size="lg" aria-label="Import">
-              <Icon24Import />
-            </IconButton>
-          </div>
-        </header>
-
-        {/* Routed content */}
-        <main className="flex-1 p-24px overflow-auto">
-          <Outlet />
-        </main>
-      </div>
-    </div>
+    <Providers>
+      <EditorContent />
+    </Providers>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Root layout (router + theme provider)                              */
-/* ------------------------------------------------------------------ */
+function EditorContent() {
+  const helpMenu = Menu.useMenu();
+  const featuresModal = PrototypeFeaturesModal();
+  const contextMenu = useContextMenu();
+  const [activeRailItem, setActiveRailItem] = useState('file');
+  const [activeMode, setActiveMode] = useState<Mode>(DEFAULT_MODE);
+  const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => readStoredTheme());
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const [variablesViewMode, setVariablesViewMode] = useState<VariablesViewMode>('hidden');
+  const [showLibrary, setShowLibrary] = useState(false);
 
-function RootLayout() {
+  // Minimize UI state
+  const [isMinimized, setIsMinimized] = useState(false);
+  const viewport = useViewport();
+  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore, threads: commentThreads } = useComments();
+  const [fileName, setFileName] = useState('Untitled');
+  const toggleMinimized = useCallback(() => setIsMinimized((v) => !v), []);
+
+  // Register keyboard shortcut for minimize UI
+  useAction('view.minimize-ui', toggleMinimized);
+
+  const minimizeCtx = useMemo(
+    () => ({ isMinimized, toggleMinimize: toggleMinimized, fileName, setFileName }),
+    [isMinimized, toggleMinimized, fileName],
+  );
+
+  const handleThemeChange = (next: ThemeSetting) => {
+    setThemeSetting(next);
+    persistTheme(next);
+  };
+
+  // Nav item change handler — manages variablesViewMode transitions
+  const handleRailItemChange = (id: string) => {
+    if (id === 'variables') {
+      // Auto-exit minimize mode when entering variables view
+      if (isMinimized) setIsMinimized(false);
+      // No-op if already viewing variables in full mode
+      if (activeRailItem === 'variables' && variablesViewMode === 'full') return;
+      setVariablesViewMode('full');
+    } else {
+      setVariablesViewMode('hidden');
+    }
+    setActiveRailItem(id);
+  };
+
+  // Variables minimize → return to normal editor with floating window
+  const handleVariablesMinimize = () => {
+    setVariablesViewMode('minimized');
+    setActiveRailItem('file');
+  };
+
+  // Variables window expand → return to full variables view
+  const handleVariablesExpand = () => {
+    setVariablesViewMode('full');
+    setActiveRailItem('variables');
+  };
+
+  // Variables window close → dismiss entirely
+  const handleVariablesClose = () => {
+    setVariablesViewMode('hidden');
+  };
+
+  const contextMenuItems = contextMenu.lastMenuType === 'node'
+    ? getNodeMenuItems(contextMenu.close)
+    : getCanvasMenuItems(contextMenu.close);
+
+  // Filter nav items based on mode
+  const filteredNavItems = useMemo(() => {
+    switch (activeMode) {
+      case 'draw':
+        return mainNavItems.filter((item) => item.id !== 'ai');
+      case 'dev':
+        return mainNavItems.filter((item) => item.id !== 'assets');
+      default:
+        return mainNavItems;
+    }
+  }, [activeMode]);
+
+  // Apply theme attributes whenever mode or color setting changes
+  useEffect(() => {
+    applyTheme(themeSetting, MODE_TO_BRAND[activeMode]);
+
+    if (themeSetting !== 'system') return undefined;
+
+    // Re-apply when OS color scheme changes while set to "system"
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => applyTheme('system', MODE_TO_BRAND[activeMode]);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [activeMode, themeSetting]);
+
+  // CMD+K opens QuickActions
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'k' && e.metaKey) {
+        e.preventDefault();
+        setIsActionsOpen(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Escape resets nav to file
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      setActiveRailItem('file');
+      setVariablesViewMode('hidden');
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Derive what to show based on active nav item
+  const viewConfig = NAV_VIEW_CONFIG[activeRailItem];
+  const MainContent = viewConfig?.mainContent;
+  const showRightPanel = viewConfig?.showRightPanel ?? true;
+
   return (
-    <ThemeProvider initialVersion="ui3">
-      <Shell />
-    </ThemeProvider>
+    <LeftSidebar.Provider activeItem={activeRailItem} onItemChange={handleRailItemChange}>
+    <MinimizeUIProvider value={minimizeCtx}>
+    <div className="h-screen flex overflow-hidden">
+      {/* Canvas — fixed behind everything */}
+      <Canvas onOpenContextMenu={contextMenu.handleOpen} />
+
+      {/* Left icon rail — hidden when minimized */}
+      {!isMinimized && (
+        <LeftSidebar.Rail>
+          <DesignMainMenu
+            themeSetting={themeSetting}
+            onThemeChange={handleThemeChange}
+            onOpenActions={() => setIsActionsOpen(true)}
+            onToggleMinimize={toggleMinimized}
+          />
+          <LeftSidebar.Divider />
+          <LeftSidebar.NavGroup>
+            {filteredNavItems.map((item) => (
+              <LeftSidebar.NavItem key={item.id} id={item.id} icon={item.Icon} label={item.label} />
+            ))}
+          </LeftSidebar.NavGroup>
+          <LeftSidebar.Divider />
+          <LeftSidebar.NavGroup>
+            <LeftSidebar.NavItem id="variables" icon={Icon24Variable} label="Variables" />
+          </LeftSidebar.NavGroup>
+          <LeftSidebar.Footer>
+            <IconButton
+              size="lg"
+              aria-label="Library"
+              onClick={() => setShowLibrary((v) => !v)}
+            >
+              <Icon24Library />
+            </IconButton>
+          </LeftSidebar.Footer>
+        </LeftSidebar.Rail>
+      )}
+
+      {/* Left panel — hidden when minimized */}
+      {!isMinimized && <LeftSidebar.Panel panels={PANELS} fallback={FilePanel} />}
+
+      {/* Canvas / main area */}
+      <main className={clsx('flex-1 relative', MainContent ? 'bg-bg' : 'pointer-events-none')}>
+        {MainContent ? (
+          <MainContent onMinimize={handleVariablesMinimize} />
+        ) : (
+          <CanvasOverlay
+            activeMode={activeMode}
+            onModeChange={setActiveMode}
+            isActionsOpen={isActionsOpen}
+            onActionsOpenChange={setIsActionsOpen}
+          />
+        )}
+      </main>
+
+      {/* Right panel — conditionally hidden */}
+      {showRightPanel && !isMinimized && <RightPanel activeMode={activeMode} />}
+
+      {/* Floating panels in minimized mode */}
+      {isMinimized && <FloatingFileHeader />}
+      {showRightPanel && isMinimized && <MinimizedRightPanel activeMode={activeMode} />}
+
+      {/* Minimized Variables floating window */}
+      {variablesViewMode === 'minimized' && (
+        <VariablesWindow
+          onExpand={handleVariablesExpand}
+          onClose={handleVariablesClose}
+        />
+      )}
+
+      {/* Library window */}
+      {showLibrary && <LibraryWindow onClose={() => setShowLibrary(false)} />}
+
+      {/* Context menu — always mounted, visibility managed by FPL */}
+      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} />
+
+      {/* Floating Help Button */}
+      <Menu.Root manager={helpMenu.manager}>
+        <ButtonPrimitive aria-label="Help" className="bg-bg-elevated border-solid active:bg-bg-elevated-hover shadow-300 rounded-full p-1 absolute bottom-4 right-4 z-nav" {...helpMenu.getTriggerProps()}>
+          <Icon24Help />
+        </ButtonPrimitive>
+        <Menu.Container>
+          <Menu.Item onClick={() => showToast({
+            icon: Icon24Star,
+            message: 'This is a test toast!',
+            button: { label: 'Action', onClick: () => console.log('Action clicked') },
+          })}>
+            Render test toast
+          </Menu.Item>
+          <Menu.Item onClick={featuresModal.trigger}>
+            Prototype features
+          </Menu.Item>
+        </Menu.Container>
+      </Menu.Root>
+      {featuresModal.modal}
+      <CommentOverlay
+        interaction={interaction}
+        setInteraction={setInteraction}
+        selectedThreadId={selectedThreadId}
+        setSelectedThreadId={setSelectedThreadId}
+        store={commentsStore}
+        threads={commentThreads}
+        worldToScreen={viewport.worldToScreen}
+      />
+    </div>
+    </MinimizeUIProvider>
+    </LeftSidebar.Provider>
   );
 }
 
 export const Route = createRootRoute({
-  component: RootLayout,
+  component: EditorLayout,
 });

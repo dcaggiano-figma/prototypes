@@ -8,4 +8,12 @@ export default {
     './src/**/*.{js,ts,jsx,tsx}',
     '../../packages/*/src/**/*.{js,ts,jsx,tsx}',
   ],
+  theme: {
+    extend: {
+      spacing: {
+        /** Panel header row height (48px) */
+        'panel-header': '48px',
+      },
+    },
+  },
 };

@@ -2,7 +2,6 @@
   "name": "@apps/prototype",
   "version": "1.0.0",
   "private": true,
-  "description": "A starter template with a sidebar navigation and main content area — use for dashboards, admin panels, or any app that needs a persistent shell layout.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -20,6 +19,7 @@
     "@figma/ppg-ui": "^0.1.0",
     "@prototype/shared": "workspace:*",
     "@tanstack/react-router": "^1.114.0",
+    "clsx": "^2.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
