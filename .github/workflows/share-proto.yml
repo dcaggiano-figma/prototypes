@@ -25,9 +25,10 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
+      - name: Authenticate to GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
       - name: Install dependencies
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm install --no-frozen-lockfile
 
       - name: Build
