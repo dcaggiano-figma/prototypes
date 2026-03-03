@@ -22,6 +22,7 @@
     "@figma/ppg-ui": "^0.1.0",
     "@prototype/shared": "workspace:*",
     "clsx": "^2.1.1",
+    "motion": "catalog:",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "catalog:",

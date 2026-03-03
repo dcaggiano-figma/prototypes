@@ -110,6 +110,26 @@ pnpm update @figma/fpl-components @figma/fpl-tokens @figma/fpl-icons
 
 ---
 
+## Animation with Motion
+
+All templates include [`motion`](https://motion.dev/) (formerly Framer Motion) as a dependency. When the user asks for complex animations — transitions, spring physics, layout animations, gesture-driven interactions, or orchestrated sequences — use `motion` rather than hand-rolling CSS animations or `requestAnimationFrame` loops.
+
+```tsx
+import { motion } from 'motion/react';
+
+<motion.div
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+>
+  Content
+</motion.div>
+```
+
+For simple one-off transitions (a single fade or color change), plain CSS transitions are fine. Reach for `motion` when you need spring physics, layout animations, `AnimatePresence` for exit animations, or coordinated multi-element sequences.
+
+---
+
 ## Making Changes
 
 After making changes, make sure to check the devtools-code-verifier subagent for any errors, and fix those errors before finishing up.

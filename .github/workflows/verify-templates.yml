@@ -28,7 +28,7 @@ jobs:
       fail-fast: false
       matrix:
         template:
-          - blank_slate
+          - blank-slate
           - browser-shell
           - eval-starter
           - figma-design
