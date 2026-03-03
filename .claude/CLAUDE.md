@@ -1,14 +1,27 @@
 # Project Instructions
 
-## Related Repository: ai-prototyping-scaffold
+## Repo Split — prototype-playground vs ai-prototyping
 
-This repo (`prototype-playground`) is a lightweight prototyping monorepo that **consumes published packages** from the [`ai-prototyping-scaffold`](https://github.com/figma/ai-prototyping-scaffold) repo.
+This repo was split from ai-prototyping. Check the memory file for disk paths.
 
-The scaffold repo hosts most of our shared packages:
-- **FPL packages** (`fpl/packages/`): `components`, `tokens`, `icons`, `eslint-config`, `fpl-cli`, `docgen`, `tsconfig`
-- **Proto packages** (`proto/packages/`): `dev-tools`, `element-inspector`, `eslint-config`, `eval-runner`, `screenshot`, `tailwind-config`, `vite-config`, `worktree-manager`, `ui`, and more
+**This repo (prototype-playground)** owns:
+- Prototype templates: blank_slate, browser-shell, eval-starter, figma-design, figma-figjam, make
+- Shared prototype UI components (`packages/shared/`)
+- User-facing skills: designer, help-me-with-playground, inspect, screenshot, using-tokens, visual-feedback
+- Claude agents: fpl-docs, devtools-code-verifier, icon-search, prototype-env-setup
+- FPL instructions (`.claude/instructions/fpl/`)
+- Hooks (block-eslint-config-edit, block-npm-npx)
+- Setup script, share workflows, template verification
+- All prototype worktree workspaces
 
-These are published to GitHub Packages under the `@figma` scope and consumed here via `.npmrc`. The auth token for GitHub Packages must be set in `~/.npmrc` (the setup script handles this). When debugging dependency issues or understanding package APIs, the scaffold repo is the source of truth.
+**ai-prototyping** owns:
+- Infrastructure packages published to GitHub Packages (`@figma/ppg-*`): dev-tools, element-inspector, vite-config, eslint-config, tailwind-config, tsconfig, ui, screenshot, eval-runner, experiment-runner, worktree-manager, feedback, proto-cli, fpl-cli
+- VS Code extension source
+- Tooling-specific skills: feature-implement, feature-new, feature-spec, feedback, new-template, new-worktree, start-prototype
+- Package publishing CI
+- FEATURE_SPECS for tooling development
+
+Packages are published to GitHub Packages under the `@figma` scope and consumed here via `.npmrc`. The auth token for GitHub Packages must be set in `~/.npmrc` (the setup script handles this). When debugging dependency issues or understanding package APIs, ai-prototyping is the source of truth.
 
 ---
 
