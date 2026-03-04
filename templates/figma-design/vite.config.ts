@@ -7,5 +7,6 @@ export default createViteConfig({
   rootDir: path.resolve(__dirname, '../..'),
   portEnvVar: 'FIGMA_DESIGN_PORT',
   wsPortEnvVar: 'FIGMA_DESIGN_WS_PORT',
+  enablePropertiesPanel: true,
   plugins: [TanStackRouterVite()],
 });

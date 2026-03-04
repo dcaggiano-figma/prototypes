@@ -20,7 +20,7 @@
     "@figma/fpl-components": "0.0.2-release-test.4",
     "@figma/fpl-icons": "0.0.1-release-test.4",
     "@figma/fpl-tokens": "0.0.1-release-test.4",
-    "@figma/ppg-ui": "^0.1.0",
+    "@figma/ppg-ui": "^0.7.0",
     "@prototype/shared": "workspace:*",
     "@tanstack/react-router": "^1.114.0",
     "motion": "catalog:",
@@ -28,10 +28,10 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@figma/ppg-eslint-config": "^0.1.0",
-    "@figma/ppg-tailwind-config": "^0.1.0",
-    "@figma/ppg-tsconfig": "^0.1.0",
-    "@figma/ppg-vite-config": "^0.1.0",
+    "@figma/ppg-eslint-config": "^0.7.0",
+    "@figma/ppg-tailwind-config": "^0.7.0",
+    "@figma/ppg-tsconfig": "^0.7.0",
+    "@figma/ppg-vite-config": "^0.7.0",
     "@tanstack/router-plugin": "^1.114.0",
     "@types/node": "^20.11.5",
     "@types/react": "^18.2.48",

@@ -8,7 +8,6 @@ import {
   Icon24AiAssistant,
   Icon24Variable,
   Icon24Library,
-  Icon24Help,
   Icon24Star,
 } from '@figma/fpl-icons';
 import { RightPanel } from '../components/RightPanel';
@@ -19,7 +18,7 @@ import type { Mode } from '../components/menuTypes';
 import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
 import { useAppTheme } from '@prototype/shared';
 import { DEFAULT_MODE, MODE_TO_BRAND } from '../helpers/theme';
-import { ButtonPrimitive, IconButton, Menu } from '@figma/fpl-components';
+import { IconButton, Menu } from '@figma/fpl-components';
 import { showToast } from '../components/toast';
 import { CommentOverlay, ContextMenuRenderer, LeftSidebar, useComments, useContextMenu } from '@prototype/shared';
 import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
@@ -271,9 +270,6 @@ function EditorContent() {
 
       {/* Floating Help Button */}
       <Menu.Root manager={helpMenu.manager}>
-        <ButtonPrimitive aria-label="Help" className="bg-bg-elevated border-solid active:bg-bg-elevated-hover shadow-300 rounded-full p-1 absolute bottom-4 right-4 z-nav" {...helpMenu.getTriggerProps()}>
-          <Icon24Help />
-        </ButtonPrimitive>
         <Menu.Container>
           <Menu.Item onClick={() => showToast({
             icon: Icon24Star,
