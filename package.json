@@ -20,6 +20,10 @@
       "unrs-resolver"
     ]
   },
+  "devDependencies": {
+    "@figma/ppg-dev-tools": "^0.7.0",
+    "tsx": "^4.19.2"
+  },
   "scripts": {
     "dev": "pnpm exec vite",
     "build": "pnpm -r --filter './templates/*' build && pnpm --filter @apps/prototype build",
