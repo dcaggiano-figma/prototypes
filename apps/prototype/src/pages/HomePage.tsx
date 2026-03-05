@@ -123,7 +123,7 @@ function HomePage() {
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-1px">
+        <div className="flex flex-col gap-px">
           {CARDS.map((card) => (
             <CardPrimitive.Root key={card.id} className="group rounded-lg focus:outline-1 focus:outline-border-selected focus:outline-offset-1">
               <CardPrimitive.MainLink
@@ -133,7 +133,7 @@ function HomePage() {
                 className="focus:outline focus:outline-2 focus:outline-border-selected rounded-lg"
               />
               <div className="flex items-center gap-12px px-12px py-8px rounded-lg hover:bg-bg-hover">
-                <div className="w-48px h-32px rounded bg-bg-secondary overflow-hidden shrink-0">
+                <div className="w-[48px] h-32px rounded bg-bg-secondary overflow-hidden shrink-0">
                   <img src={card.thumbnail} alt={card.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex items-center gap-4px shrink-0">

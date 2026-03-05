@@ -694,7 +694,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       }
     },
-    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, stickyColor, sectionFillColor, markerColor, highlighterColor, markerSubType, connectorLineShape, interaction, setInteraction, userConfig, connectorHoverNodeId],
+    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, stickyColor, sectionFillColor, markerColor, highlighterColor, markerSubType, connectorLineShape, setInteraction, userConfig, connectorHoverNodeId, shapeColor],
   );
 
   const onPointerMove = useCallback(
@@ -1188,7 +1188,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         lastClickRef.current = { time: now, clientX: e.clientX, clientY: e.clientY };
       }
     },
-    [selection, effectiveTool, store, setActiveTool, textEditing, viewport, containerRef, dragBox],
+    [selection, effectiveTool, store, setActiveTool, textEditing, viewport, containerRef, dragBox, screenToWorld],
   );
 
   // ── Comment pin drag handlers ──────────────────────────────────────────

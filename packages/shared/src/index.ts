@@ -1,3 +1,5 @@
+/// <reference path="./svg.d.ts" />
+
 // Theme
 export { type ThemeSetting, useAppTheme } from './theme';
 
@@ -93,3 +95,9 @@ export type { NavListItemDef } from './NavList';
 // User Config
 export type { UserConfig } from './user-config';
 export { UserConfigProvider, useUserConfig, UserAvatar } from './user-config';
+
+// Thumbnail
+export { NavListThumbnail, ThumbnailPreview } from './Thumbnail';
+
+// Cursors
+export { CURSORS } from './cursors';

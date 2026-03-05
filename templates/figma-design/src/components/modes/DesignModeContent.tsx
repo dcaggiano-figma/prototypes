@@ -203,22 +203,25 @@ function MultiSelectionProperties({ selectedIds }: { selectedIds: Set<string> })
   const [, bump] = useState(0);
   useEffect(() => store.subscribe(() => bump((n) => n + 1)), [store]);
 
-  // Collect node information
-  const geometryNodes: GeometryNode[] = [];
-  const appearanceNodes: AppearanceNode[] = [];
-  const nodesWithStrokes: (AppearanceNode | { type: 'LINE'; strokes: Stroke[]; id: string; opacity: number })[] = [];
+  // Collect node information (memoised to stabilise callback deps)
+  const { geometryNodes, appearanceNodes, nodesWithStrokes } = useMemo(() => {
+    const geo: GeometryNode[] = [];
+    const app: AppearanceNode[] = [];
+    const strk: (AppearanceNode | { type: 'LINE'; strokes: Stroke[]; id: string; opacity: number })[] = [];
 
-  for (const id of selectedIds) {
-    const node = store.getNode(id);
-    if (!node) continue;
-    if (isGeometryNode(node)) geometryNodes.push(node);
-    if (isAppearanceNode(node)) {
-      appearanceNodes.push(node);
-      nodesWithStrokes.push(node);
-    } else if (node.type === 'LINE') {
-      nodesWithStrokes.push(node);
+    for (const id of selectedIds) {
+      const node = store.getNode(id);
+      if (!node) continue;
+      if (isGeometryNode(node)) geo.push(node);
+      if (isAppearanceNode(node)) {
+        app.push(node);
+        strk.push(node);
+      } else if (node.type === 'LINE') {
+        strk.push(node);
+      }
     }
-  }
+    return { geometryNodes: geo, appearanceNodes: app, nodesWithStrokes: strk };
+  }, [selectedIds, store]);
 
   const allAreGeometry = geometryNodes.length === selectedIds.size;
   const allAreAppearance = appearanceNodes.length === selectedIds.size;

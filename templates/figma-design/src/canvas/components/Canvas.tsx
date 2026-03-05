@@ -515,7 +515,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       }
     },
-    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, interaction, setInteraction, drawColor, drawStrokeWeight, drawOpacity],
+    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, setInteraction, drawColor, drawStrokeWeight, drawOpacity],
   );
 
   const onPointerMove = useCallback(
