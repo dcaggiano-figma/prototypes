@@ -26,7 +26,7 @@ fail() {
   echo -e "${RED}✗${NC} $1"
   echo -e "${RED}  $2${NC}"
   echo
-  echo -e "${RED}Setup failed.${NC} Share the log file with \$feat-internal-ai-prototyping for help:"
+  echo -e "${RED}Setup failed.${NC} Please reach out in #feat-prototype-playground for help:"
   echo "  Log: $LOG_FILE"
   echo "  Slack: $SLACK_CHANNEL"
   exit 1
@@ -36,7 +36,7 @@ on_error() {
   echo
   echo -e "${RED}✗ An unexpected error occurred on line $1${NC}"
   echo
-  echo -e "${RED}Setup failed.${NC} Share the log file with \$feat-internal-ai-prototyping for help:"
+  echo -e "${RED}Setup failed.${NC} Please reach out in #feat-prototype-playground for help:"
   echo "  Log: $LOG_FILE"
   echo "  Slack: $SLACK_CHANNEL"
   exit 1
@@ -132,7 +132,7 @@ elif [[ "$PLATFORM" == "Darwin" ]]; then
   brew install gh
   pass "GitHub CLI installed"
 else
-  info "GitHub CLI not found (install manually: https://github.com/cli/cli#installation)"
+  fail "GitHub CLI not found" "Install it from https://github.com/cli/cli#installation, then re-run this script."
 fi
 
 if gh auth status &>/dev/null; then
@@ -144,7 +144,7 @@ if gh auth status &>/dev/null; then
     pass "read:packages scope added"
   fi
 elif [[ -n "${CI:-}" ]] || [[ ! -t 0 ]]; then
-  info "Skipping GitHub auth (non-interactive environment)"
+  fail "GitHub CLI is not authenticated" "Run 'gh auth login' in a terminal, then re-run this script."
 else
   echo
   info "GitHub CLI needs to authenticate with GitHub."
@@ -211,23 +211,27 @@ else
   if command -v cursor &>/dev/null; then
     pass "Cursor CLI already in PATH"
   else
-    info "Cursor CLI not found (skipping on Linux — install manually)"
+    fail "Cursor CLI not found" "Install Cursor from https://cursor.com/download and ensure 'cursor' is in your PATH, then re-run this script."
   fi
 fi
 
 if command -v cursor &>/dev/null; then
   info "Installing VS Code extension from latest GitHub release..."
   VSIX_DIR=$(mktemp -d)
-  if gh release download --repo figma/ai-prototype-scaffold --pattern '*.vsix' --dir "$VSIX_DIR" 2>/dev/null; then
+  EXTENSION_TAG="$(gh release list --repo figma/ai-prototype-scaffold --limit 20 --json tagName --jq '[.[] | select(.tagName | startswith("extension-"))][0].tagName' 2>/dev/null)"
+  if [[ -z "$EXTENSION_TAG" ]]; then
+    fail "Could not find an extension release" "Check https://github.com/figma/ai-prototype-scaffold/releases for extension releases."
+  fi
+  if gh release download "$EXTENSION_TAG" --repo figma/ai-prototype-scaffold --pattern '*.vsix' --dir "$VSIX_DIR" 2>/dev/null; then
     VSIX_FILE=$(ls "$VSIX_DIR"/*.vsix 2>/dev/null | head -1)
     if [[ -n "$VSIX_FILE" ]]; then
       cursor --install-extension "$VSIX_FILE" --force
       pass "VS Code extension installed into Cursor"
     else
-      info "No .vsix found in GitHub release (skipping extension install)"
+      fail "No .vsix found in GitHub release" "Check the latest release at https://github.com/figma/ai-prototype-scaffold/releases"
     fi
   else
-    info "Could not download extension from GitHub release (skipping)"
+    fail "Could not download extension from GitHub release" "Check your GitHub access to figma/ai-prototype-scaffold"
   fi
   rm -rf "$VSIX_DIR"
 
@@ -238,7 +242,7 @@ if command -v cursor &>/dev/null; then
     pass "Required extensions installed"
   fi
 else
-  info "Skipping extension install (Cursor not available)"
+  fail "Cursor CLI not available" "Cursor must be installed and in your PATH to install extensions."
 fi
 
 # --- Step 8: Verification ---
