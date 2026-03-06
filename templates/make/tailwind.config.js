@@ -7,5 +7,6 @@ export default {
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
     '../../packages/*/src/**/*.{js,ts,jsx,tsx}',
+    './node_modules/@figma/ppg-ui/src/**/*.{ts,tsx}',
   ],
 };
