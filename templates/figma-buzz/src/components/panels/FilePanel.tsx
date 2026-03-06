@@ -168,7 +168,7 @@ export function FilePanel() {
           <span className="px-2 text-bodyMd text-text-secondary truncate">Drafts</span>
           <div className="grid grid-cols-1 items-center px-2 pt-2"><ButtonGroup aria-label="File actions" variant="secondary"><Button variant="secondary" width='fill' iconPrefix={<Icon24Template />}>New asset</Button><IconButton aria-label="Add slide" variant="secondary" onClick={() => {
             const newId = createSlideAfterFocused(store, focusedFrameId);
-            if (newId) setFocusedFrameId(newId);
+            if (newId && viewMode === 'asset') setFocusedFrameId(newId);
           }}><Icon24Plus /></IconButton></ButtonGroup></div>
         </div>
       </div>

@@ -394,16 +394,47 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     viewport.setPanEnabled(!isAsset);
   }, [viewMode, focusedFrameId, viewport, containerRef, store]);
 
-  // When entering asset mode, default to first frame if none focused
-  useEffect(() => {
-    if (viewMode === 'asset' && !focusedFrameId) {
+  // When entering asset mode, focus the selected slide (or default to first slide).
+  // Uses useLayoutEffect so focusedFrameId is set before the animation effect runs.
+  // We also write to a ref so the animation effect (same render cycle) can read
+  // the intended target synchronously, since setState is async.
+  const prevViewModeForFocusRef = useRef(viewMode);
+  const pendingFocusIdRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const wasGrid = prevViewModeForFocusRef.current === 'grid';
+    prevViewModeForFocusRef.current = viewMode;
+    pendingFocusIdRef.current = null;
+
+    if (viewMode !== 'asset') return;
+
+    // If switching from grid, try to focus the selected slide
+    if (wasGrid) {
+      for (const id of selection.selectedIds) {
+        const node = store.getNode(id);
+        if (node && (node.type === 'SLIDE' || node.type === 'FRAME')) {
+          pendingFocusIdRef.current = id;
+          setFocusedFrameId(id);
+          return;
+        }
+        // If a section is selected, focus its first child slide
+        if (node && node.type === 'SECTION' && node.children.length > 0) {
+          pendingFocusIdRef.current = node.children[0];
+          setFocusedFrameId(node.children[0]);
+          return;
+        }
+      }
+    }
+
+    // Default: focus first slide if nothing is focused
+    if (!focusedFrameId) {
       const roots = store.getRootNodes();
       const firstSection = roots.find((n) => n.type === 'SECTION');
       if (firstSection && firstSection.children.length > 0) {
+        pendingFocusIdRef.current = firstSection.children[0];
         setFocusedFrameId(firstSection.children[0]);
       }
     }
-  }, [viewMode, focusedFrameId, store, setFocusedFrameId]);
+  }, [viewMode, focusedFrameId, store, setFocusedFrameId, selection.selectedIds]);
 
   // Track visible-area center and shift viewport when the left panel opens/closes/resizes.
   const prevVisCenterRef = useRef<{ cx: number; cy: number } | null>(null);
@@ -454,8 +485,27 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   const animFrameRef = useRef(0);
   const prevViewModeRef = useRef(viewMode);
   const isFirstRenderRef = useRef(true);
+  // Tracks whether a mode change happened that still needs animation.
+  // Persists across re-renders caused by focusedFrameId updates.
+  const pendingAnimateRef = useRef(false);
+  // Guard: skip re-entry while animation is in progress
+  const isAnimatingRef = useRef(false);
 
   useLayoutEffect(() => {
+    // If we're mid-animation, don't restart or cancel
+    if (isAnimatingRef.current) return;
+
+    // Detect mode change — set the pending flag so it survives the
+    // re-render triggered by the focus-setting effect.
+    const modeJustChanged = prevViewModeRef.current !== viewMode;
+    if (modeJustChanged) {
+      if (!isFirstRenderRef.current) {
+        pendingAnimateRef.current = true;
+      }
+      prevViewModeRef.current = viewMode;
+    }
+    isFirstRenderRef.current = false;
+
     const container = containerRef.current;
     if (!container) return;
     const vis = getVisibleBounds(container);
@@ -463,22 +513,29 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     // Compute the target scale and world-space center
     let target: { scale: number; worldCenter: { x: number; y: number } } | null = null;
 
+    // Use the pending focus target if the focus-setting effect just ran in this
+    // same render cycle (setState is async, so focusedFrameId is still stale).
+    const effectiveFocusId = pendingFocusIdRef.current ?? focusedFrameId;
+
     // Resolve the focused frame's world center (used as pivot during animation)
     let focusedWorldCenter: { x: number; y: number } | null = null;
-    if (focusedFrameId) {
-      const fNode = store.getNode(focusedFrameId);
+    if (effectiveFocusId) {
+      const fNode = store.getNode(effectiveFocusId);
       if (fNode && isGeometryNode(fNode)) {
         const fPos = getWorldPosition(store, fNode);
         focusedWorldCenter = { x: fPos.x + fNode.width / 2, y: fPos.y + fNode.height / 2 };
       }
     }
 
-    if (viewMode === 'asset' && focusedFrameId) {
+    if (viewMode === 'asset' && effectiveFocusId) {
       if (!focusedWorldCenter) return;
-      const fNode = store.getNode(focusedFrameId);
+      const fNode = store.getNode(effectiveFocusId);
       if (!fNode || !isGeometryNode(fNode)) return;
       const fitScale = computeAssetFitScale(fNode.width, fNode.height, vis.width, vis.height, ASSET_FIT_PADDING);
       target = { scale: fitScale, worldCenter: focusedWorldCenter };
+    } else if (viewMode === 'asset' && !effectiveFocusId) {
+      // Waiting for focusedFrameId to be set — don't consume pendingAnimateRef
+      return;
     } else if (viewMode === 'grid') {
       const roots = store.getRootNodes();
       if (roots.length === 0) return;
@@ -507,12 +564,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
     const screenCenter = { x: vis.left + vis.width / 2, y: vis.top + vis.height / 2 };
 
-    // Determine if we should animate: only when switching between asset/grid
-    // (not on first render or when just switching focused frames within asset mode)
-    const modeChanged = prevViewModeRef.current !== viewMode;
-    prevViewModeRef.current = viewMode;
-    const shouldAnimate = modeChanged && !isFirstRenderRef.current;
-    isFirstRenderRef.current = false;
+    // Consume the pending animate flag
+    const shouldAnimate = pendingAnimateRef.current;
+    pendingAnimateRef.current = false;
 
     // Cancel any in-progress animation
     if (animFrameRef.current) {
@@ -550,7 +604,10 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     // Ease-in-out cubic
     const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-    setIsAnimatingViewMode(true);
+    isAnimatingRef.current = true;
+    // Use queueMicrotask to avoid triggering a synchronous re-render
+    // (which would run cleanup and cancel the animation we just started)
+    queueMicrotask(() => setIsAnimatingViewMode(true));
 
     const tick = (now: number) => {
       const elapsed = now - start;
@@ -571,20 +628,14 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         animFrameRef.current = requestAnimationFrame(tick);
       } else {
         animFrameRef.current = 0;
+        isAnimatingRef.current = false;
         setIsAnimatingViewMode(false);
       }
     };
 
     animFrameRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
-        animFrameRef.current = 0;
-        setIsAnimatingViewMode(false);
-      }
-    };
-  }, [viewMode, focusedFrameId, store, containerRef, setIsAnimatingViewMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, focusedFrameId, store, containerRef]);
 
   // Auto-zoom when the focused frame is resized (drag handles, properties panel, etc.)
   useEffect(() => {
