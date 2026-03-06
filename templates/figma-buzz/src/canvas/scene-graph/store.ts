@@ -79,6 +79,20 @@ function getTypeDefaults(type: NodeType): Partial<SceneNode> {
       return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, points: 5, innerRadius: 0.382 };
     case 'VECTOR':
       return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, paths: [] };
+    case 'SLIDE':
+      return {
+        ...GEOMETRY_DEFAULTS,
+        ...APPEARANCE_DEFAULTS,
+        fills: [{ type: 'SOLID', color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true }],
+        strokes: [{
+          paint: { type: 'SOLID', color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true },
+          weight: 1,
+          position: 'INSIDE' as const,
+        }],
+        width: 400,
+        height: 500,
+        clipsContent: true,
+      };
     case 'SECTION':
       return {
         ...GEOMETRY_DEFAULTS,
@@ -232,7 +246,7 @@ export function createSceneGraph(initialNodes?: SceneNode[]): SceneGraphStore {
       const num = id.match(/\d+$/)?.[0] ?? id;
       const node = {
         id,
-        name: props.name ?? (type === 'SECTION' ? 'Section' : `${type.charAt(0)}${type.slice(1).toLowerCase()} ${num}`),
+        name: props.name ?? (type === 'SECTION' ? 'Section' : type === 'SLIDE' ? `Slide ${num}` : `${type.charAt(0)}${type.slice(1).toLowerCase()} ${num}`),
         type,
         parentId: props.parentId ?? null,
         children: [],
@@ -322,6 +336,7 @@ export function createSceneGraph(initialNodes?: SceneNode[]): SceneGraphStore {
 
       // Already at the target parent — nothing to do
       if (node.parentId === newParentId) return;
+
 
       // Snapshot world position before reparenting
       const worldPos = getWorldPosition(store, node);
@@ -454,7 +469,7 @@ export function createSceneGraph(initialNodes?: SceneNode[]): SceneGraphStore {
 // ── Grid scene: 2 sections × 3 frames each ────────────────────────────
 
 import {
-  FRAME_WIDTH, FRAME_HEIGHT, getFramePosition, getSectionBounds, getSectionRowY,
+  SLIDE_WIDTH, SLIDE_HEIGHT, getSlidePosition, getSectionBounds, getSectionRowY,
 } from './grid-layout';
 
 const WHITE_FILL = { type: 'SOLID' as const, color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true };
@@ -464,20 +479,20 @@ const SECTION_STROKE = {
   position: 'INSIDE' as const,
 };
 
-function makeFrame(id: string, name: string, parentId: string, row: number, col: number): SceneNode {
-  const pos = getFramePosition(row, col);
+function makeSlide(id: string, name: string, parentId: string, row: number, col: number): SceneNode {
+  const pos = getSlidePosition(row, col);
   return {
     id,
     name,
-    type: 'FRAME',
+    type: 'SLIDE',
     parentId,
     children: [],
     visible: true,
     locked: false,
     x: pos.x,
     y: pos.y,
-    width: FRAME_WIDTH,
-    height: FRAME_HEIGHT,
+    width: SLIDE_WIDTH,
+    height: SLIDE_HEIGHT,
     rotation: 0,
     opacity: 1,
     cornerRadius: 0,
@@ -485,12 +500,6 @@ function makeFrame(id: string, name: string, parentId: string, row: number, col:
     strokes: [SECTION_STROKE],
     effects: [],
     clipsContent: true,
-    layoutMode: 'NONE',
-    itemSpacing: 0,
-    paddingTop: 0,
-    paddingRight: 0,
-    paddingBottom: 0,
-    paddingLeft: 0,
   } as SceneNode;
 }
 
@@ -518,14 +527,14 @@ function makeSection(id: string, name: string, row: number, childIds: string[], 
   } as SceneNode;
 }
 
-const ROW1_FRAMES = ['frame_1', 'frame_2', 'frame_3'];
-const ROW1_NAMES = ['Asset 1', 'Asset 2', 'Asset 3'];
-const ROW2_FRAMES = ['frame_4', 'frame_5', 'frame_6'];
-const ROW2_NAMES = ['Asset 4', 'Asset 5', 'Asset 6'];
+const ROW1_SLIDES = ['slide_1', 'slide_2', 'slide_3'];
+const ROW1_NAMES = ['Slide 1', 'Slide 2', 'Slide 3'];
+const ROW2_SLIDES = ['slide_4', 'slide_5', 'slide_6'];
+const ROW2_NAMES = ['Slide 4', 'Slide 5', 'Slide 6'];
 
 export const GRID_SCENE: SceneNode[] = [
-  makeSection('section_1', 'Row 1', 0, ROW1_FRAMES, 3),
-  ...ROW1_FRAMES.map((id, col) => makeFrame(id, ROW1_NAMES[col], 'section_1', 0, col)),
-  makeSection('section_2', 'Row 2', 1, ROW2_FRAMES, 3),
-  ...ROW2_FRAMES.map((id, col) => makeFrame(id, ROW2_NAMES[col], 'section_2', 1, col)),
+  makeSection('section_1', 'Row 1', 0, ROW1_SLIDES, 3),
+  ...ROW1_SLIDES.map((id, col) => makeSlide(id, ROW1_NAMES[col], 'section_1', 0, col)),
+  makeSection('section_2', 'Row 2', 1, ROW2_SLIDES, 3),
+  ...ROW2_SLIDES.map((id, col) => makeSlide(id, ROW2_NAMES[col], 'section_2', 1, col)),
 ];

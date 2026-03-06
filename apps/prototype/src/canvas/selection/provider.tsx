@@ -13,6 +13,8 @@ export interface SelectionAPI {
   selectedIds: Set<string>
   /** Which frame the user has double-clicked into (null = top level) */
   enteredFrameId: string | null
+  /** Currently hovered node ID (null = no hover) */
+  hoveredId: string | null
   /** Select a single node (replaces current selection) */
   select(id: string): void
   /** Toggle a node in/out of selection (for shift+click) */
@@ -27,6 +29,8 @@ export interface SelectionAPI {
   enterFrame(id: string): void
   /** Leave the entered frame */
   exitFrame(): void
+  /** Set the hovered node ID */
+  setHovered(id: string | null): void
 }
 
 const SelectionContext = createContext<SelectionAPI | null>(null);
@@ -39,9 +43,13 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
   const enteredFrameRef = useRef<string | null>(null);
   const enteredFrameSnapshotRef = useRef<string | null>(null);
 
+  const hoveredRef = useRef<string | null>(null);
+  const hoveredSnapshotRef = useRef<string | null>(null);
+
   function notify() {
     snapshotRef.current = new Set(selectedRef.current);
     enteredFrameSnapshotRef.current = enteredFrameRef.current;
+    hoveredSnapshotRef.current = hoveredRef.current;
     for (const listener of listeners.current) {
       listener();
     }
@@ -54,9 +62,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
   const getSnapshot = useCallback(() => snapshotRef.current, []);
   const getEnteredFrameSnapshot = useCallback(() => enteredFrameSnapshotRef.current, []);
+  const getHoveredSnapshot = useCallback(() => hoveredSnapshotRef.current, []);
 
   const selectedIds = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const enteredFrameId = useSyncExternalStore(subscribe, getEnteredFrameSnapshot, getEnteredFrameSnapshot);
+  const hoveredId = useSyncExternalStore(subscribe, getHoveredSnapshot, getHoveredSnapshot);
 
   const select = useCallback((id: string) => {
     selectedRef.current = new Set([id]);
@@ -101,11 +111,17 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     notify();
   }, []);
 
+  const setHovered = useCallback((id: string | null) => {
+    if (hoveredRef.current === id) return;
+    hoveredRef.current = id;
+    notify();
+  }, []);
+
   const api = useMemo<SelectionAPI>(
     () => ({
-      selectedIds, enteredFrameId, select, toggle, add, clear, isSelected, enterFrame, exitFrame,
+      selectedIds, enteredFrameId, hoveredId, select, toggle, add, clear, isSelected, enterFrame, exitFrame, setHovered,
     }),
-    [selectedIds, enteredFrameId, select, toggle, add, clear, isSelected, enterFrame, exitFrame],
+    [selectedIds, enteredFrameId, hoveredId, select, toggle, add, clear, isSelected, enterFrame, exitFrame, setHovered],
   );
 
   return <SelectionContext.Provider value={api}>{children}</SelectionContext.Provider>;

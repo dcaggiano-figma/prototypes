@@ -9,7 +9,7 @@ import { useActiveTool } from '../tools/provider';
 import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
-import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
+import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
 import { useSelection } from './provider';
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
@@ -451,8 +451,8 @@ export function ResizeHandles() {
     // After resize, check for section reparenting (not for rotation)
     if (drag.handle !== 'rotate') {
       const resizedNode = store.getNode(drag.nodeId);
-      if (resizedNode?.type === 'SECTION') {
-        applySectionReparenting(store, drag.nodeId);
+      if (resizedNode && isContainer(resizedNode)) {
+        applyContainerReparenting(store, drag.nodeId);
       } else {
         applyNodeReparenting(store, [drag.nodeId]);
       }

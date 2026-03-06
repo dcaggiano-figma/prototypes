@@ -22,7 +22,7 @@ interface SelectionOverlayProps {
 /** 2D canvas overlay that draws selection outlines, resize handles, and dimension labels */
 export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { selectedIds } = useSelection();
+  const { selectedIds, hoveredId } = useSelection();
   const store = useSceneGraph();
   const { state: viewport } = useViewport();
 
@@ -55,6 +55,32 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
     const styles = getComputedStyle(document.documentElement);
     const selectionColor = styles.getPropertyValue('--color-border-selected').trim() || '#0d99ff';
     const labelTextColor = styles.getPropertyValue('--color-text-fs-ondesign').trim() || '#ffffff';
+
+    // Draw hover outline (before selection so selection draws on top)
+    if (hoveredId && !selectedIds.has(hoveredId)) {
+      const hNode = store.getNode(hoveredId);
+      if (hNode && isGeometryNode(hNode) && hNode.type !== 'LINE') {
+        const hWorld = getWorldPosition(store, hNode);
+        const hsx = hWorld.x * viewport.scale + viewport.origin.x;
+        const hsy = hWorld.y * viewport.scale + viewport.origin.y;
+        const hsw = hNode.width * viewport.scale;
+        const hsh = hNode.height * viewport.scale;
+        const hRot = hNode.rotation ?? 0;
+
+        ctx.strokeStyle = selectionColor;
+        ctx.lineWidth = 2;
+
+        if (hRot !== 0) {
+          ctx.save();
+          ctx.translate(hsx + hsw / 2, hsy + hsh / 2);
+          ctx.rotate(hRot * Math.PI / 180);
+          ctx.strokeRect(-hsw / 2, -hsh / 2, hsw, hsh);
+          ctx.restore();
+        } else {
+          ctx.strokeRect(hsx, hsy, hsw, hsh);
+        }
+      }
+    }
 
     const isMultiSelect = selectedIds.size > 1;
 
@@ -173,7 +199,7 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
         ctx.strokeRect(bx, by, bw, bh);
       }
     }
-  }, [selectedIds, store, storeVersion, viewport, dragBox]);
+  }, [selectedIds, hoveredId, store, storeVersion, viewport, dragBox]);
 
   // Resize observer to keep canvas size in sync
   useEffect(() => {

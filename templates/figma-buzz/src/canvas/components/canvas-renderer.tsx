@@ -13,6 +13,7 @@ import type {
   RectangleNode,
   SceneNode,
   SectionNode,
+  SlideNode,
   StarNode,
   TextNode,
   VectorNode,
@@ -96,6 +97,8 @@ function SceneNodeRenderer({
           <FrameRenderer node={node} store={store} />
         </>
       );
+    case 'SLIDE':
+      return <SlideRenderer node={node as SlideNode} store={store} />;
     case 'SECTION':
       return (
         <>
@@ -327,6 +330,46 @@ function SectionRenderer({
   node: SectionNode
   store: ReturnType<typeof useSceneGraph>
 }) {
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const { isSelected, hoveredId } = useSelection();
+  const selected = isSelected(node.id);
+  const hovered = hoveredId === node.id;
+  const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
+
+  const defaultBorderColor = stroke
+    ? colorToCSS(stroke.paint.color, stroke.paint.opacity)
+    : 'transparent';
+  const borderColor = (selected || hovered)
+    ? 'var(--color-border-selected)'
+    : defaultBorderColor;
+
+  return (
+    <div
+      data-node-id={node.id}
+      style={{
+        position: 'absolute',
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        overflow: 'visible',
+        transform: nodeTransform(node.x, node.y, node.rotation),
+        borderTop: `${stroke?.weight ?? 1}px solid ${borderColor}`,
+      }}
+    >
+      {childNodes.map((child) => (
+        <SceneNodeRenderer key={child.id} node={child} store={store} />
+      ))}
+    </div>
+  );
+}
+
+function SlideRenderer({
+  node,
+  store,
+}: {
+  node: SlideNode
+  store: ReturnType<typeof useSceneGraph>
+}) {
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
@@ -340,7 +383,7 @@ function SectionRenderer({
         height: node.height,
         opacity: node.opacity,
         borderRadius: node.cornerRadius,
-        overflow: 'visible',
+        overflow: node.clipsContent ? 'hidden' : undefined,
         transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
         ...strokeStyles(stroke),
@@ -367,8 +410,9 @@ function SectionLabel({ node }: { node: SectionNode }) {
   const pillRadius = 3 / state.scale;
 
   const fill = getFirstVisibleFill(node.fills);
-  const pillBg = fill ? colorToCSS(fill.color, Math.min(fill.opacity, 0.6)) : 'rgba(255,255,255,0.6)';
-  const textColor = selected ? 'var(--color-fsTextOnLightCanvas' : 'var(--color-fsTextOnLightCanvas)';
+  const defaultPillBg = fill ? colorToCSS(fill.color, Math.min(fill.opacity, 0.6)) : 'rgba(255,255,255,0.6)';
+  const pillBg = selected ? 'var(--color-bg-selected-strong)' : defaultPillBg;
+  const textColor = selected ? 'var(--color-text-onselected-strong)' : 'var(--color-fsTextOnLightCanvas)';
 
   const commitRename = useCallback(() => {
     if (!labelRef.current) return;
@@ -442,7 +486,7 @@ function SectionLabel({ node }: { node: SectionNode }) {
             padding: `${pillPadY}px ${pillPadX}px`,
             cursor: CURSORS.default,
             userSelect: 'none',
-            outline: 'solid 1px rgba(0, 0, 0, 0.2)',
+            outline: selected ? 'none' : 'solid 1px rgba(0, 0, 0, 0.2)',
             border: 'none',
             font: 'inherit',
             color: 'inherit',

@@ -1,22 +1,22 @@
 import type { SceneGraphStore } from './store';
 import { getWorldPosition, isGeometryNode } from './world-position';
-import { FRAME_GAP, SECTION_PAD, recomputeGridLayout } from './grid-layout';
+import { SLIDE_GAP, recomputeGridLayout } from './grid-layout';
 
 export interface DropTarget {
   sectionId: string
   insertIndex: number
 }
 
-/** Check if a node is a managed grid frame (FRAME child of a SECTION) */
-export function isManagedFrame(store: SceneGraphStore, nodeId: string): boolean {
+/** Check if a node is a managed grid slide (SLIDE child of a SECTION) */
+export function isManagedSlide(store: SceneGraphStore, nodeId: string): boolean {
   const node = store.getNode(nodeId);
-  if (!node || node.type !== 'FRAME') return false;
+  if (!node || node.type !== 'SLIDE') return false;
   if (!node.parentId) return false;
   const parent = store.getNode(node.parentId);
   return !!parent && parent.type === 'SECTION';
 }
 
-/** Find the drop target for a dragged frame at the given world position */
+/** Find the drop target for a dragged slide at the given world position */
 export function findDropTarget(
   store: SceneGraphStore,
   worldX: number,
@@ -101,7 +101,7 @@ export function getDropIndicatorX(
   const sWorld = getWorldPosition(store, section);
 
   if (target.insertIndex === 0) {
-    return sWorld.x + SECTION_PAD;
+    return sWorld.x;
   }
 
   const children = section.children;
@@ -109,15 +109,55 @@ export function getDropIndicatorX(
     const lastChild = store.getNode(children[children.length - 1]);
     if (lastChild && isGeometryNode(lastChild)) {
       const childWorld = getWorldPosition(store, lastChild);
-      return childWorld.x + lastChild.width + FRAME_GAP / 2;
+      return childWorld.x + lastChild.width + SLIDE_GAP / 2;
     }
   }
 
   const childAtIndex = store.getNode(children[target.insertIndex]);
   if (childAtIndex && isGeometryNode(childAtIndex)) {
     const childWorld = getWorldPosition(store, childAtIndex);
-    return childWorld.x - FRAME_GAP / 2;
+    return childWorld.x - SLIDE_GAP / 2;
   }
 
-  return sWorld.x + SECTION_PAD;
+  return sWorld.x;
+}
+
+/** Create a new slide after the currently focused slide in the same section */
+export function createSlideAfterFocused(store: SceneGraphStore, focusedSlideId: string | null): string | null {
+  if (!focusedSlideId) {
+    // No focused slide — add to first section
+    const roots = store.getRootNodes();
+    const firstSection = roots.find((n) => n.type === 'SECTION');
+    if (!firstSection) return null;
+
+    const newSlide = store.createNode('SLIDE', { parentId: firstSection.id });
+    const sectionIds = roots.filter((n) => n.type === 'SECTION').map((n) => n.id);
+    recomputeGridLayout(store, sectionIds);
+    return newSlide.id;
+  }
+
+  const focusedNode = store.getNode(focusedSlideId);
+  if (!focusedNode || !focusedNode.parentId) return null;
+
+  const section = store.getNode(focusedNode.parentId);
+  if (!section || section.type !== 'SECTION') return null;
+
+  // Find index of focused slide within section
+  const idx = section.children.indexOf(focusedSlideId);
+  const insertIndex = idx >= 0 ? idx + 1 : section.children.length;
+
+  // Create a new slide node (will be appended to the section)
+  const newSlide = store.createNode('SLIDE', { parentId: section.id });
+
+  // Reorder it to the correct position if not already at the end
+  if (insertIndex < section.children.length - 1) {
+    store.reorderNode(newSlide.id, insertIndex);
+  }
+
+  // Recompute grid layout for all sections
+  const roots = store.getRootNodes();
+  const sectionIds = roots.filter((n) => n.type === 'SECTION').map((n) => n.id);
+  recomputeGridLayout(store, sectionIds);
+
+  return newSlide.id;
 }

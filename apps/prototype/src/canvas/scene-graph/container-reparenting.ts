@@ -11,6 +11,11 @@ interface WorldRect {
   h: number
 }
 
+/** Returns true if the node is a container type (FRAME or SECTION) */
+export function isContainer(node: { type: string }): boolean {
+  return node.type === 'FRAME' || node.type === 'SECTION';
+}
+
 // ── Utility functions ────────────────────────────────────────────────
 
 /** Get the world-space bounding rect of a geometry node */
@@ -29,47 +34,61 @@ function rectContainsRect(outer: WorldRect, inner: WorldRect): boolean {
   );
 }
 
+/** Returns true if `ancestorId` is an ancestor of `node` */
+function isAncestorOf(store: SceneGraphStore, node: { parentId: string | null }, ancestorId: string): boolean {
+  let currentId = node.parentId;
+  while (currentId) {
+    if (currentId === ancestorId) return true;
+    const parent = store.getNode(currentId);
+    if (!parent) break;
+    currentId = parent.parentId;
+  }
+  return false;
+}
+
 /**
- * Find the smallest-area SECTION that fully contains the given node.
- * Returns null if node is a SECTION (no nesting) or no section contains it.
+ * Find the smallest-area container (FRAME or SECTION) that fully contains the given node.
+ * Returns null if node is a section (sections don't auto-nest) or no container contains it.
  */
-function findContainingSection(
+function findContainingParent(
   store: SceneGraphStore,
   node: GeometryNode,
 ): GeometryNode | null {
   if (node.type === 'SECTION') return null;
 
   const nodeRect = getWorldRect(store, node);
-  let bestSection: GeometryNode | null = null;
+  let bestContainer: GeometryNode | null = null;
   let bestArea = Infinity;
 
   for (const candidate of store.getAllNodes()) {
-    if (candidate.type !== 'SECTION') continue;
+    if (!isContainer(candidate)) continue;
     if (candidate.id === node.id) continue;
     if (!isGeometryNode(candidate)) continue;
+    // Prevent circular parenting
+    if (isAncestorOf(store, candidate, node.id)) continue;
 
-    const sectionRect = getWorldRect(store, candidate);
-    if (rectContainsRect(sectionRect, nodeRect)) {
-      const area = sectionRect.w * sectionRect.h;
+    const containerRect = getWorldRect(store, candidate);
+    if (rectContainsRect(containerRect, nodeRect)) {
+      const area = containerRect.w * containerRect.h;
       if (area < bestArea) {
         bestArea = area;
-        bestSection = candidate;
+        bestContainer = candidate;
       }
     }
   }
 
-  return bestSection;
+  return bestContainer;
 }
 
 type ReparentAction =
   | { action: 'none' }
-  | { action: 'adopt'; sectionId: string }
+  | { action: 'adopt'; containerId: string }
   | { action: 'release' };
 
 /**
  * Decide whether a node needs reparenting:
- * - Fully inside a section that isn't its current parent → adopt
- * - Child of a section but no longer fully inside any → release to root
+ * - Fully inside a container that isn't its current parent → adopt
+ * - Child of a container but no longer fully inside any → release to root
  * - Otherwise → none
  */
 function resolveReparenting(store: SceneGraphStore, nodeId: string): ReparentAction {
@@ -77,15 +96,15 @@ function resolveReparenting(store: SceneGraphStore, nodeId: string): ReparentAct
   if (!node || !isGeometryNode(node)) return { action: 'none' };
   if (node.type === 'SECTION') return { action: 'none' };
 
-  const containingSection = findContainingSection(store, node);
+  const containingParent = findContainingParent(store, node);
 
-  if (containingSection && containingSection.id !== node.parentId) {
-    return { action: 'adopt', sectionId: containingSection.id };
+  if (containingParent && containingParent.id !== node.parentId) {
+    return { action: 'adopt', containerId: containingParent.id };
   }
 
-  if (!containingSection && node.parentId) {
+  if (!containingParent && node.parentId) {
     const parent = store.getNode(node.parentId);
-    if (parent?.type === 'SECTION') {
+    if (parent && isContainer(parent)) {
       return { action: 'release' };
     }
   }
@@ -96,13 +115,13 @@ function resolveReparenting(store: SceneGraphStore, nodeId: string): ReparentAct
 // ── Orchestrators ────────────────────────────────────────────────────
 
 /**
- * For dragged/created non-section nodes: check each and reparent as needed.
+ * For dragged/created non-container nodes: check each and reparent as needed.
  */
 export function applyNodeReparenting(store: SceneGraphStore, nodeIds: string[]): void {
   for (const id of nodeIds) {
     const result = resolveReparenting(store, id);
     if (result.action === 'adopt') {
-      store.reparentNodeAdjusted(id, result.sectionId);
+      store.reparentNodeAdjusted(id, result.containerId);
     } else if (result.action === 'release') {
       store.reparentNodeAdjusted(id, null);
     }
@@ -110,34 +129,34 @@ export function applyNodeReparenting(store: SceneGraphStore, nodeIds: string[]):
 }
 
 /**
- * For when a section was moved/resized: check for nodes to adopt or release.
+ * For when a container (frame or section) was moved/resized: check for nodes to adopt or release.
  */
-export function applySectionReparenting(store: SceneGraphStore, sectionId: string): void {
-  const section = store.getNode(sectionId);
-  if (!section || section.type !== 'SECTION' || !isGeometryNode(section)) return;
+export function applyContainerReparenting(store: SceneGraphStore, containerId: string): void {
+  const container = store.getNode(containerId);
+  if (!container || !isContainer(container) || !isGeometryNode(container)) return;
 
-  const sectionRect = getWorldRect(store, section);
+  const containerRect = getWorldRect(store, container);
 
-  // Check root-level non-section geometry nodes for adoption
+  // Check root-level geometry nodes for adoption (sections excluded — they don't auto-nest)
   for (const rootNode of store.getRootNodes()) {
     if (rootNode.type === 'SECTION') continue;
-    if (rootNode.id === sectionId) continue;
+    if (rootNode.id === containerId) continue;
     if (!isGeometryNode(rootNode)) continue;
 
     const nodeRect = getWorldRect(store, rootNode);
-    if (rectContainsRect(sectionRect, nodeRect)) {
-      store.reparentNodeAdjusted(rootNode.id, sectionId);
+    if (rectContainsRect(containerRect, nodeRect)) {
+      store.reparentNodeAdjusted(rootNode.id, containerId);
     }
   }
 
   // Check current children for release
-  const childIds = [...section.children];
+  const childIds = [...container.children];
   for (const childId of childIds) {
     const child = store.getNode(childId);
     if (!child || !isGeometryNode(child)) continue;
 
     const childRect = getWorldRect(store, child);
-    if (!rectContainsRect(sectionRect, childRect)) {
+    if (!rectContainsRect(containerRect, childRect)) {
       store.reparentNodeAdjusted(childId, null);
     }
   }

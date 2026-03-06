@@ -13,7 +13,7 @@ import { CURSORS } from '../cursors';
 import { useTextEditing } from '../text-editing/provider';
 import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from '../tools/path-smoothing';
 import type { Point } from '../tools/path-smoothing';
-import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
+import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
 import { findNodeAtWorldPoint } from '../scene-graph/selection-utils';
 import { CanvasRenderer } from './canvas-renderer';
 import { CommentPinLayer, useComments } from '@prototype/shared';
@@ -334,6 +334,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       // Only handle left-click (button 0) — right-clicks use the context menu
       if (e.button !== 0) return;
 
+      selection.setHovered(null);
+
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
 
@@ -520,6 +522,13 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
+      // Hover tracking — only when no active interaction
+      if (!pencilRef.current && !creationRef.current && !panRef.current && !dragRef.current) {
+        const hitId = resolveHoverNode(e.target as HTMLElement);
+        const hoverTarget = hitId && !selection.isSelected(hitId) ? hitId : null;
+        selection.setHovered(hoverTarget);
+      }
+
       // Pencil drawing — append points to live preview
       const pencil = pencilRef.current;
       if (pencil) {
@@ -757,8 +766,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           }
         }
         selection.select(creation.nodeId);
-        if (creation.nodeType === 'SECTION') {
-          applySectionReparenting(store, creation.nodeId);
+        const createdNode = store.getNode(creation.nodeId);
+        if (createdNode && isContainer(createdNode)) {
+          applyContainerReparenting(store, creation.nodeId);
         } else {
           applyNodeReparenting(store, [creation.nodeId]);
         }
@@ -824,10 +834,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       // If we were dragging, apply reparenting and don't do click-to-select
       if (drag.dragging) {
         lastClickRef.current = null;
-        const sectionIds = drag.nodeIds.filter((id) => store.getNode(id)?.type === 'SECTION');
-        const nonSectionIds = drag.nodeIds.filter((id) => store.getNode(id)?.type !== 'SECTION');
-        for (const sid of sectionIds) applySectionReparenting(store, sid);
-        applyNodeReparenting(store, nonSectionIds);
+        const containerIds = drag.nodeIds.filter((id) => { const n = store.getNode(id); return n && isContainer(n); });
+        for (const cid of containerIds) applyContainerReparenting(store, cid);
+        applyNodeReparenting(store, drag.nodeIds);
         return;
       }
 
@@ -978,6 +987,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerLeave={() => selection.setHovered(null)}
       onContextMenu={onContextMenu}
     >
       <div
@@ -1059,8 +1069,8 @@ function resolveHitNode(el: HTMLElement, enteredFrameId: string | null): string 
   chain.reverse();
 
   if (enteredFrameId === null) {
-    // Not inside any frame — select the root-level node
-    return chain[0];
+    // Select the innermost (deepest) node so children are directly clickable
+    return chain[chain.length - 1];
   }
 
   // Find the entered frame in the chain
@@ -1077,6 +1087,22 @@ function resolveHitNode(el: HTMLElement, enteredFrameId: string | null): string 
 
   // Click landed directly on the entered frame (no deeper child)
   return enteredFrameId;
+}
+
+/**
+ * Resolve the innermost (deepest) node under the pointer for hover outlines.
+ * Unlike resolveHitNode which returns the root-level ancestor for selection,
+ * this returns the closest node to the pointer so children inside frames/sections
+ * get hover outlines too.
+ */
+function resolveHoverNode(el: HTMLElement): string | null {
+  let cur: HTMLElement | null = el;
+  while (cur) {
+    const id = cur.dataset?.nodeId;
+    if (id) return id;
+    cur = cur.parentElement;
+  }
+  return null;
 }
 
 interface Rect {
