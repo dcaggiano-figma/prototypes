@@ -23,6 +23,8 @@ export interface SelectionAPI {
   toggle(id: string): void
   /** Add a node to the current selection */
   add(id: string): void
+  /** Replace selection with multiple IDs at once */
+  selectMany(ids: string[]): void
   /** Deselect all nodes */
   clear(): void
   /** Check if a node is selected */
@@ -101,6 +103,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     notify();
   }, []);
 
+  const selectMany = useCallback((ids: string[]) => {
+    selectedRef.current = new Set(ids);
+    notify();
+  }, []);
+
   const clear = useCallback(() => {
     if (selectedRef.current.size === 0 && enteredFrameRef.current === null) return;
     selectedRef.current = new Set();
@@ -135,9 +142,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
   const api = useMemo<SelectionAPI>(
     () => ({
-      selectedIds, enteredFrameId, isDragging, hoveredId, select, toggle, add, clear, isSelected, enterFrame, exitFrame, setDragging, setHovered,
+      selectedIds, enteredFrameId, isDragging, hoveredId, select, toggle, add, selectMany, clear, isSelected, enterFrame, exitFrame, setDragging, setHovered,
     }),
-    [selectedIds, enteredFrameId, isDragging, hoveredId, select, toggle, add, clear, isSelected, enterFrame, exitFrame, setDragging, setHovered],
+    [selectedIds, enteredFrameId, isDragging, hoveredId, select, toggle, add, selectMany, clear, isSelected, enterFrame, exitFrame, setDragging, setHovered],
   );
 
   return <SelectionContext.Provider value={api}>{children}</SelectionContext.Provider>;

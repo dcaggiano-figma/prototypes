@@ -34,6 +34,7 @@ export const SHORTCUT_MAP: Record<string, string> = {
   'Mod+c': 'copy',
   'Mod+v': 'paste',
   'Mod+x': 'cut',
+  'Mod+d': 'duplicate',
 
   // Undo / redo
   'Mod+z': 'undo',

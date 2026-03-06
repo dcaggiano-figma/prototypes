@@ -198,7 +198,7 @@ export function FilePanel() {
                 <Collapse.Label size="md">Layers</Collapse.Label>
               </Collapse.Header>
               <Collapse.Content>
-                <LayersTree />
+                <LayersTree pageFrameId={findPageFrame(store, selectedIds)} />
               </Collapse.Content>
             </Collapse.Root>
           </div>
@@ -333,7 +333,7 @@ function FrameThumbnailPreview({ frameNode, store, storeVersion }: { frameNode: 
 
 // ── Layers tree ─────────────────────────────────────────────────────
 
-function LayersTree() {
+function LayersTree({ pageFrameId }: { pageFrameId: string | null }) {
   const store = useSceneGraph();
   const { selectedIds, select, toggle } = useSelection();
   const { focusedFrameId } = useViewMode();
@@ -516,6 +516,34 @@ function collectLayersReversed(
   }
 
   return result;
+}
+
+/**
+ * Find the "page frame" for the current selection.
+ * A page frame is a direct child of a SECTION root node, or a root-level FRAME.
+ * Walks up from any selected node to find its containing page frame.
+ */
+function findPageFrame(
+  store: ReturnType<typeof useSceneGraph>,
+  selectedIds: Set<string>,
+): string | null {
+  if (selectedIds.size === 0) return null;
+
+  const firstId = selectedIds.values().next().value as string;
+  let node: SceneNode | undefined = store.getNode(firstId);
+  if (!node) return null;
+
+  // Walk up to find a node whose parent is a SECTION or null (root)
+  while (node) {
+    const parent: SceneNode | undefined = node.parentId ? store.getNode(node.parentId) : undefined;
+    // If parent is a section or node is a root — this is the page frame
+    if (!parent || parent.type === 'SECTION') {
+      return node.type === 'FRAME' || node.type === 'SECTION' ? node.id : null;
+    }
+    node = parent;
+  }
+
+  return null;
 }
 
 function NodeTypeIcon({ node }: { node: SceneNode }) {

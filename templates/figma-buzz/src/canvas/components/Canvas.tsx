@@ -17,6 +17,7 @@ import { applyNodeReparenting, applyContainerReparenting, isContainer } from '..
 import { findNodeAtWorldPoint } from '../scene-graph/selection-utils';
 import { CanvasRenderer } from './canvas-renderer';
 import { CommentPinLayer, useComments } from '@prototype/shared';
+import { copyNodes, cutNodes, pasteNodes, duplicateNodes } from '../clipboard/clipboard';
 import { useViewMode } from '../../components/ViewModeContext';
 import { isManagedSlide, findDropTarget, applyGridDrop, getDropIndicatorX, type DropTarget } from '../scene-graph/grid-manager';
 import { recomputeGridLayout } from '../scene-graph/grid-layout';
@@ -212,6 +213,48 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         store.deleteNode(id);
       }
       selection.clear();
+    }, [store, selection]),
+  );
+
+  useAction(
+    'copy',
+    useCallback(() => {
+      if (selection.selectedIds.size === 0) return;
+      copyNodes(store, selection.selectedIds);
+    }, [store, selection]),
+  );
+
+  useAction(
+    'cut',
+    useCallback(() => {
+      if (selection.selectedIds.size === 0) return;
+      cutNodes(store, selection.selectedIds);
+      selection.clear();
+    }, [store, selection]),
+  );
+
+  useAction(
+    'paste',
+    useCallback(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const center = screenToWorld(rect.width / 2, rect.height / 2);
+      const newIds = pasteNodes(store, selection.selectedIds, center);
+      if (newIds.length > 0) {
+        selection.selectMany(newIds);
+      }
+    }, [store, selection, containerRef, screenToWorld]),
+  );
+
+  useAction(
+    'duplicate',
+    useCallback(() => {
+      if (selection.selectedIds.size === 0) return;
+      const newIds = duplicateNodes(store, selection.selectedIds);
+      if (newIds.length > 0) {
+        selection.selectMany(newIds);
+      }
     }, [store, selection]),
   );
 

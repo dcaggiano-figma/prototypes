@@ -21,6 +21,7 @@ import { collectDraggableIds, findNodeAtWorldPoint, findNodeNearWorldPoint, getS
 import { snapToConnectionPoint } from '../connectors/connector-resolve';
 import { ConnectorPointsOverlay } from '../connectors/ConnectorPointsOverlay';
 import { updateConnectorBounds, updateConnectorsForNodes } from '../connectors/connector-utils';
+import { copyNodes, cutNodes, pasteNodes, duplicateNodes } from '../clipboard/clipboard';
 /** Shape tools that support click-drag-to-create */
 const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
 
@@ -223,6 +224,48 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         store.deleteNode(id);
       }
       selection.clear();
+    }, [store, selection]),
+  );
+
+  useAction(
+    'copy',
+    useCallback(() => {
+      if (selection.selectedIds.size === 0) return;
+      copyNodes(store, selection.selectedIds);
+    }, [store, selection]),
+  );
+
+  useAction(
+    'cut',
+    useCallback(() => {
+      if (selection.selectedIds.size === 0) return;
+      cutNodes(store, selection.selectedIds);
+      selection.clear();
+    }, [store, selection]),
+  );
+
+  useAction(
+    'paste',
+    useCallback(() => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const center = screenToWorld(rect.width / 2, rect.height / 2);
+      const newIds = pasteNodes(store, selection.selectedIds, center);
+      if (newIds.length > 0) {
+        selection.selectMany(newIds);
+      }
+    }, [store, selection, containerRef, screenToWorld]),
+  );
+
+  useAction(
+    'duplicate',
+    useCallback(() => {
+      if (selection.selectedIds.size === 0) return;
+      const newIds = duplicateNodes(store, selection.selectedIds);
+      if (newIds.length > 0) {
+        selection.selectMany(newIds);
+      }
     }, [store, selection]),
   );
 
