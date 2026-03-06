@@ -9,7 +9,7 @@ import { useActiveTool } from '../tools/provider';
 import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
-import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
+import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
 import { useSelection } from './provider';
 import { resolveEndpointPosition, snapToConnectionPoint } from '../connectors/connector-resolve';
 import { updateConnectorBounds } from '../connectors/connector-utils';
@@ -534,8 +534,8 @@ export function ResizeHandles() {
     // Reparent after resize: sections adopt/release children, others check containment
     if (dragState.current.handle !== 'rotate') {
       const resizedNode = store.getNode(dragState.current.nodeId);
-      if (resizedNode?.type === 'SECTION') {
-        applySectionReparenting(store, dragState.current.nodeId);
+      if (resizedNode && isContainer(resizedNode)) {
+        applyContainerReparenting(store, dragState.current.nodeId);
       } else {
         applyNodeReparenting(store, [dragState.current.nodeId]);
       }

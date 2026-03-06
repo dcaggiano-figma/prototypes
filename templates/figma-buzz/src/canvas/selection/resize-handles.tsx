@@ -9,8 +9,8 @@ import { useActiveTool } from '../tools/provider';
 import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
-import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
-import { isManagedFrame } from '../scene-graph/grid-manager';
+import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
+import { isManagedSlide } from '../scene-graph/grid-manager';
 import { recomputeGridLayout } from '../scene-graph/grid-layout';
 import { useSelection } from './provider';
 
@@ -207,6 +207,8 @@ export function ResizeHandles() {
 
   const node = store.getNode(nodeId);
   if (!node || !isGeometryNode(node) || node.locked) return null;
+  // Sections are not resizable — they use top-border highlight instead
+  if (node.type === 'SECTION') return null;
 
   const world = getWorldPosition(store, node);
   const isLine = node.type === 'LINE';
@@ -452,15 +454,15 @@ export function ResizeHandles() {
 
     // After resize, check for section reparenting (not for rotation)
     if (drag.handle !== 'rotate') {
-      // If a managed grid frame was resized, recompute the grid layout
-      if (isManagedFrame(store, drag.nodeId)) {
+      // If a managed grid slide was resized, recompute the grid layout
+      if (isManagedSlide(store, drag.nodeId)) {
         const roots = store.getRootNodes();
         const sectionIds = roots.filter((n) => n.type === 'SECTION').map((n) => n.id);
         recomputeGridLayout(store, sectionIds);
       } else {
         const resizedNode = store.getNode(drag.nodeId);
-        if (resizedNode?.type === 'SECTION') {
-          applySectionReparenting(store, drag.nodeId);
+        if (resizedNode && isContainer(resizedNode)) {
+          applyContainerReparenting(store, drag.nodeId);
         } else {
           applyNodeReparenting(store, [drag.nodeId]);
         }

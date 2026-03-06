@@ -20,13 +20,14 @@ import {
 } from '@figma/fpl-icons';
 
 import { useSceneGraph, useSelection } from '../../canvas';
-import type { FrameNode } from '../../canvas/types';
+import type { FrameNode, SlideNode } from '../../canvas/types';
 import type { SceneNode, VectorNode } from '../../canvas';
 import { useMinimizeUI } from '../MinimizeUIContext';
 import { useViewMode } from '../ViewModeContext';
 import { NavListThumbnail, ThumbnailPreview } from '@prototype/shared';
 import { colorToCSS, getFirstVisibleFill } from '../../canvas/components/render-helpers';
 import { ThumbnailRenderer } from '../../canvas/components/thumbnail-renderer';
+import { createSlideAfterFocused } from '../../canvas/scene-graph/grid-manager';
 
 
 export function FilePanel() {
@@ -34,7 +35,7 @@ export function FilePanel() {
   const { fileName, setFileName } = useMinimizeUI();
   const store = useSceneGraph();
   const { selectedIds, select } = useSelection();
-  const { viewMode, setFocusedFrameId } = useViewMode();
+  const { viewMode, focusedFrameId, setFocusedFrameId } = useViewMode();
 
   // File name inline editing
   const [isEditingFileName, setIsEditingFileName] = useState(false);
@@ -165,7 +166,10 @@ export function FilePanel() {
             </>
           )}
           <span className="px-2 text-bodyMd text-text-secondary truncate">Drafts</span>
-          <div className="grid grid-cols-1 items-center px-2 pt-2"><ButtonGroup aria-label="File actions" variant="secondary"><Button variant="secondary" width='fill' iconPrefix={<Icon24Template />}>New asset</Button><IconButton aria-label="Add" variant="secondary"><Icon24Plus /></IconButton></ButtonGroup></div>
+          <div className="grid grid-cols-1 items-center px-2 pt-2"><ButtonGroup aria-label="File actions" variant="secondary"><Button variant="secondary" width='fill' iconPrefix={<Icon24Template />}>New asset</Button><IconButton aria-label="Add slide" variant="secondary" onClick={() => {
+            const newId = createSlideAfterFocused(store, focusedFrameId);
+            if (newId) setFocusedFrameId(newId);
+          }}><Icon24Plus /></IconButton></ButtonGroup></div>
         </div>
       </div>
 
@@ -217,8 +221,10 @@ function SectionList({ store, selectedIds, onSelectFrame, onSelectSection }: Sec
   // Derive sections from scene graph
   const [sections, setSections] = useState<Array<{ id: string; name: string; children: SceneNode[] }>>([]);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [storeVersion, setStoreVersion] = useState(0);
 
   const refreshSections = useCallback(() => {
+    setStoreVersion((v) => v + 1);
     const roots = store.getRootNodes();
     const secs = roots
       .filter((n) => n.type === 'SECTION')
@@ -281,8 +287,8 @@ function SectionList({ store, selectedIds, onSelectFrame, onSelectSection }: Sec
                   label={firstChild.name}
                   onClick={() => onSelectFrame(firstChild.id)}
                 >
-                  {firstChild.type === 'FRAME' && (
-                    <FrameThumbnailPreview frameNode={firstChild as FrameNode} store={store} />
+                  {(firstChild.type === 'FRAME' || firstChild.type === 'SLIDE') && (
+                    <FrameThumbnailPreview frameNode={firstChild as FrameNode | SlideNode} store={store} storeVersion={storeVersion} />
                   )}
                 </NavListThumbnail>
               </div>
@@ -299,8 +305,8 @@ function SectionList({ store, selectedIds, onSelectFrame, onSelectSection }: Sec
                     label={child.name}
                     onClick={() => onSelectFrame(child.id)}
                   >
-                    {child.type === 'FRAME' && (
-                      <FrameThumbnailPreview frameNode={child as FrameNode} store={store} />
+                    {(child.type === 'FRAME' || child.type === 'SLIDE') && (
+                      <FrameThumbnailPreview frameNode={child as FrameNode | SlideNode} store={store} storeVersion={storeVersion} />
                     )}
                   </NavListThumbnail>
                 ))}
@@ -313,14 +319,14 @@ function SectionList({ store, selectedIds, onSelectFrame, onSelectSection }: Sec
   );
 }
 
-/** Composes ThumbnailPreview + ThumbnailRenderer for a frame node */
-function FrameThumbnailPreview({ frameNode, store }: { frameNode: FrameNode; store: ReturnType<typeof useSceneGraph> }) {
+/** Composes ThumbnailPreview + ThumbnailRenderer for a frame or slide node */
+function FrameThumbnailPreview({ frameNode, store, storeVersion }: { frameNode: FrameNode | SlideNode; store: ReturnType<typeof useSceneGraph>; storeVersion: number }) {
   const fill = getFirstVisibleFill(frameNode.fills);
   const bgColor = fill ? colorToCSS(fill.color, fill.opacity) : undefined;
 
   return (
     <ThumbnailPreview width={frameNode.width} height={frameNode.height} backgroundColor={bgColor}>
-      <ThumbnailRenderer frameNode={frameNode} store={store} />
+      <ThumbnailRenderer frameNode={frameNode} store={store} storeVersion={storeVersion} />
     </ThumbnailPreview>
   );
 }
@@ -330,15 +336,19 @@ function FrameThumbnailPreview({ frameNode, store }: { frameNode: FrameNode; sto
 function LayersTree() {
   const store = useSceneGraph();
   const { selectedIds, select, toggle } = useSelection();
-  const [layers, setLayers] = useState<Array<{ node: SceneNode; depth: number }>>(() => collectLayersReversed(store));
+  const { focusedFrameId } = useViewMode();
+  const [layers, setLayers] = useState<Array<{ node: SceneNode; depth: number }>>(() => collectLayersReversed(store, focusedFrameId));
 
-  // Re-walk when store changes
+  // Re-walk when store or focused frame changes
   const refreshLayers = useCallback(() => {
-    setLayers(collectLayersReversed(store));
-  }, [store]);
+    setLayers(collectLayersReversed(store, focusedFrameId));
+  }, [store, focusedFrameId]);
 
-  // Subscribe to store changes
-  useEffect(() => store.subscribe(refreshLayers), [store, refreshLayers]);
+  // Subscribe to store changes and refresh when focused frame changes
+  useEffect(() => {
+    refreshLayers();
+    return store.subscribe(refreshLayers);
+  }, [store, refreshLayers]);
 
   return (
     <div className="overflow-y-auto flex-1 min-h-0">
@@ -474,25 +484,35 @@ function LayerRow({
 
 /**
  * Collect layers in reverse z-order: topmost node first, matching Figma convention.
+ * When focusedFrameId is provided, only shows children of that frame.
  */
 function collectLayersReversed(
   store: ReturnType<typeof useSceneGraph>,
+  focusedFrameId: string | null,
 ): Array<{ node: SceneNode; depth: number }> {
   const result: Array<{ node: SceneNode; depth: number }> = [];
 
   function visitReversed(node: SceneNode, depth: number) {
     result.push({ node, depth });
-    // Visit children in reverse order so highest z-index appears first
     for (let i = node.children.length - 1; i >= 0; i--) {
       const child = store.getNode(node.children[i]);
       if (child) visitReversed(child, depth + 1);
     }
   }
 
-  // Root nodes in reverse order
-  const roots = store.getRootNodes();
-  for (let i = roots.length - 1; i >= 0; i--) {
-    visitReversed(roots[i], 0);
+  if (focusedFrameId) {
+    const frame = store.getNode(focusedFrameId);
+    if (frame) {
+      for (let i = frame.children.length - 1; i >= 0; i--) {
+        const child = store.getNode(frame.children[i]);
+        if (child) visitReversed(child, 0);
+      }
+    }
+  } else {
+    const roots = store.getRootNodes();
+    for (let i = roots.length - 1; i >= 0; i--) {
+      visitReversed(roots[i], 0);
+    }
   }
 
   return result;
@@ -505,6 +525,8 @@ function NodeTypeIcon({ node }: { node: SceneNode }) {
     case 'ELLIPSE':
       return <Icon16Ellipse />;
     case 'FRAME':
+      return <Icon16Frame />;
+    case 'SLIDE':
       return <Icon16Frame />;
     case 'SECTION':
       return <Icon16Section />;

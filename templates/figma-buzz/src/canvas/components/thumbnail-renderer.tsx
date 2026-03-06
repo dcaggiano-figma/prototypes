@@ -1,7 +1,7 @@
 import { memo } from 'react';
 
 import type { SceneGraphStore } from '../scene-graph/store';
-import type { FrameNode, SceneNode, TextNode } from '../types';
+import type { FrameNode, SceneNode, SlideNode, TextNode } from '../types';
 import {
   colorToCSS,
   getFirstVisibleFill,
@@ -19,15 +19,17 @@ import {
 } from './canvas-renderer';
 
 interface ThumbnailRendererProps {
-  frameNode: FrameNode
+  frameNode: FrameNode | SlideNode
   store: SceneGraphStore
+  /** Monotonic counter that increments on every store mutation — busts memo so thumbnails update when descendants change */
+  storeVersion: number
 }
 
 /** Renders a frame's children as a static, non-interactive thumbnail */
-export const ThumbnailRenderer = memo(function ThumbnailRenderer({
-  frameNode,
-  store,
-}: ThumbnailRendererProps) {
+export const ThumbnailRenderer = memo(function ThumbnailRenderer(
+  props: ThumbnailRendererProps,
+) {
+  const { frameNode, store } = props;
   const childNodes = frameNode.children
     .map((id) => store.getNode(id))
     .filter(Boolean) as SceneNode[];
@@ -67,6 +69,8 @@ function ThumbnailNodeRenderer({
       return <StaticTextRenderer node={node as TextNode} />;
     case 'FRAME':
       return <StaticFrameRenderer node={node as FrameNode} store={store} />;
+    case 'SLIDE':
+      return <StaticSlideRenderer node={node as SlideNode} store={store} />;
     default:
       return null;
   }
@@ -107,6 +111,41 @@ function StaticFrameRenderer({
   store,
 }: {
   node: FrameNode
+  store: SceneGraphStore
+}) {
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const childNodes = node.children
+    .map((id) => store.getNode(id))
+    .filter(Boolean) as SceneNode[];
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        borderRadius: node.cornerRadius,
+        overflow: node.clipsContent ? 'hidden' : undefined,
+        transform: nodeTransform(node.x, node.y, node.rotation),
+        backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
+        ...strokeStyles(stroke),
+      }}
+    >
+      {childNodes.map((child) => (
+        <ThumbnailNodeRenderer key={child.id} node={child} store={store} />
+      ))}
+    </div>
+  );
+}
+
+/** Static slide — renders children recursively, no data-node-id for hit-testing */
+function StaticSlideRenderer({
+  node,
+  store,
+}: {
+  node: SlideNode
   store: SceneGraphStore
 }) {
   const fill = getFirstVisibleFill(node.fills);

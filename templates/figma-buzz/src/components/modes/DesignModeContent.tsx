@@ -461,6 +461,7 @@ function nodeTypeLabel(node: SceneNode): string {
     case 'GROUP': return 'Group';
     case 'VECTOR': return 'Vector path';
     case 'POLYGON': return 'Polygon';
+    case 'SLIDE': return 'Slide';
     case 'STAR': return 'Star';
   }
 }

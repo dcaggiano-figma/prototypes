@@ -3,61 +3,66 @@ import { isGeometryNode } from './world-position';
 
 // ── Layout constants ────────────────────────────────────────────────
 
-export const FRAME_WIDTH = 400;
-export const FRAME_HEIGHT = 500;
-export const FRAME_GAP = 100;
+export const SLIDE_WIDTH = 400;
+export const SLIDE_HEIGHT = 500;
+export const SLIDE_GAP = 100;
 export const ROW_GAP = 200;
-export const FRAMES_PER_ROW = 3;
 
-/** Uniform padding inside sections (all sides) */
-export const SECTION_PAD = 100;
+/** Vertical offset from section top to slide content area */
+const CONTENT_TOP = 40;
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-/** Get the world position for a frame at a given row and column index (uses default sizes) */
-export function getFramePosition(_row: number, col: number): { x: number; y: number } {
+/** Get the local position for a slide at a given row and column index (uses default sizes) */
+export function getSlidePosition(_row: number, col: number): { x: number; y: number } {
   return {
-    x: SECTION_PAD + col * (FRAME_WIDTH + FRAME_GAP),
-    y: SECTION_PAD,
+    x: col * (SLIDE_WIDTH + SLIDE_GAP),
+    y: CONTENT_TOP,
   };
 }
 
-/** Get the bounding box of a section row (includes padding around frames, uses default sizes) */
-export function getSectionBounds(_row: number, frameCount: number): {
+/** Get the bounding box of a section row (uses default sizes) */
+export function getSectionBounds(_row: number, slideCount: number): {
   x: number
   y: number
   width: number
   height: number
 } {
-  const cols = Math.min(frameCount, FRAMES_PER_ROW);
+  const cols = slideCount;
   return {
     x: 0,
     y: 0,
-    width: SECTION_PAD * 2 + cols * FRAME_WIDTH + Math.max(0, cols - 1) * FRAME_GAP,
-    height: SECTION_PAD * 2 + FRAME_HEIGHT,
+    width: cols * SLIDE_WIDTH + Math.max(0, cols - 1) * SLIDE_GAP,
+    height: CONTENT_TOP + SLIDE_HEIGHT,
   };
 }
 
 /** Get the world-space Y offset for a section row (uses default sizes) */
 export function getSectionRowY(row: number): number {
-  const rowHeight = SECTION_PAD * 2 + FRAME_HEIGHT;
+  const rowHeight = CONTENT_TOP + SLIDE_HEIGHT;
   return row * (rowHeight + ROW_GAP);
 }
 
 /**
- * Recompute grid layout: repositions all sections and their child frames
- * to maintain the structured grid layout. Uses actual frame sizes so that
+ * Recompute grid layout: repositions all sections and their child slides
+ * to maintain the structured grid layout. Uses actual slide sizes so that
  * sections resize to fit their children and rows are consistently spaced.
+ *
+ * All sections are set to the maximum row width so top borders align.
  */
 export function recomputeGridLayout(store: SceneGraphStore, sectionIds: string[]): void {
-  let cumulativeY = 0;
+  // First pass: compute each section's natural width and tallest child
+  const sectionData: Array<{
+    id: string
+    childSizes: Array<{ id: string; width: number; height: number }>
+    naturalWidth: number
+    maxChildHeight: number
+  }> = [];
 
-  for (let row = 0; row < sectionIds.length; row++) {
-    const sectionId = sectionIds[row];
+  for (const sectionId of sectionIds) {
     const section = store.getNode(sectionId);
     if (!section || section.type !== 'SECTION') continue;
 
-    // Gather actual child frame sizes
     const childSizes: { id: string; width: number; height: number }[] = [];
     for (const childId of section.children) {
       const child = store.getNode(childId);
@@ -65,39 +70,57 @@ export function recomputeGridLayout(store: SceneGraphStore, sectionIds: string[]
       childSizes.push({ id: child.id, width: child.width, height: child.height });
     }
 
-    // Compute the tallest frame in this section
     const maxChildHeight = childSizes.length > 0
       ? Math.max(...childSizes.map((c) => c.height))
-      : FRAME_HEIGHT;
+      : SLIDE_HEIGHT;
 
-    // Position each child frame: lay out left-to-right using actual widths
-    let cursorX = SECTION_PAD;
+    // Compute natural width: slides laid out left-to-right
+    let cursorX = 0;
     for (let col = 0; col < childSizes.length; col++) {
-      const child = childSizes[col];
-      if (col > 0) cursorX += FRAME_GAP;
+      if (col > 0) cursorX += SLIDE_GAP;
+      cursorX += childSizes[col].width;
+    }
 
-      // Align frames to the top of the content area
+    sectionData.push({
+      id: sectionId,
+      childSizes,
+      naturalWidth: cursorX,
+      maxChildHeight,
+    });
+  }
+
+  // Second pass: find the maximum width across all sections
+  const maxWidth = sectionData.length > 0
+    ? Math.max(...sectionData.map((s) => s.naturalWidth))
+    : SLIDE_WIDTH;
+
+  // Third pass: position slides and set section bounds
+  let cumulativeY = 0;
+  for (const data of sectionData) {
+    // Position each child slide left-to-right
+    let cursorX = 0;
+    for (let col = 0; col < data.childSizes.length; col++) {
+      const child = data.childSizes[col];
+      if (col > 0) cursorX += SLIDE_GAP;
+
       store.updateNode(child.id, {
         x: cursorX,
-        y: SECTION_PAD,
+        y: CONTENT_TOP,
       });
 
       cursorX += child.width;
     }
 
-    // Compute section bounds from actual children
-    const sectionWidth = cursorX + SECTION_PAD;
-    const sectionHeight = SECTION_PAD * 2 + maxChildHeight;
+    const sectionHeight = CONTENT_TOP + data.maxChildHeight;
 
-    // Update section position and size
-    store.updateNode(sectionId, {
+    // All sections get the max width so borders align
+    store.updateNode(data.id, {
       x: 0,
       y: cumulativeY,
-      width: sectionWidth,
+      width: maxWidth,
       height: sectionHeight,
     });
 
-    // Advance cumulative Y for next row
     cumulativeY += sectionHeight + ROW_GAP;
   }
 }

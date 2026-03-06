@@ -13,13 +13,13 @@ import { CURSORS } from '../cursors';
 import { useTextEditing } from '../text-editing/provider';
 import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from '../tools/path-smoothing';
 import type { Point } from '../tools/path-smoothing';
-import { applyNodeReparenting, applySectionReparenting } from '../scene-graph/section-reparenting';
+import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
 import { findNodeAtWorldPoint } from '../scene-graph/selection-utils';
 import { CanvasRenderer } from './canvas-renderer';
 import { CommentPinLayer, useComments } from '@prototype/shared';
 import { useViewMode } from '../../components/ViewModeContext';
-import { isManagedFrame, findDropTarget, applyGridDrop, getDropIndicatorX, type DropTarget } from '../scene-graph/grid-manager';
-import { SECTION_PAD, recomputeGridLayout } from '../scene-graph/grid-layout';
+import { isManagedSlide, findDropTarget, applyGridDrop, getDropIndicatorX, type DropTarget } from '../scene-graph/grid-manager';
+import { recomputeGridLayout } from '../scene-graph/grid-layout';
 
 /** Shape tools that support click-drag-to-create */
 const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
@@ -148,6 +148,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     nodeType: NodeType
     startWorldX: number
     startWorldY: number
+    /** Parent's world offset for converting world→local coords during drag */
+    parentOffsetX: number
+    parentOffsetY: number
   } | null>(null);
 
   /** Skip the click-away text editing exit on the pointerup that follows text creation */
@@ -686,6 +689,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       // Only handle left-click (button 0) — right-clicks use the context menu
       if (e.button !== 0) return;
 
+      selection.setHovered(null);
+
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
 
@@ -754,12 +759,15 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
       // Text tool: click-to-place a text node and enter editing
       if (effectiveTool === 'TEXT') {
+        const { parentId, worldToLocal } = getCreationParent(store, selection.enteredFrameId, focusedFrameId);
+        const local = worldToLocal(world.x, world.y);
         const node = store.createNode('TEXT', {
-          x: world.x,
-          y: world.y,
+          x: local.x,
+          y: local.y,
           width: 120,
           height: 22,
           fills: [TEXT_FILL],
+          ...(parentId ? { parentId } : {}),
         });
         selection.select(node.id);
         textEditing.startEditing(node.id);
@@ -778,19 +786,29 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         if (nodeType === 'FRAME') extra.clipsContent = true;
         if (isSection) { extra.strokes = [SECTION_STROKE]; extra.cornerRadius = 8; }
         if (isLine) extra.strokes = [DEFAULT_STROKE];
+        // Parent into focused/entered frame (not for sections which are top-level pages)
+        const { parentId, worldToLocal } = isSection
+          ? { parentId: null, worldToLocal: (wx: number, wy: number) => ({ x: wx, y: wy }) }
+          : getCreationParent(store, selection.enteredFrameId, focusedFrameId);
+        const local = worldToLocal(world.x, world.y);
+        const pOffsetX = world.x - local.x;
+        const pOffsetY = world.y - local.y;
         const node = store.createNode(nodeType, {
-          x: world.x,
-          y: world.y,
+          x: local.x,
+          y: local.y,
           width: 0,
           height: 0,
           fills,
           ...extra,
+          ...(parentId ? { parentId } : {}),
         });
         creationRef.current = {
           nodeId: node.id,
           nodeType,
           startWorldX: world.x,
           startWorldY: world.y,
+          parentOffsetX: pOffsetX,
+          parentOffsetY: pOffsetY,
         };
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
         return;
@@ -867,11 +885,18 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       }
     },
-    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, setInteraction, drawColor, drawStrokeWeight, drawOpacity, viewMode],
+    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, setInteraction, drawColor, drawStrokeWeight, drawOpacity, viewMode, focusedFrameId],
   );
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
+      // Hover tracking — only when no active interaction
+      if (!pencilRef.current && !creationRef.current && !panRef.current && !dragRef.current) {
+        const hitId = resolveHoverNode(e.target as HTMLElement);
+        const hoverTarget = hitId && !selection.isSelected(hitId) ? hitId : null;
+        selection.setHovered(hoverTarget);
+      }
+
       // Pencil drawing — append points to live preview
       const pencil = pencilRef.current;
       if (pencil) {
@@ -911,6 +936,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         const localX = e.clientX - rect.left;
         const localY = e.clientY - rect.top;
         const world = screenToWorld(localX, localY);
+        const pOx = creation.parentOffsetX;
+        const pOy = creation.parentOffsetY;
 
         // LINE: compute width as distance, rotation as angle, height stays 0
         if (creation.nodeType === 'LINE') {
@@ -927,8 +954,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           }
 
           store.updateNode(creation.nodeId, {
-            x: creation.startWorldX,
-            y: creation.startWorldY,
+            x: creation.startWorldX - pOx,
+            y: creation.startWorldY - pOy,
             width: length,
             height: 0,
             rotation: angle,
@@ -951,7 +978,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           if (world.y < creation.startWorldY) y = creation.startWorldY - size;
         }
 
-        store.updateNode(creation.nodeId, { x, y, width: w, height: h });
+        store.updateNode(creation.nodeId, { x: x - pOx, y: y - pOy, width: w, height: h });
         return;
       }
 
@@ -1003,7 +1030,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       const world = screenToWorld(localX, localY);
 
       // Check if dragging a managed grid frame
-      const isManagedDrag = drag.nodeIds.length === 1 && isManagedFrame(store, drag.nodeIds[0]);
+      const isManagedDrag = drag.nodeIds.length === 1 && isManagedSlide(store, drag.nodeIds[0]);
       if (isManagedDrag) {
         // Compute drop target instead of free movement
         const target = findDropTarget(store, world.x, world.y, drag.nodeIds[0]);
@@ -1063,15 +1090,18 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           position: 'CENTER' as const,
         };
 
-        // Create the VectorNode
+        // Create the VectorNode — parent into focused/entered frame
+        const { parentId: vecParentId, worldToLocal: vecW2L } = getCreationParent(store, selection.enteredFrameId, focusedFrameId);
+        const vecLocal = vecW2L(bounds.x, bounds.y);
         const node = store.createNode('VECTOR', {
-          x: bounds.x,
-          y: bounds.y,
+          x: vecLocal.x,
+          y: vecLocal.y,
           width: w,
           height: h,
           fills: [],
           strokes: [stroke],
           paths: [{ d }],
+          ...(vecParentId ? { parentId: vecParentId } : {}),
         });
 
         selection.select(node.id);
@@ -1098,10 +1128,12 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         if (node && isGeometryNode(node)) {
           // If the shape is too small (click without meaningful drag), set a default size
           if (node.width < 2 && node.height < 2) {
+            const pOx = creation.parentOffsetX;
+            const pOy = creation.parentOffsetY;
             if (creation.nodeType === 'LINE') {
               store.updateNode(creation.nodeId, {
-                x: creation.startWorldX,
-                y: creation.startWorldY,
+                x: creation.startWorldX - pOx,
+                y: creation.startWorldY - pOy,
                 width: 100,
                 height: 0,
                 rotation: 0,
@@ -1110,8 +1142,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
               const defaultW = creation.nodeType === 'FRAME' ? 200 : creation.nodeType === 'SECTION' ? 300 : 100;
               const defaultH = creation.nodeType === 'FRAME' ? 150 : creation.nodeType === 'SECTION' ? 200 : 100;
               store.updateNode(creation.nodeId, {
-                x: creation.startWorldX,
-                y: creation.startWorldY,
+                x: creation.startWorldX - pOx,
+                y: creation.startWorldY - pOy,
                 width: defaultW,
                 height: defaultH,
               });
@@ -1119,8 +1151,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           }
         }
         selection.select(creation.nodeId);
-        if (creation.nodeType === 'SECTION') {
-          applySectionReparenting(store, creation.nodeId);
+        const createdNode = store.getNode(creation.nodeId);
+        if (createdNode && isContainer(createdNode)) {
+          applyContainerReparenting(store, creation.nodeId);
         } else {
           applyNodeReparenting(store, [creation.nodeId]);
         }
@@ -1188,7 +1221,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         lastClickRef.current = null;
 
         // Handle managed grid frame drop
-        const isManagedDrag = drag.nodeIds.length === 1 && isManagedFrame(store, drag.nodeIds[0]);
+        const isManagedDrag = drag.nodeIds.length === 1 && isManagedSlide(store, drag.nodeIds[0]);
         if (isManagedDrag && gridDropTarget) {
           applyGridDrop(store, drag.nodeIds[0], gridDropTarget);
           setGridDropTarget(null);
@@ -1196,10 +1229,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         }
         setGridDropTarget(null);
 
-        const sectionIds = drag.nodeIds.filter((id) => store.getNode(id)?.type === 'SECTION');
-        const nonSectionIds = drag.nodeIds.filter((id) => store.getNode(id)?.type !== 'SECTION');
-        for (const sid of sectionIds) applySectionReparenting(store, sid);
-        applyNodeReparenting(store, nonSectionIds);
+        const containerIds = drag.nodeIds.filter((id) => { const n = store.getNode(id); return n && isContainer(n); });
+        for (const cid of containerIds) applyContainerReparenting(store, cid);
+        applyNodeReparenting(store, drag.nodeIds);
         return;
       }
 
@@ -1350,6 +1382,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerLeave={() => selection.setHovered(null)}
       onContextMenu={onContextMenu}
     >
       <div
@@ -1432,8 +1465,8 @@ function resolveHitNode(el: HTMLElement, enteredFrameId: string | null): string 
   chain.reverse();
 
   if (enteredFrameId === null) {
-    // Not inside any frame — select the root-level node
-    return chain[0];
+    // Select the innermost (deepest) node so children are directly clickable
+    return chain[chain.length - 1];
   }
 
   // Find the entered frame in the chain
@@ -1450,6 +1483,47 @@ function resolveHitNode(el: HTMLElement, enteredFrameId: string | null): string 
 
   // Click landed directly on the entered frame (no deeper child)
   return enteredFrameId;
+}
+
+/**
+ * Resolve the innermost (deepest) node under the pointer for hover outlines.
+ * Unlike resolveHitNode which returns the root-level ancestor for selection,
+ * this returns the closest node to the pointer so children inside frames/sections
+ * get hover outlines too.
+ */
+function resolveHoverNode(el: HTMLElement): string | null {
+  let cur: HTMLElement | null = el;
+  while (cur) {
+    const id = cur.dataset?.nodeId;
+    if (id) return id;
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Determine the parent frame for node creation in buzz.
+ * Uses enteredFrameId (double-clicked into) or focusedFrameId (asset view).
+ * Returns the parentId and a function to convert world coords to local coords.
+ */
+function getCreationParent(
+  store: ReturnType<typeof useSceneGraph>,
+  enteredFrameId: string | null,
+  focusedFrameId: string | null,
+): { parentId: string | null; worldToLocal: (wx: number, wy: number) => { x: number; y: number } } {
+  const parentId = enteredFrameId ?? focusedFrameId;
+  if (!parentId) {
+    return { parentId: null, worldToLocal: (wx, wy) => ({ x: wx, y: wy }) };
+  }
+  const parent = store.getNode(parentId);
+  if (!parent || !isGeometryNode(parent)) {
+    return { parentId: null, worldToLocal: (wx, wy) => ({ x: wx, y: wy }) };
+  }
+  const parentWorld = getWorldPosition(store, parent);
+  return {
+    parentId,
+    worldToLocal: (wx, wy) => ({ x: wx - parentWorld.x, y: wy - parentWorld.y }),
+  };
 }
 
 interface Rect {
@@ -1524,9 +1598,9 @@ function GridDropIndicator({
       style={{
         position: 'absolute',
         left: x - 1,
-        top: sWorld.y + SECTION_PAD,
+        top: sWorld.y + 40,
         width: 2,
-        height: section.height - SECTION_PAD * 2,
+        height: section.height - 40,
         backgroundColor: '#0d99ff',
         borderRadius: 1,
         pointerEvents: 'none',
