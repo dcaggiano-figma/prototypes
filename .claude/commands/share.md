@@ -12,9 +12,9 @@ Steps:
 6. Watch the run until it completes: `gh run watch <run-id>` (use a long timeout since shares can take several minutes).
 7. Check the exit code of `gh run watch`. If it failed, show the user the failure logs with `gh run view <run-id> --log-failed`.
 8. Tell the user the result:
-   - If **successful**: extract the share URL programmatically with:
+   - If **successful**: extract the share URL from the logs:
      ```
-     gh run view <run-id> --log 2>&1 | grep 'Shared at:' | sed 's/.*Shared at: //'
+     gh run view <run-id> --log 2>&1 | grep -o 'https://protov2\.figma\.design/share/[^ "]*' | grep -v '\$'
      ```
-     Show the extracted URL as a clickable link to the user.
+     Show the user the EXACT URL from the command output as a clickable link. Do NOT modify, truncate, or reformat the URL — copy it character-for-character.
    - If **failed**: show the error output and link to the run with `gh run view <run-id> --web`
