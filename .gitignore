@@ -55,3 +55,6 @@ tmp/
 
 # Element inspector feedback data
 .claude/feedback/
+
+# Dev server runtime file (written by proto-cli, cleaned up on exit)
+.dev-server.json
