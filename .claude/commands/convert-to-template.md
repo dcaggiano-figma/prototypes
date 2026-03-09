@@ -50,7 +50,11 @@ In `templates/<name>/package.json`:
 - Add or update the `"template"` field: `{ "displayName": "<display_name>" }`
 - Keep everything else (dependencies, scripts, etc.) as-is
 
-### 6. Add `template.json`
+### 6. Add template to CI verification matrix
+
+In `.github/workflows/verify-templates.yml`, add the new template directory name to the `matrix.template` list in the `verify-templates` job. Keep the list in alphabetical order.
+
+### 7. Add `template.json`
 
 Create `templates/<name>/template.json`:
 
@@ -62,7 +66,7 @@ Create `templates/<name>/template.json`:
 }
 ```
 
-### 7. Ensure `.claude/CLAUDE.md` exists
+### 8. Ensure `.claude/CLAUDE.md` exists
 
 If `templates/<name>/.claude/CLAUDE.md` doesn't already exist, create it with the standard content:
 
@@ -78,7 +82,7 @@ ESLint warnings in prototype apps indicate you are straying from the design syst
 
 Also ensure `templates/<name>/.claude/instructions/.gitkeep` exists.
 
-### 8. Delete `apps/prototype/`
+### 9. Delete `apps/prototype/`
 
 Remove the original prototype directory:
 
@@ -86,15 +90,15 @@ Remove the original prototype directory:
 rm -rf apps/prototype/
 ```
 
-### 9. Clean up `.env.ports`
+### 10. Clean up `.env.ports`
 
 Read `.env.ports` at the repo root. If it contains an entry for the prototype (e.g. `PROTOTYPE_PORT=...`), remove that line. Leave other entries intact.
 
-### 10. Run `pnpm install`
+### 11. Run `pnpm install`
 
 Run `pnpm install` to re-link the workspace with the new template location.
 
-### 11. Validate
+### 12. Validate
 
 Run the following in the new template directory and fix any issues:
 
@@ -104,17 +108,18 @@ cd templates/<name> && pnpm build && pnpm lint && pnpm typecheck
 
 If there are errors, fix them before continuing. Iterate until all three pass cleanly.
 
-### 12. Screenshot
+### 13. Screenshot
 
 Use the `/screenshot` skill to take a screenshot of the template. The screenshot should be saved as `templates/<name>/screenshot.png`. This is required for non-hidden templates so they show a preview in the template picker.
 
-### 13. Commit, push, and open a PR
+### 14. Commit, push, and open a PR
 
 1. Create a new branch: `git checkout -b template/<name>`
 2. Stage the relevant files:
    - `templates/<name>/` (the new template)
    - Deletion of `apps/prototype/`
    - Changes to `packages/` (if "Update shared code" was chosen in step 2)
+   - `.github/workflows/verify-templates.yml` (CI matrix update from step 6)
    - Any changes to `.env.ports` or `pnpm-lock.yaml`
 3. Commit with a message like: `feat: add <display_name> template`
 4. Push: `git push -u origin template/<name>`

@@ -29,6 +29,6 @@
     "build": "pnpm -r --filter './templates/*' build && pnpm --filter @apps/prototype build",
     "lint": "pnpm -r --filter './templates/*' lint",
     "typecheck": "pnpm -r --filter './templates/*' typecheck",
-    "verify": "pnpm -r --filter './templates/*' verify"
+    "verify": "pnpm -r --filter './templates/*' --filter './apps/*' verify"
   }
 }
