@@ -109,18 +109,14 @@ PNPM_MAJOR="${PNPM_VERSION%%.*}"
 
 if [[ "$PNPM_MAJOR" -ge 10 ]] 2>/dev/null; then
   pass "pnpm $PNPM_VERSION already installed"
-elif [[ "$PLATFORM" == "Darwin" ]]; then
-  info "Installing pnpm 10..."
-  npm install -g pnpm@10
-  hash -r
-  pass "pnpm $(pnpm --version) installed"
-else
-  # Linux — use corepack (ships with Node 22) instead of npm install -g.
+elif command -v corepack &>/dev/null; then
   info "Installing pnpm 10 via corepack..."
   corepack enable pnpm
-  corepack prepare pnpm@latest --activate
+  corepack install -g pnpm@10
   hash -r
   pass "pnpm $(pnpm --version) installed via corepack"
+else
+  fail "corepack not found" "corepack is required to install pnpm. Re-install Node 22 or run 'npm install -g corepack' first."
 fi
 
 # --- Step 4: gh (GitHub CLI) ---
