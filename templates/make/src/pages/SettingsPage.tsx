@@ -4,7 +4,7 @@ import {
   useRef,
   type ReactElement,
 } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from '@tanstack/react-router';
 import {
   Menu,
   IconButton,
@@ -386,7 +386,7 @@ const SETTINGS_PANELS: Record<string, () => ReactElement> = {
 export function SettingsPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const locationState = location.state as { section?: string } | null;
+  const locationState = (location.state ?? null) as { section?: string } | null;
 
   const [activeSection, setActiveSection] = useState(locationState?.section || 'general');
 
@@ -431,7 +431,7 @@ export function SettingsPage() {
   };
 
   const handleBack = () => {
-    navigate('/working');
+    navigate({ to: '/working' });
   };
 
   const ActivePanel = SETTINGS_PANELS[activeSection] || GeneralSettings;

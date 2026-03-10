@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:file": "eslint --fix",
@@ -26,7 +26,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "catalog:",
-    "react-router-dom": "^7.13.0",
+    "@tanstack/react-router": "^1.114.0",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -34,6 +34,7 @@
     "@figma/ppg-tailwind-config": "^0.7.0",
     "@figma/ppg-tsconfig": "^0.7.0",
     "@figma/ppg-vite-config": "^0.7.0",
+    "@tanstack/router-plugin": "^1.114.0",
     "@types/node": "^20.11.5",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Menu,
   IconButton,
@@ -45,7 +45,7 @@ import { SnapshotWindow } from '../components/SnapshotWindow';
 export function WorkingPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const locationState = location.state as {
+  const locationState = (location.state ?? null) as {
     prompt?: string;
     attachments?: Attachment[];
     inspectedElements?: InspectedElement[];
@@ -145,7 +145,7 @@ export function WorkingPage() {
                 <Menu.SubMenu>
                   <Menu.SubTrigger>File</Menu.SubTrigger>
                   <Menu.SubContainer>
-                    <Menu.Item onClick={() => { ws.reset(); navigate('/'); }}>New Make</Menu.Item>
+                    <Menu.Item onClick={() => { ws.reset(); navigate({ to: '/' }); }}>New Make</Menu.Item>
                     <Menu.SubMenu>
                       <Menu.SubTrigger>New</Menu.SubTrigger>
                       <Menu.SubContainer>
@@ -398,33 +398,33 @@ export function WorkingPage() {
                 </IconButton>
                 <Menu.Container>
                   <Menu.Group>
-                    <Menu.Item onClick={() => navigate('/settings', { state: { section: 'general' } })}>
+                    <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'general' } })}>
                       <Menu.ItemLead><Icon24Adjust /></Menu.ItemLead>
                       General
                     </Menu.Item>
-                    <Menu.Item onClick={() => navigate('/settings', { state: { section: 'design-libraries' } })}>
+                    <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'design-libraries' } })}>
                       <Menu.ItemLead><Icon24Library /></Menu.ItemLead>
                       Design libraries
                     </Menu.Item>
-                    <Menu.Item onClick={() => navigate('/settings', { state: { section: 'domains' } })}>
+                    <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'domains' } })}>
                       <Menu.ItemLead><Icon24Public /></Menu.ItemLead>
                       Domains
                     </Menu.Item>
-                    <Menu.Item onClick={() => navigate('/settings', { state: { section: 'fonts' } })}>
+                    <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'fonts' } })}>
                       <Menu.ItemLead><Icon24Font /></Menu.ItemLead>
                       Fonts
                     </Menu.Item>
-                    <Menu.Item onClick={() => navigate('/settings', { state: { section: 'chat' } })}>
+                    <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'chat' } })}>
                       <Menu.ItemLead><Icon24Chat /></Menu.ItemLead>
                       Chat
                     </Menu.Item>
                   </Menu.Group>
                   <Menu.Group>
-                    <Menu.Item onClick={() => navigate('/settings', { state: { section: 'general' } })}>
+                    <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'general' } })}>
                       <Menu.ItemLead><Icon24SpacingVertical /></Menu.ItemLead>
                       Adjust guidelines
                     </Menu.Item>
-                    <Menu.Item onClick={() => navigate('/settings', { state: { section: 'general' } })}>
+                    <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'general' } })}>
                       <Menu.ItemLead><Icon24Code /></Menu.ItemLead>
                       Access code editor
                     </Menu.Item>
