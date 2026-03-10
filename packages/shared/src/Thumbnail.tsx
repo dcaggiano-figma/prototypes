@@ -77,6 +77,8 @@ interface ThumbnailPreviewProps {
   height: number
   /** Background color of the scaled content area */
   backgroundColor?: string
+  /** When true, remove padding so content fills the entire card */
+  bleed?: boolean
   /** Content to render inside the scaled container */
   children: ReactNode
 }
@@ -86,6 +88,7 @@ export const ThumbnailPreview = memo(function ThumbnailPreview({
   width,
   height,
   backgroundColor = 'rgb(255,255,255)',
+  bleed = false,
   children,
 }: ThumbnailPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -110,7 +113,10 @@ export const ThumbnailPreview = memo(function ThumbnailPreview({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full contain-strict pointer-events-none overflow-hidden relative p-2 bg-bg-secondary"
+      className={clsx(
+        'w-full h-full contain-strict pointer-events-none overflow-hidden relative',
+        bleed ? '' : 'p-2 bg-bg-secondary',
+      )}
     >
       {scale > 0 && (
         <div

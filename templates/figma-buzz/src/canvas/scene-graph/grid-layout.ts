@@ -8,8 +8,8 @@ export const SLIDE_HEIGHT = 500;
 export const SLIDE_GAP = 100;
 export const ROW_GAP = 200;
 
-/** Vertical offset from section top to slide content area */
-const CONTENT_TOP = 40;
+/** Vertical offset from section top to slide content area (includes space for slide grid card label) */
+const CONTENT_TOP = 120;
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

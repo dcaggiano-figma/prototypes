@@ -61,6 +61,7 @@ jobs:
           - figma-buzz
           - figma-design
           - figma-figjam
+          - figma-slides
           - make
 
     name: ${{ matrix.template }}

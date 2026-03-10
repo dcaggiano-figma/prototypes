@@ -3,6 +3,21 @@ import type {
 } from '../types';
 import { getWorldPosition, isGeometryNode } from './world-position';
 
+// ── Slide style ──────────────────────────────────────────────────────
+// Template-specific visual style applied to SLIDE nodes by the renderer.
+
+const SLIDE_STROKE = {
+  paint: { type: 'SOLID' as const, color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true },
+  weight: 1,
+  position: 'INSIDE' as const,
+};
+
+export const SLIDE_STYLE = {
+  cornerRadius: 0,
+  strokes: [SLIDE_STROKE] as const,
+  boxShadow: undefined as string | undefined,
+};
+
 // ── Defaults ──────────────────────────────────────────────────────────
 
 const GEOMETRY_DEFAULTS: GeometryMixin = {
@@ -84,11 +99,8 @@ function getTypeDefaults(type: NodeType): Partial<SceneNode> {
         ...GEOMETRY_DEFAULTS,
         ...APPEARANCE_DEFAULTS,
         fills: [{ type: 'SOLID', color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true }],
-        strokes: [{
-          paint: { type: 'SOLID', color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true },
-          weight: 1,
-          position: 'INSIDE' as const,
-        }],
+        strokes: [...SLIDE_STYLE.strokes],
+        cornerRadius: SLIDE_STYLE.cornerRadius,
         width: 400,
         height: 500,
         clipsContent: true,
@@ -475,7 +487,7 @@ import {
 const WHITE_FILL = { type: 'SOLID' as const, color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true };
 const SECTION_STROKE = {
   paint: { type: 'SOLID' as const, color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true },
-  weight: 1,
+  weight: 2,
   position: 'INSIDE' as const,
 };
 
@@ -495,9 +507,9 @@ function makeSlide(id: string, name: string, parentId: string, row: number, col:
     height: SLIDE_HEIGHT,
     rotation: 0,
     opacity: 1,
-    cornerRadius: 0,
+    cornerRadius: SLIDE_STYLE.cornerRadius,
     fills: [WHITE_FILL],
-    strokes: [SECTION_STROKE],
+    strokes: [...SLIDE_STYLE.strokes],
     effects: [],
     clipsContent: true,
   } as SceneNode;

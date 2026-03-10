@@ -375,6 +375,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      motion:
+        specifier: 'catalog:'
+        version: 12.34.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -502,6 +505,82 @@ importers:
         version: 5.4.21(@types/node@20.19.33)
 
   templates/figma-figjam:
+    dependencies:
+      '@figma/fpl-components':
+        specifier: 0.0.2-release-test.4
+        version: 0.0.2-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+      '@figma/fpl-icons':
+        specifier: 0.0.1-release-test.4
+        version: 0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@figma/fpl-tokens':
+        specifier: 0.0.1-release-test.4
+        version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ui':
+        specifier: 'catalog:'
+        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+      '@prototype/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@tanstack/react-router':
+        specifier: ^1.114.0
+        version: 1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      motion:
+        specifier: 'catalog:'
+        version: 12.34.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@figma/ppg-eslint-config':
+        specifier: 'catalog:'
+        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+      '@figma/ppg-tailwind-config':
+        specifier: 'catalog:'
+        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+      '@figma/ppg-tsconfig':
+        specifier: 'catalog:'
+        version: 1.1.0
+      '@figma/ppg-vite-config':
+        specifier: 'catalog:'
+        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+      '@tanstack/router-plugin':
+        specifier: ^1.114.0
+        version: 1.163.2(@tanstack/react-router@1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@5.4.21(@types/node@20.19.33))
+      '@types/node':
+        specifier: ^20.11.5
+        version: 20.19.33
+      '@types/react':
+        specifier: ^18.2.48
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.2.18
+        version: 18.3.7(@types/react@18.3.28)
+      autoprefixer:
+        specifier: ^10.4.20
+        version: 10.4.27(postcss@8.5.6)
+      eslint:
+        specifier: ^8.56.0
+        version: 8.57.1
+      postcss:
+        specifier: ^8.5.3
+        version: 8.5.6
+      tailwindcss:
+        specifier: ^3.4.17
+        version: 3.4.19(tsx@4.21.0)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vite:
+        specifier: ^5.0.11
+        version: 5.4.21(@types/node@20.19.33)
+
+  templates/figma-slides:
     dependencies:
       '@figma/fpl-components':
         specifier: 0.0.2-release-test.4

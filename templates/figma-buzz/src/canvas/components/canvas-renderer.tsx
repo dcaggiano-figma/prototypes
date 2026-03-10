@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ButtonPrimitive, InputPrimitive } from '@figma/fpl-components';
 
 import { useRootNodes, useSceneGraph } from '../scene-graph/provider';
+import { SLIDE_STYLE } from '../scene-graph/store';
 import { useTextEditing } from '../text-editing/provider';
 import { useViewMode } from '../../components/ViewModeContext';
 import { getWorldPosition, isGeometryNode as isGeoNode } from '../scene-graph/world-position';
@@ -98,7 +99,12 @@ function SceneNodeRenderer({
         </>
       );
     case 'SLIDE':
-      return <SlideRenderer node={node as SlideNode} store={store} />;
+      return (
+        <>
+          <SlideGridCard node={node as SlideNode} store={store} />
+          <SlideRenderer node={node as SlideNode} store={store} />
+        </>
+      );
     case 'SECTION':
       return (
         <>
@@ -335,6 +341,7 @@ function SectionRenderer({
   const selected = isSelected(node.id);
   const hovered = hoveredId === node.id;
   const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
+  const { state } = useViewport();
 
   const defaultBorderColor = stroke
     ? colorToCSS(stroke.paint.color, stroke.paint.opacity)
@@ -353,12 +360,68 @@ function SectionRenderer({
         opacity: node.opacity,
         overflow: 'visible',
         transform: nodeTransform(node.x, node.y, node.rotation),
-        borderTop: `${stroke?.weight ?? 1}px solid ${borderColor}`,
+        borderTop: `${(stroke?.weight ?? 1) / state.scale}px solid ${borderColor}`,
       }}
     >
       {childNodes.map((child) => (
         <SceneNodeRenderer key={child.id} node={child} store={store} />
       ))}
+    </div>
+  );
+}
+
+/** Card wrapper rendered behind slides in grid view with hover/selection states and a label */
+function SlideGridCard({
+  node,
+}: {
+  node: SlideNode
+  store: ReturnType<typeof useSceneGraph>
+}) {
+  const { state } = useViewport();
+  const { isSelected, hoveredId } = useSelection();
+  const { viewMode } = useViewMode();
+
+  if (viewMode === 'asset') return null;
+
+  const selected = isSelected(node.id);
+  const hovered = hoveredId === node.id;
+  const active = selected || hovered;
+
+  const labelHeight = 20 / state.scale;
+  const padX = 8 / state.scale;
+  const padTop = 8 / state.scale;
+  const padBottom = 8 / state.scale;
+  const borderRadius = 8 / state.scale;
+  const borderWidth = 1 / state.scale;
+
+  return (
+    <div
+      data-node-id={node.id}
+      style={{
+        position: 'absolute',
+        transform: `translate(${node.x - padX}px, ${node.y - labelHeight - padTop}px)`,
+        width: node.width + padX * 2,
+        height: node.height + labelHeight + padTop + padBottom,
+        borderRadius,
+        backgroundColor: active ? 'var(--color-bg-selected)' : 'transparent',
+        border: `${borderWidth}px solid ${active ? 'var(--color-border-selected)' : 'transparent'}`,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          left: padX,
+          top: padTop,
+          fontSize: 11 / state.scale,
+          lineHeight: 1,
+          color: active ? 'var(--color-border-selected)' : 'var(--color-fsTextOnLightCanvasSecondary)',
+          whiteSpace: 'nowrap',
+          userSelect: 'none',
+        }}
+      >
+        {node.name}
+      </div>
     </div>
   );
 }
@@ -387,6 +450,7 @@ function SlideRenderer({
         transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
         ...strokeStyles(stroke),
+        boxShadow: SLIDE_STYLE.boxShadow,
       }}
     >
       {childNodes.map((child) => (

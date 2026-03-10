@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { useNodeBehaviorConfig } from '../node-behavior';
 import { useSceneGraph } from '../scene-graph/provider';
 import { computeGroupScreenBBox } from '../scene-graph/selection-utils';
 import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
 import { useViewport } from '../viewport/provider';
+import { useViewMode } from '../../components/ViewModeContext';
 
 import { useSelection } from './provider';
 import { ResizeHandles } from './resize-handles';
@@ -25,6 +27,8 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
   const { selectedIds, hoveredId } = useSelection();
   const store = useSceneGraph();
   const { state: viewport } = useViewport();
+  const getBehavior = useNodeBehaviorConfig();
+  const { viewMode } = useViewMode();
 
   // Subscribe to store changes so overlay repaints when node properties change
   const [storeVersion, bumpStoreVersion] = useState(0);
@@ -59,7 +63,8 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
     // Draw hover outline (before selection so selection draws on top)
     if (hoveredId && !selectedIds.has(hoveredId)) {
       const hNode = store.getNode(hoveredId);
-      if (hNode && isGeometryNode(hNode) && hNode.type !== 'LINE' && hNode.type !== 'SECTION') {
+      if (hNode && isGeometryNode(hNode) && hNode.type !== 'LINE' && getBehavior(hNode.type).showHoverOutline
+        && !(hNode.type === 'SLIDE' && viewMode !== 'asset')) {
         const hWorld = getWorldPosition(store, hNode);
         const hsx = hWorld.x * viewport.scale + viewport.origin.x;
         const hsy = hWorld.y * viewport.scale + viewport.origin.y;
@@ -90,8 +95,10 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
 
       // Lines render their selection outline via DOM in ResizeHandles
       if (node.type === 'LINE') continue;
-      // Sections use custom top-border highlighting, not standard selection overlay
-      if (node.type === 'SECTION') continue;
+      // Check per-node-type config for selection outline
+      if (!getBehavior(node.type).showSelectionOutline) continue;
+      // In grid view, slides use SlideGridCard for selection visuals
+      if (node.type === 'SLIDE' && viewMode !== 'asset') continue;
 
       // Convert world-space bounds to screen-space
       const world = getWorldPosition(store, node);
@@ -201,7 +208,7 @@ export function SelectionOverlay({ dragBox }: SelectionOverlayProps) {
         ctx.strokeRect(bx, by, bw, bh);
       }
     }
-  }, [selectedIds, hoveredId, store, storeVersion, viewport, dragBox]);
+  }, [selectedIds, hoveredId, store, storeVersion, viewport, dragBox, viewMode, getBehavior]);
 
   // Resize observer to keep canvas size in sync
   useEffect(() => {
