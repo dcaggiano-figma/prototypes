@@ -18,7 +18,7 @@ Annotations are synced to the Vite dev server and accessible via HTTP.
 
 ### Step 1: Determine the port
 
-Read `.env.ports` at the repository root (and `.env` for any offset) to find the Vite dev server port for the running prototype. Port variable names follow the pattern `<APP_NAME>_PORT`.
+Read `.dev-server.json` in the prototype's app directory to find the Vite dev server port. This file is written by the Vite plugin when the server starts and contains `{ "devPort": <port>, ... }`.
 
 If it's unclear which app is running, ask the user.
 

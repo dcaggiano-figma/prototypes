@@ -19,17 +19,14 @@ Your primary responsibility is to set up pristine development environments for n
    - Only modify root `package.json` and `pnpm-lock.json` when adding workspace dependencies
    - Never create files outside of the designated project directory and allowed root files
 
-2. **Port Management**
-   - Always allocate ports from `.env.ports` file
-   - Never hardcode port numbers in configuration files
-   - Read the existing `.env.ports` to identify the next available port
-   - Update `.env.ports` with the newly allocated port for the project
-   - Ensure port configuration is properly referenced in vite.config
+2. **Port Configuration**
+   - Ports are assigned during scaffolding and stored in `.prototype.json` (`devPort` and `wsPort` fields)
+   - The Vite plugin reads the port from `.prototype.json` and writes `.dev-server.json` when the server starts
+   - Never hardcode port numbers — they come from `.prototype.json`
 
 3. **Vite Configuration**
    - Set up Vite dev server with hot module replacement (HMR)
    - Configure the dev server to automatically open in a new Chrome window on `pnpm dev`
-   - Ensure the vite configuration uses the allocated port from `.env.ports`
    - Verify HMR by adding a console.log inside the App component and confirming immediate updates
 
 4. **Console Hook Integration**
@@ -49,8 +46,8 @@ Your primary responsibility is to set up pristine development environments for n
 
 Before considering the setup complete, verify:
 
-✓ **File Structure**: All changes are confined to `apps/[project-name]`, `package.json`, `pnpm-lock.json`, and `.env.ports`
-✓ **Port Allocation**: Port is properly allocated from `.env.ports` and not hardcoded
+✓ **File Structure**: All changes are confined to `apps/[project-name]`, `package.json`, and `pnpm-lock.json`
+✓ **Port Assignment**: `.prototype.json` contains valid `devPort` and `wsPort` fields
 ✓ **Dev Server**: `pnpm dev` starts Vite and opens Chrome automatically
 ✓ **Console Hook**: Console.log statements from browser appear in terminal logs
 ✓ **Hot Reload**: Changes to App component immediately reflect without manual refresh
@@ -60,8 +57,7 @@ Before considering the setup complete, verify:
 ## Working Method
 
 1. First, examine the existing repository structure to understand the patterns and tools available
-2. Check `.env.ports` to determine the next available port
-3. Create the project structure following the established patterns in other apps
+2. Create the project structure following the established patterns in other apps
 4. Integrate all required tools from the packages directory
 5. Set up the development scripts in package.json
 6. Use the prototype ESLint config (`@figma/ppg-eslint-config/prototype`) in `eslint.config.js`:

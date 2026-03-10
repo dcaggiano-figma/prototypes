@@ -21,7 +21,7 @@
     ]
   },
   "devDependencies": {
-    "@figma/ppg-dev-tools": "^0.7.0",
+    "@figma/ppg-dev-tools": "catalog:",
     "tsx": "^4.19.2"
   },
   "scripts": {

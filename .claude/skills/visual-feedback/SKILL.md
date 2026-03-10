@@ -20,7 +20,7 @@ First, make sure you are in the working directory of the prototype app (where `v
 curl -sf http://localhost:<PORT>/ > /dev/null && echo "running" || echo "not running"
 ```
 
-To find the port, read `vite.config.ts` for the `portEnvVar` name, then check `.env.ports` / `.env` for that variable's value.
+To find the port, read `.dev-server.json` in the app directory — it contains `{ "devPort": <port>, ... }` written by the Vite plugin when the server starts.
 
 - If the server **is** running — skip to Step 2.
 - If the server is **not** running — start it as a background task: `pnpm dev` (in the app directory). Wait for it to be ready before continuing.
@@ -36,7 +36,7 @@ pnpm visual-feedback
 ```
 
 **Run this as a background task** (not blocking). The CLI will:
-1. Auto-detect the dev server URL from `vite.config.ts` + `.env` files
+1. Auto-detect the dev server URL from `.dev-server.json`
 2. Connect to the dev server
 3. **Check for existing submitted annotations** — if found, output them immediately and exit
 4. Otherwise, open a browser tab, signal the UI that it's listening, and wait for submit

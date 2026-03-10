@@ -17,7 +17,7 @@ Take a headless screenshot of a running prototype app using the `@figma/ppg-scre
 
 ### Step 1: Determine the app and port
 
-Read `.env.ports` at the repository root to find the port for the target app. Port variable names follow the pattern `<APP_NAME>_PORT` (e.g., `EXAMPLE_PROTOTYPE_PORT=5173`).
+Read `.dev-server.json` in the app directory to find the port for the target app. This file is written by the Vite plugin when the server starts and contains `{ "devPort": <port>, ... }`.
 
 If it's unclear which app to screenshot, ask the user.
 
@@ -62,7 +62,7 @@ pnpm screenshot exec ./my-script.js
 In `exec` mode, `browser`, `context`, `page`, and `chromium` are pre-initialized globals. `page` starts blank — your code does everything. The argument can be either inline code or a path to a `.js`/`.ts` file.
 
 Replace:
-- `<PORT>` with the port from `.env.ports`
+- `<PORT>` with the `devPort` from `.dev-server.json`
 - `<OUTPUT_PATH>` with an absolute path like `<app-dir>/screenshot.png`
 
 ### Step 3: View the screenshot

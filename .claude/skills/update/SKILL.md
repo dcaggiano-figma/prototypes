@@ -57,7 +57,7 @@ These files are owned by the template and should be kept in sync:
 
 | File | Special handling |
 |------|-----------------|
-| `vite.config.ts` | Preserve `portEnvVar` and `wsPortEnvVar` values from the prototype's version |
+| `vite.config.ts` | Direct copy |
 | `tailwind.config.js` | Direct copy |
 | `postcss.config.js` | Direct copy |
 | `tsconfig.json` | Direct copy |
@@ -82,10 +82,6 @@ These files are owned by the template and should be kept in sync:
    - **Apply template version** — overwrite with the template's file
    - **Keep current version** — leave the prototype's file as-is
    - **Manual merge** — show both versions and let the user decide what to keep
-
-### vite.config.ts special handling
-
-When syncing `vite.config.ts`, the prototype's `portEnvVar` and `wsPortEnvVar` values must be preserved. After copying the template version, replace the template's `portEnvVar` and `wsPortEnvVar` values with the prototype's original values.
 
 ### package.json merge strategy
 

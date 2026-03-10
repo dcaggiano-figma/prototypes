@@ -4,8 +4,8 @@ import fplPreset from '@figma/ppg-tailwind-config';
 export default {
   presets: [fplPreset],
   content: [
+    ...fplPreset.content,
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
-    './node_modules/@figma/ppg-ui/src/**/*.{ts,tsx}',
   ],
 };

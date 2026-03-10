@@ -46,9 +46,6 @@ test -f fpl/packages/components/dist/entry/public.js && echo "FPL packages: OK" 
 # Check if dev-tools is built
 test -f proto/packages/dev-tools/dist/index.js && echo "dev-tools: OK" || echo "dev-tools: NOT BUILT"
 
-# Check .env.ports exists
-test -f .env.ports && echo ".env.ports: OK" || echo ".env.ports: MISSING"
-
 # Check git status
 git status --short | head -5
 ```
@@ -68,7 +65,6 @@ Present a clear summary of what's working and what's broken. Use a simple table:
 | node_modules     | OK / MISSING |
 | FPL packages     | OK / NOT BUILT |
 | dev-tools        | OK / NOT BUILT |
-| .env.ports       | OK / MISSING |
 ```
 
 ### Step 4: Fix
@@ -80,7 +76,6 @@ Based on the diagnostics, suggest and execute fixes with user confirmation:
 | node_modules missing | `pnpm install` |
 | FPL not built | `pnpm build` |
 | dev-tools not built | `pnpm build` |
-| .env.ports missing | `./setup.sh` (full re-setup) |
 | Port conflicts | Kill the process using the port |
 | Everything broken | `./setup.sh` (full re-setup) |
 

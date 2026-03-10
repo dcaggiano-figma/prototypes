@@ -90,15 +90,11 @@ Remove the original prototype directory:
 rm -rf apps/prototype/
 ```
 
-### 10. Clean up `.env.ports`
-
-Read `.env.ports` at the repo root. If it contains an entry for the prototype (e.g. `PROTOTYPE_PORT=...`), remove that line. Leave other entries intact.
-
-### 11. Run `pnpm install`
+### 10. Run `pnpm install`
 
 Run `pnpm install` to re-link the workspace with the new template location.
 
-### 12. Validate
+### 11. Validate
 
 Run the following in the new template directory and fix any issues:
 
@@ -108,11 +104,11 @@ cd templates/<name> && pnpm build && pnpm lint && pnpm typecheck
 
 If there are errors, fix them before continuing. Iterate until all three pass cleanly.
 
-### 13. Screenshot
+### 12. Screenshot
 
 Use the `/screenshot` skill to take a screenshot of the template. The screenshot should be saved as `templates/<name>/screenshot.png`. This is required for non-hidden templates so they show a preview in the template picker.
 
-### 14. Commit, push, and open a PR
+### 13. Commit, push, and open a PR
 
 1. Create a new branch: `git checkout -b template/<name>`
 2. Stage the relevant files:
@@ -120,7 +116,7 @@ Use the `/screenshot` skill to take a screenshot of the template. The screenshot
    - Deletion of `apps/prototype/`
    - Changes to `packages/` (if "Update shared code" was chosen in step 2)
    - `.github/workflows/verify-templates.yml` (CI matrix update from step 6)
-   - Any changes to `.env.ports` or `pnpm-lock.yaml`
+   - Any changes to `pnpm-lock.yaml`
 3. Commit with a message like: `feat: add <display_name> template`
 4. Push: `git push -u origin template/<name>`
 5. Open a PR with `gh pr create`:

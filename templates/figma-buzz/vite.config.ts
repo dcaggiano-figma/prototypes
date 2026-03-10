@@ -5,7 +5,5 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 export default createViteConfig({
   appDir: __dirname,
   rootDir: path.resolve(__dirname, '../..'),
-  portEnvVar: 'FIGMA_BUZZ_PORT',
-  wsPortEnvVar: 'FIGMA_BUZZ_WS_PORT',
   plugins: [TanStackRouterVite()],
 });
