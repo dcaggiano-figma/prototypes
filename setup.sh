@@ -133,11 +133,21 @@ fi
 
 if gh auth status &>/dev/null; then
   pass "GitHub CLI authenticated"
-  # Ensure read:packages scope is present (needed for GitHub Packages)
-  if ! gh auth status 2>&1 | grep -q "read:packages\|write:packages"; then
-    info "Adding read:packages scope to GitHub CLI token..."
-    gh auth refresh -h github.com -s read:packages
-    pass "read:packages scope added"
+  # Ensure required scopes are present (repo, read:packages, user:email)
+  REQUIRED_SCOPES=("repo" "read:packages" "user:email")
+  GH_STATUS="$(gh auth status 2>&1)"
+  MISSING_SCOPES=()
+  for scope in "${REQUIRED_SCOPES[@]}"; do
+    if ! echo "$GH_STATUS" | grep -q "$scope"; then
+      MISSING_SCOPES+=("$scope")
+    fi
+  done
+  if [[ ${#MISSING_SCOPES[@]} -gt 0 ]]; then
+    SCOPE_ARGS=""
+    for s in "${MISSING_SCOPES[@]}"; do SCOPE_ARGS+=" -s $s"; done
+    info "Adding scopes: ${MISSING_SCOPES[*]}..."
+    gh auth refresh -h github.com $SCOPE_ARGS
+    pass "Token scopes updated"
   fi
 elif [[ -n "${CI:-}" ]] || [[ ! -t 0 ]]; then
   fail "GitHub CLI is not authenticated" "Run 'gh auth login' in a terminal, then re-run this script."
@@ -146,10 +156,33 @@ else
   info "GitHub CLI needs to authenticate with GitHub."
   info "A browser will open — enter the one-time code shown below to log in."
   echo
-  if echo | gh auth login --web -h github.com -p https -s read:packages; then
-    pass "GitHub CLI authenticated (with read:packages scope)"
+  if echo | gh auth login --web -h github.com -p https -s repo -s read:packages -s user:email; then
+    pass "GitHub CLI authenticated"
   else
     fail "GitHub authentication failed" "Run 'gh auth login' in a terminal, then re-run this script."
+  fi
+fi
+
+# --- Step 4b: Git identity (from GitHub profile) ---
+
+if git config --global user.name &>/dev/null && git config --global user.email &>/dev/null; then
+  pass "Git identity already configured ($(git config --global user.name) <$(git config --global user.email)>)"
+else
+  GH_NAME="$(gh api user --jq '.name // empty' 2>/dev/null || echo "")"
+  GH_EMAIL="$(gh api user/emails --jq '[.[] | select(.primary)][0].email // empty' 2>/dev/null || echo "")"
+
+  if ! git config --global user.name &>/dev/null && [[ -n "$GH_NAME" ]]; then
+    git config --global user.name "$GH_NAME"
+    pass "Set git user.name to \"$GH_NAME\" (from GitHub)"
+  fi
+
+  if ! git config --global user.email &>/dev/null && [[ -n "$GH_EMAIL" ]] && [[ "$GH_EMAIL" == *@* ]]; then
+    git config --global user.email "$GH_EMAIL"
+    pass "Set git user.email to \"$GH_EMAIL\" (from GitHub)"
+  fi
+
+  if ! git config --global user.name &>/dev/null || ! git config --global user.email &>/dev/null; then
+    fail "Could not auto-detect git identity from GitHub" "Run: git config --global user.name 'Your Name' && git config --global user.email 'you@example.com'"
   fi
 fi
 
