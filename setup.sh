@@ -218,7 +218,7 @@ fi
 if command -v cursor &>/dev/null; then
   info "Installing VS Code extension from latest GitHub release..."
   VSIX_DIR=$(mktemp -d)
-  EXTENSION_TAG="$(gh release list --repo figma/ai-prototype-scaffold --limit 20 --json tagName --jq '[.[] | select(.tagName | startswith("extension-"))][0].tagName' 2>/dev/null)"
+  EXTENSION_TAG="$(gh release list --repo figma/ai-prototype-scaffold --limit 20 --json tagName,isPrerelease --jq '[.[] | select(.tagName | startswith("extension-")) | select(.isPrerelease | not)][0].tagName' 2>/dev/null)"
   if [[ -z "$EXTENSION_TAG" ]]; then
     fail "Could not find an extension release" "Check https://github.com/figma/ai-prototype-scaffold/releases for extension releases."
   fi
