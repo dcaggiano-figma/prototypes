@@ -220,21 +220,23 @@ pass "Dependencies installed"
 # --- Step 7: Cursor CLI + VS Code extension ---
 
 if [[ "$PLATFORM" == "Darwin" ]]; then
-  CURSOR_APP_CLI="/Applications/Cursor.app/Contents/Resources/app/bin/code"
+  CURSOR_APP_CLI="/Applications/Cursor.app/Contents/Resources/app/bin/cursor"
 
   if [[ ! -x "$CURSOR_APP_CLI" ]]; then
     fail "Cursor not found" "Install Cursor from https://cursor.com/download, then re-run this script."
   fi
 
-  if command -v cursor &>/dev/null; then
+  # Check if cursor CLI actually works (not just present — ~/.local/bin may have
+  # a cursor-agent shim that can't handle --install-extension)
+  if cursor --version &>/dev/null; then
     pass "Cursor CLI already in PATH"
   else
     info "Installing Cursor CLI into PATH..."
-    if mkdir -p /usr/local/bin 2>/dev/null && ln -sf "$CURSOR_APP_CLI" /usr/local/bin/cursor 2>/dev/null; then
-      pass "Cursor CLI linked to /usr/local/bin/cursor"
-    else
-      fail "Could not link Cursor CLI to /usr/local/bin" "Run: sudo ln -sf '$CURSOR_APP_CLI' /usr/local/bin/cursor"
-    fi
+    LOCAL_BIN="$HOME/.local/bin"
+    mkdir -p "$LOCAL_BIN"
+    ln -sf "$CURSOR_APP_CLI" "$LOCAL_BIN/cursor"
+    export PATH="$LOCAL_BIN:$PATH"
+    pass "Cursor CLI linked to $LOCAL_BIN/cursor"
   fi
 else
   if command -v cursor &>/dev/null; then
