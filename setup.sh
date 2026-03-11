@@ -111,7 +111,10 @@ if [[ "$PNPM_MAJOR" -ge 10 ]] 2>/dev/null; then
   pass "pnpm $PNPM_VERSION already installed"
 elif command -v corepack &>/dev/null; then
   info "Installing pnpm 10 via corepack..."
-  corepack enable pnpm
+  if ! corepack enable pnpm 2>/dev/null; then
+    fail "Could not enable pnpm via corepack (permission denied)" \
+      "Run 'sudo corepack enable pnpm' (it will ask for your computer password), then re-run ./setup.sh"
+  fi
   corepack install -g pnpm@10
   hash -r
   pass "pnpm $(pnpm --version) installed via corepack"
