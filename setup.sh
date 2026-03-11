@@ -185,7 +185,19 @@ else
   fi
 
   if ! git config --global user.name &>/dev/null || ! git config --global user.email &>/dev/null; then
-    fail "Could not auto-detect git identity from GitHub" "Run: git config --global user.name 'Your Name' && git config --global user.email 'you@example.com'"
+    echo
+    echo -e "${RED}✗${NC} Could not auto-detect git identity from your GitHub profile."
+    echo
+    echo "  Your GitHub profile is missing a name or email. Please update it:"
+    echo "    Name:  https://github.com/settings/profile"
+    echo "    Email: https://github.com/settings/emails"
+    echo
+    echo "  Once updated, re-run this setup script."
+    echo
+    echo -e "${RED}Setup failed.${NC} Please reach out in #feat-prototype-playground for help:"
+    echo "  Log: $LOG_FILE"
+    echo "  Slack: $SLACK_CHANNEL"
+    exit 1
   fi
 fi
 
