@@ -1,0 +1,135 @@
+name: Backfill Share Metadata
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: figma/actions-configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 #v4.0.2
+        with:
+          role-to-assume: arn:aws:iam::133326480594:role/protov2_playground_workflow_role
+          aws-region: us-east-1
+
+      - name: Backfill metadata for all shared prototypes
+        run: |
+          echo "Listing all share prefixes in S3..."
+
+          # List all index.html files to find deployed prototypes
+          aws s3api list-objects-v2 \
+            --bucket figma-protov2 \
+            --prefix "share/" \
+            --query "Contents[?ends_with(Key, 'index.html')].Key" \
+            --output text | tr '\t' '\n' | grep -v '^$' > /tmp/deploys.txt
+
+          COUNT=$(wc -l < /tmp/deploys.txt | tr -d ' ')
+          echo "Found $COUNT deployed prototypes"
+
+          while IFS= read -r key; do
+            if [ -z "$key" ]; then continue; fi
+
+            # Extract branch and sha from path: share/{branch}/{sha}/index.html
+            # Remove "share/" prefix and "/index.html" suffix
+            path="${key#share/}"
+            path="${path%/index.html}"
+
+            # Handle branch names with slashes — sha is always the last segment
+            sha="${path##*/}"
+            branch="${path%/*}"
+
+            if [ -z "$branch" ] || [ -z "$sha" ]; then
+              echo "  Skipping malformed path: $key"
+              continue
+            fi
+
+            URL="https://protov2.figma.design/share/$branch/$sha/"
+
+            # Try to get git metadata for this commit
+            AUTHOR=""
+            MESSAGE=""
+            TIMESTAMP=""
+
+            if git cat-file -e "$sha" 2>/dev/null; then
+              AUTHOR=$(git log -1 --format='%an' "$sha" 2>/dev/null || echo "")
+              MESSAGE=$(git log -1 --format='%s' "$sha" 2>/dev/null || echo "")
+              TIMESTAMP=$(git log -1 --format='%aI' "$sha" 2>/dev/null || echo "")
+            fi
+
+            # Fall back to S3 object timestamps if git info unavailable
+            if [ -z "$TIMESTAMP" ]; then
+              TIMESTAMP=$(aws s3api head-object \
+                --bucket figma-protov2 \
+                --key "$key" \
+                --query "LastModified" \
+                --output text 2>/dev/null || echo "")
+            fi
+
+            if [ -z "$AUTHOR" ]; then AUTHOR="Unknown"; fi
+            if [ -z "$MESSAGE" ]; then MESSAGE="$branch"; fi
+            if [ -z "$TIMESTAMP" ]; then TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; fi
+
+            echo "  Writing metadata for $branch/$sha (author: $AUTHOR)"
+
+            cat > /tmp/metadata.json <<EOF
+          {
+            "branch": "$branch",
+            "sha": "$sha",
+            "author": "$AUTHOR",
+            "message": "$MESSAGE",
+            "timestamp": "$TIMESTAMP",
+            "url": "$URL"
+          }
+          EOF
+
+            aws s3 cp /tmp/metadata.json \
+              "s3://figma-protov2/share/$branch/$sha/metadata.json" \
+              --content-type "application/json"
+          done < /tmp/deploys.txt
+
+          echo "Backfill complete."
+
+      - name: Rebuild index
+        run: |
+          echo "Rebuilding index.json..."
+
+          aws s3api list-objects-v2 \
+            --bucket figma-protov2 \
+            --prefix "share/" \
+            --query "Contents[?ends_with(Key, 'metadata.json')].Key" \
+            --output text | tr '\t' '\n' | grep -v '^$' > /tmp/keys.txt
+
+          COUNT=$(wc -l < /tmp/keys.txt | tr -d ' ')
+          echo "Found $COUNT metadata files"
+
+          echo "[" > /tmp/index.json
+          FIRST=true
+          while IFS= read -r key; do
+            if [ -z "$key" ]; then continue; fi
+
+            if aws s3 cp "s3://figma-protov2/$key" /tmp/entry.json 2>/dev/null; then
+              if [ "$FIRST" = true ]; then
+                FIRST=false
+              else
+                echo "," >> /tmp/index.json
+              fi
+              cat /tmp/entry.json >> /tmp/index.json
+            fi
+          done < /tmp/keys.txt
+          echo "]" >> /tmp/index.json
+
+          aws s3 cp /tmp/index.json \
+            "s3://figma-protov2/share/index.json" \
+            --content-type "application/json" \
+            --cache-control "max-age=0, no-cache"
+
+          echo "Index rebuilt with $COUNT entries."

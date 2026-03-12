@@ -1,0 +1,60 @@
+name: Rebuild Share Index
+
+on:
+  workflow_run:
+    workflows: ["Share Proto"]
+    types: [completed]
+
+concurrency:
+  group: rebuild-share-index
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  rebuild-index:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: figma/actions-configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 #v4.0.2
+        with:
+          role-to-assume: arn:aws:iam::133326480594:role/protov2_playground_workflow_role
+          aws-region: us-east-1
+
+      - name: Rebuild index from metadata files
+        run: |
+          echo "Listing all metadata.json files in share/..."
+          aws s3api list-objects-v2 \
+            --bucket figma-protov2 \
+            --prefix "share/" \
+            --query "Contents[?ends_with(Key, 'metadata.json')].Key" \
+            --output text | tr '\t' '\n' | grep -v '^$' > /tmp/keys.txt
+
+          COUNT=$(wc -l < /tmp/keys.txt | tr -d ' ')
+          echo "Found $COUNT metadata files"
+
+          echo "[" > /tmp/index.json
+          FIRST=true
+          while IFS= read -r key; do
+            if [ -z "$key" ]; then continue; fi
+
+            echo "  Fetching $key..."
+            if aws s3 cp "s3://figma-protov2/$key" /tmp/entry.json 2>/dev/null; then
+              if [ "$FIRST" = true ]; then
+                FIRST=false
+              else
+                echo "," >> /tmp/index.json
+              fi
+              cat /tmp/entry.json >> /tmp/index.json
+            fi
+          done < /tmp/keys.txt
+          echo "]" >> /tmp/index.json
+
+          echo "Uploading index.json with $COUNT entries..."
+          aws s3 cp /tmp/index.json \
+            "s3://figma-protov2/share/index.json" \
+            --content-type "application/json" \
+            --cache-control "max-age=0, no-cache"
