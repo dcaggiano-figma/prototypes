@@ -96,8 +96,8 @@ function Item({ value, icon: Icon, label, trailing, trailingOnInteraction }: Ite
           ctx.size === 'lg' ? 'h-32px' : 'py-1',
           isSelected
             ? ctx.selectedVariant === 'highlighted'
-              ? 'bg-bg-secondary text-text text-bodyMdStrong'
-              : 'bg-bg-selected text-text'
+              ? 'bg-bg-selected text-text text-bodyMdStrong'
+              : 'bg-bg-secondary text-text text-bodyMdStrong'
             : 'text-text hover:bg-bg-hover',
         )}
         onClick={() => ctx.onChange(value)}

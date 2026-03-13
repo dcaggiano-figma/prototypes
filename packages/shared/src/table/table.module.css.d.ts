@@ -1,0 +1,25 @@
+declare const styles: {
+  readonly wrapper: string;
+  readonly sizeMedium: string;
+  readonly sizeLarge: string;
+  readonly densityCompact: string;
+  readonly densityDefault: string;
+  readonly densityComfortable: string;
+  readonly dragHandle: string;
+  readonly checkboxCell: string;
+  readonly rowNumberCell: string;
+  readonly sectionRow: string;
+  readonly sectionCount: string;
+  readonly sortableHeader: string;
+  readonly sortableHeaderLeading: string;
+  readonly sortableHeaderLabel: string;
+  readonly sortableHeaderLabelActive: string;
+  readonly sortableHeaderTrailing: string;
+  readonly sortableHeaderActions: string;
+  readonly columnMenuTrigger: string;
+  readonly sortIcon: string;
+  readonly sortIconActive: string;
+  readonly cellContentWrapper: string;
+  readonly verticalGridLines: string;
+};
+export default styles;

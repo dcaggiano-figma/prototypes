@@ -1,0 +1,369 @@
+/* Boost dropdown z-index so FPL Menu portals appear above FPL Windows.
+   Windows use useBringToFront() with an incrementing counter that can exceed
+   the default --z-index-dropdown (13). Setting this high ensures menus stay on top. */
+:global(:root) {
+  --z-index-dropdown: 9999;
+}
+
+/* Table wrapper — sets dynamic CSS vars for size/density */
+.wrapper {
+  width: 100%;
+  height: 100%;
+  --ag-header-height: var(--table-row-height);
+  --ag-row-height: var(--table-row-height);
+}
+
+/* Size: medium (12px) */
+.sizeMedium {
+  --table-font-size: var(--text-body-medium-font-size, 12px);
+  --table-line-height: var(--text-body-medium-line-height, 16px);
+}
+
+/* Size: large (13px) */
+.sizeLarge {
+  --table-font-size: var(--text-body-large-font-size, 13px);
+  --table-line-height: var(--text-body-large-line-height, 20px);
+}
+
+/* Density: compact (28px rows) */
+.densityCompact {
+  --table-row-height: 28px;
+  --table-cell-padding: 4px;
+}
+
+/* Density: default (40px rows) */
+.densityDefault {
+  --table-row-height: 40px;
+  --table-cell-padding: 8px;
+}
+
+/* Density: comfortable (44px rows) */
+.densityComfortable {
+  --table-row-height: 44px;
+  --table-cell-padding: 12px;
+}
+
+/* Apply dynamic vars to AG Grid cells */
+.wrapper :global(.ag-cell) {
+  font-size: var(--table-font-size);
+  line-height: var(--table-line-height);
+  display: flex;
+  align-items: center;
+}
+
+.wrapper :global(.ag-header-cell) {
+  font-size: var(--table-font-size);
+  line-height: var(--table-line-height);
+}
+
+.wrapper :global(.ag-header-cell:last-child::after) {
+  display: none;
+}
+
+.wrapper :global(.ag-row) {
+  height: var(--table-row-height);
+}
+
+.wrapper :global(.ag-header-row) {
+  height: var(--table-row-height);
+  min-height: 0;
+}
+
+.wrapper :global(.ag-header) {
+  min-height: 0;
+  overflow: visible;
+}
+
+.wrapper :global(.ag-header-viewport) {
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Override AG Grid containment that creates stacking contexts interfering with menu portals */
+.wrapper :global(.ag-header-group-cell) {
+  contain: none;
+}
+
+/* Selected/focused row borders */
+.wrapper :global(.ag-row-selected),
+.wrapper :global(.ag-row-focus) {
+  border-bottom-color: var(--color-border-onselected);
+}
+
+.wrapper :global(.ag-row-selected .ag-cell),
+.wrapper :global(.ag-row-focus .ag-cell) {
+  border-bottom-color: transparent;
+}
+
+.wrapper :global(.ag-row-selected + .ag-row),
+.wrapper :global(.ag-row-focus + .ag-row) {
+  border-top-color: var(--color-border-onselected);
+}
+
+.verticalGridLines :global(.ag-row-selected .ag-cell),
+.verticalGridLines :global(.ag-row-focus .ag-cell) {
+  border-right-color: var(--color-border-onselected);
+}
+
+/* Row with focused cell — visually select the row */
+.wrapper :global(.ag-row-focus) {
+  background-color: var(--color-bg-selected-secondary);
+}
+
+/* Override AG Grid's ::before hover overlay on selected/focused rows */
+.wrapper :global(.ag-row-hover.ag-row-focus)::before,
+.wrapper :global(.ag-row-hover.ag-row-selected)::before {
+  background-color: var(--color-bg-selected) !important;
+  background-image: none !important;
+}
+
+/* Column resize handle — hide native visual but keep interactive */
+.wrapper :global(.ag-header-cell-resize) {
+  color: transparent;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+/* Blue vertical indicator line while actively resizing — centered on the column border */
+.wrapper :global(.ag-header-cell-resize)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2px;
+  height: 100vh;
+  background: var(--color-bg-brand);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(50%);
+}
+
+.wrapper :global(.ag-header-cell.ag-column-resizing) :global(.ag-header-cell-resize)::after {
+  opacity: 1;
+}
+
+/* Focused cell — inset box-shadow for the selection ring.
+   Inset shadow renders inside the cell so it can't be clipped by adjacent
+   cells' backgrounds, and requires no positioning or z-index changes. */
+.wrapper :global(.ag-cell-focus),
+.wrapper :global(.ag-cell-focus:not(.ag-cell-range-selected):focus-within) {
+  outline: none;
+  border-color: transparent !important;
+  overflow: visible;
+  /* box-shadow: 0 0 0 1px var(--color-border-selected); */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    box-shadow: 0 0 0 1px var(--color-border-selected);
+    height: calc(100% + 2px);
+    width: calc(100% + 1px);
+    left: -1px;
+    top: -1px;
+    pointer-events: none;
+    z-index: 100;
+  }
+}
+
+/* Cell editing — input spans entire cell with outset focus ring */
+.wrapper :global(.ag-cell-focus.ag-cell-inline-editing) {
+  &::after {
+    box-shadow: 0 0 0 1px var(--color-border-selected), 0 0 0 3px var(--color-border-onselected) !important;
+    border-radius: var(--radius-md, 5px);
+  }
+}
+
+.wrapper :global(.ag-cell-inline-editing input) {
+  width: 100%;
+  height: 100%;
+  padding: 0 var(--spacer-3);
+  font-size: var(--table-font-size);
+  line-height: var(--table-line-height);
+  font-family: inherit;
+  background: var(--color-bg);
+  box-shadow: none;
+  border: none;
+  /* border-radius: var(--radius-md, 5px); */
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* Disable AG Grid sort animations */
+.wrapper :global(.ag-sort-indicator-container),
+.wrapper :global(.ag-sort-indicator-icon) {
+  transition: none !important;
+}
+
+/* Disable focus ring, selection highlight, and borders on drag handle cells */
+.wrapper :global(.ag-cell[col-id="__drag"].ag-cell-focus) {
+  box-shadow: none !important;
+  border-color: transparent !important;
+  border-right-color: var(--color-border) !important;
+}
+
+.wrapper :global(.ag-cell[col-id="__drag"]) {
+  user-select: none;
+  padding: 0;
+  justify-content: center;
+  position: relative;
+}
+
+/* Hide AG Grid's native drag icon visually but keep it interactive.
+   It overlays the cell so drag events still fire through to AG Grid. */
+.wrapper :global(.ag-row-drag) {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  cursor: grab;
+}
+
+/* Drag handle visibility */
+.wrapper :global(.ag-row:not(:hover)) .dragHandle {
+  opacity: 0;
+}
+
+.wrapper :global(.ag-row:hover) .dragHandle {
+  opacity: 1;
+}
+
+.dragHandle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  cursor: grab;
+  color: var(--color-icon-tertiary);
+  transition: opacity 150ms ease;
+}
+
+.dragHandle:hover {
+  color: var(--color-icon);
+}
+
+/* Checkbox cell alignment */
+.checkboxCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Hide the empty label span added for FPL Checkbox API compliance */
+.checkboxCell :global(label > span:last-child:empty),
+.checkboxCell :global(label > span:last-child > span:empty) {
+  display: none;
+}
+
+/* Row number cell */
+.rowNumberCell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  padding-right: 8px;
+}
+
+/* Section header row */
+.sectionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--spacer-2);
+  padding: var(--spacer-3) var(--spacer-2) 0;
+  height: 56px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--table-font-size);
+  font-weight: var(--text-body-medium-strong-font-weight);
+}
+
+.sectionCount {
+  color: var(--color-text-tertiary);
+  font-weight: var(--text-body-medium-font-weight);
+}
+
+/* Sortable header */
+.sortableHeader {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortableHeaderLeading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sortableHeaderLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sortableHeaderLabelActive {
+  color: var(--color-text);
+}
+
+.sortableHeaderTrailing {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: -4px;
+  flex-shrink: 0;
+}
+
+.sortableHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.columnMenuTrigger {
+  flex-shrink: 0;
+}
+
+/* Show column menu trigger only on header hover or when menu is open */
+.wrapper :global(.ag-header-cell:not(:hover)) .columnMenuTrigger {
+  opacity: 0;
+}
+
+.wrapper :global(.ag-header-cell:hover) .columnMenuTrigger {
+  opacity: 1;
+}
+
+/* Keep menu trigger visible when the menu is open (aria-expanded is on the button inside) */
+.columnMenuTrigger:has([aria-expanded='true']) {
+  opacity: 1 !important;
+}
+
+/* Default cell content wrapper — clips content while the cell itself
+   allows the focus ring pseudo-element to escape via overflow:visible */
+.cellContentWrapper {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.sortIcon {
+  color: var(--color-icon-tertiary);
+  flex-shrink: 0;
+}
+
+.sortIconActive {
+  color: var(--color-icon-brand);
+}

@@ -8,6 +8,12 @@ export { ResizeHandle } from './ResizeHandle';
 export { Avatar, type MultiplayerColor } from './Avatar';
 export { Card } from './Card';
 
+// Typography
+export { Text } from './Text';
+export type { TextProps, TextSize, TextColor, Truncate } from './Text';
+export { Heading } from './Heading';
+export type { HeadingProps, HeadingSize } from './Heading';
+
 // Property Layout
 export { PropertySection, PropertyRow, PlaceholderSection } from './PropertyLayout';
 export type { PropertySectionProps, PropertyRowProps, PlaceholderSectionProps } from './PropertyLayout';
@@ -101,3 +107,18 @@ export { NavListThumbnail, ThumbnailPreview } from './Thumbnail';
 
 // Cursors
 export { CURSORS } from './cursors';
+
+// Table
+export { Table } from './table';
+export type {
+  TableProps,
+  TableColumnDef,
+  TableSize,
+  TableDensity,
+  TableGridLines,
+  TableSection,
+  HeaderAction,
+} from './table';
+
+// Component Gallery
+export { ComponentGalleryWindow } from './component-gallery';

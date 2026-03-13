@@ -10,9 +10,10 @@ interface DesignMainMenuProps {
   onThemeChange: (setting: ThemeSetting) => void;
   onOpenActions: () => void;
   onToggleMinimize?: () => void;
+  onOpenComponentGallery?: () => void;
 }
 
-export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize }: DesignMainMenuProps) {
+export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize, onOpenComponentGallery }: DesignMainMenuProps) {
   const mainMenu = Menu.useMenu();
 
   // Consolidated preferences state
@@ -412,6 +413,7 @@ export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onT
     ]},
 
     { type: 'item', id: 'libraries', label: 'Libraries', onClick: noop },
+    { type: 'item', id: 'component-gallery', label: 'Component gallery', onClick: onOpenComponentGallery ?? noop },
 
     { type: 'separator' },
 

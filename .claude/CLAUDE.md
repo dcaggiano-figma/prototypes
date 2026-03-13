@@ -83,6 +83,8 @@ const manager = Modal.useModal({
 
 **When building UI prototypes:** Always check if an FPL component exists before creating custom components. Use FPL Button/IconButton for ALL buttons - never use native `<button>` elements.
 
+**Component composition patterns:** For examples of how to combine FPL and shared components with correct spacing/containers, reference `packages/shared/src/component-gallery/recipeRegistry.tsx`.
+
 ---
 
 ## ESLint Config — DO NOT EDIT
