@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'templates/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/share-templates.yml'
 
 permissions:
@@ -47,10 +49,11 @@ jobs:
       - name: Find changed templates
         id: changed
         run: |
-          WORKFLOW_CHANGED=$(git diff --name-only "${{ github.event.pull_request.base.sha }}"..."${{ github.event.pull_request.head.sha }}" -- '.github/workflows/share-templates.yml')
+          INFRA_CHANGED=$(git diff --name-only "${{ github.event.pull_request.base.sha }}"..."${{ github.event.pull_request.head.sha }}" -- '.github/workflows/share-templates.yml' 'package.json' 'pnpm-lock.yaml')
 
-          if [ -n "$WORKFLOW_CHANGED" ]; then
-            echo "Workflow file changed — deploying all templates"
+          if [ -n "$INFRA_CHANGED" ]; then
+            echo "Infrastructure files changed — deploying all templates"
+            echo "Changed: $INFRA_CHANGED"
             DIRS=$(ls -d templates/*/ | xargs -n1 basename)
           else
             CHANGED_FILES=$(git diff --name-only --no-renames --diff-filter=d "${{ github.event.pull_request.base.sha }}"..."${{ github.event.pull_request.head.sha }}" -- 'templates/')
