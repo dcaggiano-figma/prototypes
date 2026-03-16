@@ -1,12 +1,13 @@
 /* eslint-disable @repo/no-arbitrary-value */
 import { useState } from 'react';
 import { ButtonPrimitive, Input, Label, Link } from '@figma/fpl-components';
+import { useWorkingState } from '../helpers/workingState';
 
 /* ------------------------------------------------------------------ */
-/*  PreviewView – placeholder "generated" sign-up form                  */
+/*  Fallback sign-up form (used in scripted mode or before AI responds) */
 /* ------------------------------------------------------------------ */
 
-export function PreviewView() {
+function FallbackPreview() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -71,4 +72,33 @@ export function PreviewView() {
       </div>
     </div>
   );
+}
+
+/* ------------------------------------------------------------------ */
+/*  PreviewView – renders AI-generated HTML or fallback                 */
+/* ------------------------------------------------------------------ */
+
+export function PreviewView() {
+  const { previewHtml, chatMode } = useWorkingState();
+
+  if (previewHtml) {
+    return (
+      <div className="flex-1 flex overflow-hidden bg-bg-secondary">
+        <iframe
+          title="Preview"
+          srcDoc={previewHtml}
+          sandbox="allow-scripts"
+          className="flex-1 border-none bg-bg"
+        />
+      </div>
+    );
+  }
+
+  // Only show the hardcoded fallback in scripted mode
+  if (chatMode === 'scripted') {
+    return <FallbackPreview />;
+  }
+
+  // Live mode with no preview yet — empty state
+  return <div className="flex-1 bg-bg-secondary" />;
 }

@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useMemo,
   useState,
   type ReactNode,
 } from 'react';
@@ -14,10 +15,14 @@ import {
   type PromptSubmission,
 } from '@prototype/shared';
 import { DEFAULT_SCRIPT } from '../data/chatScript';
+import { useAiConversation } from './useAiConversation';
+import type { GeneratedFile } from './parseAiResponse';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
+
+export type ChatMode = 'live' | 'scripted';
 
 export interface CompletedConversation {
   prompt: string;
@@ -31,6 +36,10 @@ export interface CompletedConversation {
 interface WorkingState {
   /** Chat script state – persists across route changes */
   script: ReturnType<typeof useChatScript>;
+
+  /** Chat mode: 'live' for real AI, 'scripted' for mocked flow */
+  chatMode: ChatMode;
+  setChatMode: (mode: ChatMode) => void;
 
   /** The original user prompt that triggered the working session */
   submittedPrompt: string;
@@ -65,6 +74,18 @@ interface WorkingState {
   completedConversations: CompletedConversation[];
   startNewConversation: (submission: PromptSubmission) => void;
 
+  /** Send a message in live mode */
+  sendMessage: (text: string) => void;
+
+  /** Stop the current AI generation */
+  stopGeneration: () => void;
+
+  /** Generated files from live AI mode */
+  generatedFiles: GeneratedFile[];
+
+  /** Preview HTML from live AI mode */
+  previewHtml: string | null;
+
   /** Reset all working state back to initial values */
   reset: () => void;
 }
@@ -85,10 +106,37 @@ export function WorkingStateProvider({ children }: { children: ReactNode }) {
   const [fileName, setFileName] = useState('Untitled');
   const [viewMode, setViewMode] = useState('preview');
   const [completedConversations, setCompletedConversations] = useState<CompletedConversation[]>([]);
+  const [chatMode, setChatMode] = useState<ChatMode>('live');
 
-  // Only enable the chat script once a prompt has been submitted
-  const enabled = submittedPrompt !== '';
-  const script = useChatScript(DEFAULT_SCRIPT, enabled);
+  // Scripted mode — only enable the chat script once a prompt has been submitted
+  const scriptedEnabled = submittedPrompt !== '' && chatMode === 'scripted';
+  const scriptedScript = useChatScript(DEFAULT_SCRIPT, scriptedEnabled);
+
+  // Live mode
+  const liveConversation = useAiConversation();
+
+  // Unified script interface — delegates to whichever mode is active
+  const script: ReturnType<typeof useChatScript> = useMemo(() => (
+    chatMode === 'live'
+      ? {
+        items: liveConversation.items,
+        transient: liveConversation.transient,
+        tasks: liveConversation.tasks,
+        isWorking: liveConversation.isWorking,
+        awaitingUserAction: liveConversation.awaitingUserAction,
+        onStreamComplete: liveConversation.onStreamComplete,
+        onStartTasks: liveConversation.onStartTasks,
+        reset: liveConversation.reset,
+        restart: liveConversation.restart,
+      }
+      : scriptedScript
+  ), [chatMode, liveConversation, scriptedScript]);
+
+  const sendMessage = useCallback((text: string) => {
+    if (chatMode === 'live') {
+      liveConversation.sendMessage(text, selectedModel);
+    }
+  }, [chatMode, liveConversation, selectedModel]);
 
   const setSubmittedPrompt = (prompt: string) => {
     setSubmittedPromptRaw(prompt);
@@ -143,12 +191,15 @@ export function WorkingStateProvider({ children }: { children: ReactNode }) {
     setFileName('Untitled');
     setViewMode('preview');
     script.reset();
-  }, [script]);
+    liveConversation.reset();
+  }, [script, liveConversation]);
 
   return (
     <WorkingStateContext.Provider
       value={{
         script,
+        chatMode,
+        setChatMode,
         submittedPrompt,
         setSubmittedPrompt,
         submittedAttachments,
@@ -166,6 +217,10 @@ export function WorkingStateProvider({ children }: { children: ReactNode }) {
         setViewMode,
         completedConversations,
         startNewConversation,
+        sendMessage,
+        stopGeneration: liveConversation.stopGeneration,
+        generatedFiles: chatMode === 'live' ? liveConversation.generatedFiles : [],
+        previewHtml: chatMode === 'live' ? liveConversation.previewHtml : null,
         reset,
       }}
     >

@@ -221,7 +221,7 @@ export interface ProgressIndicatorProps {
 
 export function ProgressIndicator({ label, spinner = false }: ProgressIndicatorProps) {
   return (
-    <div className="items-center gap-8px inline-flex">
+    <div className="items-center gap-8px inline-flex truncate overflow-hidden">
       {spinner && <LoadingSpinner size="sm" />}
       <span className={clsx('text-text truncate', shimmerStyles.shimmer)}>{label}</span>
     </div>

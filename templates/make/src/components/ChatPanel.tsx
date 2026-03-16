@@ -94,7 +94,10 @@ function ChatPanelItem({
         );
       }
       return (
-        <ChatMessage sender="ai">{item.content}</ChatMessage>
+        <ChatMessage sender="ai">
+          {/* eslint-disable-next-line react/no-danger -- rendering markdown-converted HTML from AI */}
+          <span dangerouslySetInnerHTML={{ __html: item.content }} />
+        </ChatMessage>
       );
 
     case 'todo-list':
@@ -167,6 +170,11 @@ function TransientElement({
       return <FileCard variant="viewing" fileName={transient.fileName} />;
 
     case 'write-file':
+      // When code is empty, show the card in minimized/loading state
+      if (!transient.code) {
+        return <FileCard variant="writing" fileName={transient.fileName} />;
+      }
+      // Animate the complete code reveal via StreamingContent
       return (
         <FileCard variant="writing" fileName={transient.fileName}>
           <StreamingContent
@@ -236,12 +244,13 @@ export function ChatPanel({
   onWorkComplete,
   onStartScript,
 }: ChatPanelProps) {
+  const ws = useWorkingState();
   const {
     script,
     completedConversations,
     submittedAttachments,
     submittedInspectedElements,
-  } = useWorkingState();
+  } = ws;
   const scrollRef = useRef<HTMLDivElement>(null);
   const msgRef = useRef<HTMLDivElement>(null);
 
@@ -514,6 +523,7 @@ export function ChatPanel({
           selectedModel={selectedModel}
           onModelChange={onModelChange}
           isWorking={effectiveIsWorking}
+          onStop={ws.stopGeneration}
           autoFocus={animPhase === 'idle'}
           inspectedElements={inspectedElements}
           onRemoveElement={handleRemoveElement}

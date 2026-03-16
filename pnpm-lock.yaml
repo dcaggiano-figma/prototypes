@@ -6,24 +6,27 @@ settings:
 
 catalogs:
   default:
+    '@figma/ppg-ai':
+      specifier: ^1.2.0
+      version: 1.2.0
     '@figma/ppg-dev-tools':
-      specifier: ^1.1.0
-      version: 1.1.0
+      specifier: ^1.2.0
+      version: 1.2.0
     '@figma/ppg-eslint-config':
-      specifier: ^1.1.0
-      version: 1.1.0
+      specifier: ^1.2.0
+      version: 1.2.0
     '@figma/ppg-tailwind-config':
-      specifier: ^1.1.0
-      version: 1.1.0
+      specifier: ^1.2.0
+      version: 1.2.0
     '@figma/ppg-tsconfig':
-      specifier: ^1.1.0
-      version: 1.1.0
+      specifier: ^1.2.0
+      version: 1.2.0
     '@figma/ppg-ui':
-      specifier: ^1.1.0
-      version: 1.1.0
+      specifier: ^1.2.0
+      version: 1.2.0
     '@figma/ppg-vite-config':
-      specifier: ^1.1.0
-      version: 1.1.0
+      specifier: ^1.2.0
+      version: 1.2.0
     motion:
       specifier: 12.34.5
       version: 12.34.5
@@ -45,7 +48,7 @@ importers:
     devDependencies:
       '@figma/ppg-dev-tools':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       tsx:
         specifier: ^4.19.2
         version: 4.21.0
@@ -61,9 +64,12 @@ importers:
       '@figma/fpl-tokens':
         specifier: 0.0.1-release-test.4
         version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ai':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@figma/ppg-ui':
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+        version: 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@prototype/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -82,77 +88,19 @@ importers:
     devDependencies:
       '@figma/ppg-eslint-config':
         specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+        version: 1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
       '@figma/ppg-tailwind-config':
         specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+        version: 1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@figma/ppg-vite-config':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@tanstack/router-plugin':
         specifier: ^1.114.0
         version: 1.163.2(@tanstack/react-router@1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@5.4.21(@types/node@20.19.33))
-      '@types/node':
-        specifier: ^20.11.5
-        version: 20.19.33
-      '@types/react':
-        specifier: ^18.2.48
-        version: 18.3.28
-      '@types/react-dom':
-        specifier: ^18.2.18
-        version: 18.3.7(@types/react@18.3.28)
-      autoprefixer:
-        specifier: ^10.4.20
-        version: 10.4.27(postcss@8.5.6)
-      eslint:
-        specifier: ^8.56.0
-        version: 8.57.1
-      postcss:
-        specifier: ^8.5.3
-        version: 8.5.6
-      tailwindcss:
-        specifier: ^3.4.17
-        version: 3.4.19(tsx@4.21.0)
-      typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
-      vite:
-        specifier: ^5.0.11
-        version: 5.4.21(@types/node@20.19.33)
-
-  apps/viewer:
-    dependencies:
-      '@figma/fpl-components':
-        specifier: 0.0.2-release-test.4
-        version: 0.0.2-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
-      '@figma/fpl-icons':
-        specifier: 0.0.1-release-test.4
-        version: 0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@figma/fpl-tokens':
-        specifier: 0.0.1-release-test.4
-        version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-    devDependencies:
-      '@figma/ppg-eslint-config':
-        specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
-      '@figma/ppg-tailwind-config':
-        specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
-      '@figma/ppg-tsconfig':
-        specifier: 'catalog:'
-        version: 1.1.0
-      '@figma/ppg-vite-config':
-        specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@types/node':
         specifier: ^20.11.5
         version: 20.19.33
@@ -207,7 +155,7 @@ importers:
     devDependencies:
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@types/react':
         specifier: ^18.2.48
         version: 18.3.28
@@ -223,9 +171,12 @@ importers:
       '@figma/fpl-tokens':
         specifier: 0.0.1-release-test.4
         version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ai':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@figma/ppg-ui':
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+        version: 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@tanstack/react-router':
         specifier: ^1.114.0
         version: 1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -241,16 +192,16 @@ importers:
     devDependencies:
       '@figma/ppg-eslint-config':
         specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+        version: 1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
       '@figma/ppg-tailwind-config':
         specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+        version: 1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@figma/ppg-vite-config':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@tanstack/router-plugin':
         specifier: ^1.114.0
         version: 1.163.2(@tanstack/react-router@1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@5.4.21(@types/node@20.19.33))
@@ -293,9 +244,12 @@ importers:
       '@figma/fpl-tokens':
         specifier: 0.0.1-release-test.4
         version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ai':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@figma/ppg-ui':
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+        version: 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@prototype/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -314,16 +268,16 @@ importers:
     devDependencies:
       '@figma/ppg-eslint-config':
         specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+        version: 1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
       '@figma/ppg-tailwind-config':
         specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+        version: 1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@figma/ppg-vite-config':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@tanstack/router-plugin':
         specifier: ^1.114.0
         version: 1.163.2(@tanstack/react-router@1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@5.4.21(@types/node@20.19.33))
@@ -366,9 +320,12 @@ importers:
       '@figma/fpl-tokens':
         specifier: 0.0.1-release-test.4
         version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ai':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@figma/ppg-ui':
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+        version: 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       motion:
         specifier: 'catalog:'
         version: 12.34.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -381,16 +338,16 @@ importers:
     devDependencies:
       '@figma/ppg-eslint-config':
         specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+        version: 1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
       '@figma/ppg-tailwind-config':
         specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+        version: 1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@figma/ppg-vite-config':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@types/node':
         specifier: ^20.11.5
         version: 20.19.33
@@ -430,9 +387,12 @@ importers:
       '@figma/fpl-tokens':
         specifier: 0.0.1-release-test.4
         version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ai':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@figma/ppg-ui':
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+        version: 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@prototype/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -454,16 +414,16 @@ importers:
     devDependencies:
       '@figma/ppg-eslint-config':
         specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+        version: 1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
       '@figma/ppg-tailwind-config':
         specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+        version: 1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@figma/ppg-vite-config':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@tanstack/router-plugin':
         specifier: ^1.114.0
         version: 1.163.2(@tanstack/react-router@1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@5.4.21(@types/node@20.19.33))
@@ -506,9 +466,12 @@ importers:
       '@figma/fpl-tokens':
         specifier: 0.0.1-release-test.4
         version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ai':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@figma/ppg-ui':
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+        version: 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@prototype/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -530,16 +493,16 @@ importers:
     devDependencies:
       '@figma/ppg-eslint-config':
         specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+        version: 1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
       '@figma/ppg-tailwind-config':
         specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+        version: 1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@figma/ppg-vite-config':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@tanstack/router-plugin':
         specifier: ^1.114.0
         version: 1.163.2(@tanstack/react-router@1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@5.4.21(@types/node@20.19.33))
@@ -582,9 +545,12 @@ importers:
       '@figma/fpl-tokens':
         specifier: 0.0.1-release-test.4
         version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ai':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@figma/ppg-ui':
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+        version: 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@prototype/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -606,16 +572,16 @@ importers:
     devDependencies:
       '@figma/ppg-eslint-config':
         specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+        version: 1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
       '@figma/ppg-tailwind-config':
         specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+        version: 1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@figma/ppg-vite-config':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@tanstack/router-plugin':
         specifier: ^1.114.0
         version: 1.163.2(@tanstack/react-router@1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@5.4.21(@types/node@20.19.33))
@@ -658,9 +624,12 @@ importers:
       '@figma/fpl-tokens':
         specifier: 0.0.1-release-test.4
         version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ai':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@figma/ppg-ui':
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+        version: 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@prototype/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -682,16 +651,16 @@ importers:
     devDependencies:
       '@figma/ppg-eslint-config':
         specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+        version: 1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
       '@figma/ppg-tailwind-config':
         specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+        version: 1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@figma/ppg-vite-config':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@tanstack/router-plugin':
         specifier: ^1.114.0
         version: 1.163.2(@tanstack/react-router@1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@5.4.21(@types/node@20.19.33))
@@ -734,9 +703,12 @@ importers:
       '@figma/fpl-tokens':
         specifier: 0.0.1-release-test.4
         version: 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/ppg-ai':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@figma/ppg-ui':
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.58)
+        version: 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.58)
       '@prototype/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -764,16 +736,16 @@ importers:
     devDependencies:
       '@figma/ppg-eslint-config':
         specifier: 'catalog:'
-        version: 1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
+        version: 1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)
       '@figma/ppg-tailwind-config':
         specifier: 'catalog:'
-        version: 1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
+        version: 1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))
       '@figma/ppg-tsconfig':
         specifier: 'catalog:'
-        version: 1.1.0
+        version: 1.2.0
       '@figma/ppg-vite-config':
         specifier: 'catalog:'
-        version: 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.58)
+        version: 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.58)
       '@tanstack/router-plugin':
         specifier: ^1.114.0
         version: 1.163.2(@tanstack/react-router@1.163.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(vite@5.4.21(@types/node@20.19.33))
@@ -1270,34 +1242,37 @@ packages:
       csstype: '>=3'
       react: '>=18'
 
-  '@figma/ppg-dev-tools@1.1.0':
-    resolution: {integrity: sha512-OpBBj+kUxNy3+5vi99YsfgDSytdmqLQyFScxkmE/eU4FdSDzEBI/wljXCI9T/jQtQpBk0lbH3r2poND+OFP2RA==, tarball: https://npm.pkg.github.com/download/@figma/ppg-dev-tools/1.1.0/756bf1e98aacf626e3297ed8d6c5f468674f272e}
+  '@figma/ppg-ai@1.2.0':
+    resolution: {integrity: sha512-D1PsYVPELN6oNTuGMTqD/QgBzhI5vDZL+X8G7ZBylHnyhwurL/+lEtQHAFu9jHQrF1DIuVA6VFq5afn0qF6dEw==, tarball: https://npm.pkg.github.com/download/@figma/ppg-ai/1.2.0/707c806d267ab1cd19bf532669bb28ccfe5f8225}
+
+  '@figma/ppg-dev-tools@1.2.0':
+    resolution: {integrity: sha512-Mot1CGSh+iLuwcGRih5CYOFVLTPpVAcykW0aHVT5gi7Sjdm9SVuHvIp9v2OaUqx+0kPAQWu+iwo/l/v0y6AeIg==, tarball: https://npm.pkg.github.com/download/@figma/ppg-dev-tools/1.2.0/5d6414c066a3b1fe33d58e529e67114aa3eb1c32}
     hasBin: true
     peerDependencies:
       vite: ^5.0.0
 
-  '@figma/ppg-eslint-config@1.1.0':
-    resolution: {integrity: sha512-hBDzwed6Gbz2pWqqnz9hMYGhUOI8uINevpufcLbIVMA8+Ns9uslz+DVFlVGwQK3swCK4gzLk4kGWRZVpD2V4tg==, tarball: https://npm.pkg.github.com/download/@figma/ppg-eslint-config/1.1.0/6f8aa708de6029cd5da9fe7341f953e807b9be80}
+  '@figma/ppg-eslint-config@1.2.0':
+    resolution: {integrity: sha512-puavJKnuVDyw2pc3FSa8x/ZWJ4PHVlDRFIcsP8JH34ki2dPPj//a7+r9mJuirkd3HkBkdAfn6kV9W+gH190xWw==, tarball: https://npm.pkg.github.com/download/@figma/ppg-eslint-config/1.2.0/ea27747ddb477d2b283263d1a9a3045a3d3065bc}
     peerDependencies:
       eslint: ^8.56.0 || ^9.0.0
 
-  '@figma/ppg-tailwind-config@1.1.0':
-    resolution: {integrity: sha512-FMvhmgpGe8PFJ2EIxt6XukLusXXPaJ/kI0KoXAY8mMOuQBdPtZx7U3WbBHNRsH9l73OkWrgGwDDbenzTsTN2ag==, tarball: https://npm.pkg.github.com/download/@figma/ppg-tailwind-config/1.1.0/811a2998041a15cf870c50810e9c95d61f1bd0fd}
+  '@figma/ppg-tailwind-config@1.2.0':
+    resolution: {integrity: sha512-1yt/jzd0dbI5yAWES8uiEtFaZZYaCZqB4D3IqfWSYZNxGG/8QsrY3kUjf/iUJADRoHvvVikktXMzaR/g5/TOtQ==, tarball: https://npm.pkg.github.com/download/@figma/ppg-tailwind-config/1.2.0/50a4d6278a23914ec41671ff9081759f2645f024}
     peerDependencies:
       tailwindcss: ^3.4.0
 
-  '@figma/ppg-tsconfig@1.1.0':
-    resolution: {integrity: sha512-4PV3hp34JhyDLSgoE8LRxGIKkK8x+R8KPDNpKspmC0MRQQb5R+FnV5vmfizZJnR/1kjXI9R8rGrrnPRu+TYGBA==, tarball: https://npm.pkg.github.com/download/@figma/ppg-tsconfig/1.1.0/256a48329fb4710e092a8c67fcdbe4a7ea6ae3bd}
+  '@figma/ppg-tsconfig@1.2.0':
+    resolution: {integrity: sha512-sRjq/yWbtEVT7KR1n4jCybrVhsGM2uoaaZrx5sOUMBCOGsbER3J3DmmN7f+wZqCb02FZKjqK5L5zqBe8beqliA==, tarball: https://npm.pkg.github.com/download/@figma/ppg-tsconfig/1.2.0/cd3018b7772fb427a4a6b81e8d1923133fbd2be4}
 
-  '@figma/ppg-ui@1.1.0':
-    resolution: {integrity: sha512-j5exdPl77Ilo9AAAUnIffiJIOcZX27HeSXSuHokyDLCoIfp0YC7TotUqTBPgMhhZVEm5eYGXHizKp3PKDDR+FA==, tarball: https://npm.pkg.github.com/download/@figma/ppg-ui/1.1.0/a9fe150c74860fc6c978e16c2efeca16e3ec9c94}
+  '@figma/ppg-ui@1.2.0':
+    resolution: {integrity: sha512-3xw+P3PHFflokZLpGuK2Kj9h4w+2M9hhhXOYVW4RtS57pQJKAu/pE+nFQx0RK9StQcaumfXzHjvzYWxkOplSGQ==, tarball: https://npm.pkg.github.com/download/@figma/ppg-ui/1.2.0/6f3116d2e5a1d1c986703118e03400f4c9bdaa2e}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
       zod: ^3.25.76
 
-  '@figma/ppg-vite-config@1.1.0':
-    resolution: {integrity: sha512-LyrzDmcvUm8GBgCZxpltzH7RQWpUts8+XyGiLLAsKk5GNPMfW59uKrQvuzPwS7RObfC1bd65PBXAUMnIq56/ig==, tarball: https://npm.pkg.github.com/download/@figma/ppg-vite-config/1.1.0/2291a3ee8c23f5ffcf3cc01c6ec79e5df02c1c52}
+  '@figma/ppg-vite-config@1.2.0':
+    resolution: {integrity: sha512-VpAYaLPaI6mJjxCesrr1bwJHoU+efgdhuDMibQDTXC4v8VRsLgru7JTWdF/+ZVrRbRkWEw6cXkA7EDRDq6ZpYA==, tarball: https://npm.pkg.github.com/download/@figma/ppg-vite-config/1.2.0/57d8fcf9dd7d08a387fe049590a664fb0ba9dc1d}
     peerDependencies:
       vite: ^5.0.0
 
@@ -3893,11 +3868,13 @@ snapshots:
       react: 18.3.1
       scule: 1.3.0
 
-  '@figma/ppg-dev-tools@1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.58)':
+  '@figma/ppg-ai@1.2.0': {}
+
+  '@figma/ppg-dev-tools@1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.58)':
     dependencies:
       '@figma/fpl-components': 0.0.2-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.58)
       '@figma/fpl-icons': 0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@figma/ppg-ui': 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.58)
+      '@figma/ppg-ui': 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.58)
       commander: 11.1.0
       dotenv: 17.3.1
       open: 10.2.0
@@ -3916,11 +3893,11 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@figma/ppg-dev-tools@1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)':
+  '@figma/ppg-dev-tools@1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)':
     dependencies:
       '@figma/fpl-components': 0.0.2-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons': 0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@figma/ppg-ui': 1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+      '@figma/ppg-ui': 1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       commander: 11.1.0
       dotenv: 17.3.1
       open: 10.2.0
@@ -3939,7 +3916,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@figma/ppg-eslint-config@1.1.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)':
+  '@figma/ppg-eslint-config@1.2.0(eslint@8.57.1)(tailwindcss@3.4.19(tsx@4.21.0))(typescript@5.9.3)':
     dependencies:
       '@eslint/js': 9.39.3
       '@typescript-eslint/eslint-plugin': 7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1)(typescript@5.9.3)
@@ -3959,7 +3936,7 @@ snapshots:
       - tailwindcss
       - typescript
 
-  '@figma/ppg-tailwind-config@1.1.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))':
+  '@figma/ppg-tailwind-config@1.2.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))':
     dependencies:
       '@figma/fpl-tokens': 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       tailwindcss: 3.4.19(tsx@4.21.0)
@@ -3968,9 +3945,9 @@ snapshots:
       - csstype
       - react
 
-  '@figma/ppg-tsconfig@1.1.0': {}
+  '@figma/ppg-tsconfig@1.2.0': {}
 
-  '@figma/ppg-ui@1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.58)':
+  '@figma/ppg-ui@1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.58)':
     dependencies:
       '@figma/fpl-components': 0.0.2-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.58)
       '@figma/fpl-icons': 0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -3984,7 +3961,7 @@ snapshots:
       - '@types/react'
       - csstype
 
-  '@figma/ppg-ui@1.1.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)':
+  '@figma/ppg-ui@1.2.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)':
     dependencies:
       '@figma/fpl-components': 0.0.2-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons': 0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -3998,9 +3975,9 @@ snapshots:
       - '@types/react'
       - csstype
 
-  '@figma/ppg-vite-config@1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.58)':
+  '@figma/ppg-vite-config@1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.58)':
     dependencies:
-      '@figma/ppg-dev-tools': 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.58)
+      '@figma/ppg-dev-tools': 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.58)
       '@vitejs/plugin-react': 4.7.0(vite@5.4.21(@types/node@20.19.33))
       dotenv: 17.3.1
       vite: 5.4.21(@types/node@20.19.33)
@@ -4028,9 +4005,9 @@ snapshots:
       - vue-tsc
       - zod
 
-  '@figma/ppg-vite-config@1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)':
+  '@figma/ppg-vite-config@1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(eslint@8.57.1)(optionator@0.9.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)':
     dependencies:
-      '@figma/ppg-dev-tools': 1.1.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
+      '@figma/ppg-dev-tools': 1.2.0(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@5.4.21(@types/node@20.19.33))(zod@3.25.76)
       '@vitejs/plugin-react': 4.7.0(vite@5.4.21(@types/node@20.19.33))
       dotenv: 17.3.1
       vite: 5.4.21(@types/node@20.19.33)

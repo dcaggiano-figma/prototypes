@@ -40,7 +40,7 @@ export function ModelSelector({
           onChange={(v) => onChange(v as string)}
         >
           {options.map((model) => (
-            <Menu.RadioGroupItem key={model.value} value={model.value}>
+            <Menu.RadioGroupItem key={model.value} value={model.value} disabled={model.disabled}>
               <span>
                 {model.label}
                 <Menu.SubText>{model.description}</Menu.SubText>

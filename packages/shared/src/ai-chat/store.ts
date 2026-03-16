@@ -1,4 +1,5 @@
 import type {
+  AiChatSnapshot,
   AiChatStoreAPI,
   ChatItem,
   ScriptStep,
@@ -366,8 +367,12 @@ export function createScriptedChatStore(script: ScriptStep[]): ScriptedChatStore
 
 export interface LiveChatStore extends AiChatStoreAPI {
   pushItem(item: ChatItem): void;
+  updateItem(id: string, updates: Partial<ChatItem>): void;
   setTransient(transient: TransientItem | null): void;
+  setTasks(tasks: Task[]): void;
+  setAwaiting(value: boolean): void;
   setWorking(working: boolean): void;
+  appendWorkLog(files: string[]): void;
 }
 
 export function createLiveChatStore(): LiveChatStore {
@@ -377,8 +382,14 @@ export function createLiveChatStore(): LiveChatStore {
   let tasks: Task[] = [];
   let isWorking = false;
   let awaitingUserAction = false;
+  let cachedSnapshot: AiChatSnapshot = { items, transient, tasks, isWorking, awaitingUserAction };
+
+  function updateSnapshot() {
+    cachedSnapshot = { items, transient, tasks, isWorking, awaitingUserAction };
+  }
 
   function notify() {
+    updateSnapshot();
     for (const listener of listeners) {
       listener();
     }
@@ -386,7 +397,7 @@ export function createLiveChatStore(): LiveChatStore {
 
   return {
     getSnapshot() {
-      return { items, transient, tasks, isWorking, awaitingUserAction };
+      return cachedSnapshot;
     },
 
     subscribe(listener) {
@@ -394,7 +405,12 @@ export function createLiveChatStore(): LiveChatStore {
       return () => listeners.delete(listener);
     },
 
-    onStreamComplete() { /* no-op for live store */ },
+    onStreamComplete() {
+      if (transient) {
+        transient = null;
+        notify();
+      }
+    },
     onStartTasks() {
       awaitingUserAction = false;
       notify();
@@ -414,13 +430,45 @@ export function createLiveChatStore(): LiveChatStore {
       notify();
     },
 
+    updateItem(id, updates) {
+      items = items.map((item) => (item.id === id ? { ...item, ...updates } : item)) as ChatItem[];
+      notify();
+    },
+
     setTransient(t) {
       transient = t;
       notify();
     },
 
+    setTasks(t) {
+      tasks = t;
+      notify();
+    },
+
+    setAwaiting(value) {
+      awaitingUserAction = value;
+      notify();
+    },
+
     setWorking(working) {
       isWorking = working;
+      notify();
+    },
+
+    appendWorkLog(files) {
+      const existing = items.find(
+        (item): item is Extract<ChatItem, { type: 'work-log' }> => item.type === 'work-log',
+      );
+      if (existing) {
+        items = items.map((item) => (
+          item.id === existing.id
+            ? { ...item, files: [...existing.files, ...files] }
+            : item
+        )) as ChatItem[];
+      } else {
+        nextId += 1;
+        items = [...items, { id: `item-${nextId}`, type: 'work-log' as const, files }];
+      }
       notify();
     },
   };

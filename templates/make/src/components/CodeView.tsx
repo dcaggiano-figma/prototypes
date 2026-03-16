@@ -1,4 +1,4 @@
-import React, { useState, type ComponentType } from 'react';
+import React, { useState, useEffect, useMemo, type ComponentType } from 'react';
 import clsx from 'clsx';
 import { ButtonPrimitive } from '@figma/fpl-components';
 import {
@@ -13,6 +13,8 @@ import {
   Icon24Attention,
   Icon24Warning,
 } from '@figma/fpl-icons';
+import { useWorkingState } from '../helpers/workingState';
+import { buildFileTree } from '../helpers/parseAiResponse';
 
 /* ------------------------------------------------------------------ */
 /*  Static file tree data                                               */
@@ -421,22 +423,50 @@ function CodeViewer({ content }: { content: string }) {
 /* ------------------------------------------------------------------ */
 
 export function CodeView() {
-  const [selectedFile, setSelectedFile] = useState<FileNode>(FILE_TREE[0]);
+  const { generatedFiles, chatMode } = useWorkingState();
+
+  const activeTree = useMemo(() => {
+    if (generatedFiles.length > 0) {
+      return buildFileTree(generatedFiles);
+    }
+    // Only show hardcoded file tree in scripted mode
+    if (chatMode === 'scripted') {
+      return FILE_TREE;
+    }
+    return [];
+  }, [generatedFiles, chatMode]);
+
+  const [selectedFile, setSelectedFile] = useState<FileNode | null>(activeTree[0] ?? null);
+
+  // Reset selection when tree changes
+  useEffect(() => {
+    const firstFile = findFirstFile(activeTree);
+    setSelectedFile(firstFile);
+  }, [activeTree]);
 
   const handleSelect = (node: FileNode) => {
     setSelectedFile(node);
   };
 
+  // Empty state for live mode before any files are generated
+  if (activeTree.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-bg text-text-tertiary text-bodyMd">
+        No files generated yet
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* File tree sidebar */}
       <aside className="w-[200px] shrink-0 border-r border-border bg-bg overflow-y-auto px-8px py-12px flex flex-col gap-4px">
-        {FILE_TREE.map((node) => (
+        {activeTree.map((node) => (
           <FileTreeItem
             key={node.name}
             node={node}
             depth={0}
-            selectedFile={selectedFile.name}
+            selectedFile={selectedFile?.name ?? ''}
             onSelect={handleSelect}
           />
         ))}
@@ -446,7 +476,7 @@ export function CodeView() {
       <div className="flex-1 flex flex-col overflow-hidden bg-bg">
 
         {/* Code */}
-        <CodeViewer content={selectedFile.content || ''} />
+        <CodeViewer content={selectedFile?.content ?? ''} />
 
         {/* File tab bar */}
         <div className="flex items-center border-t border-border px-2 justify-between">
@@ -455,10 +485,21 @@ export function CodeView() {
             <Icon24Warning />
           </div>
           <div className="flex items-center gap-4px px-8px py-4px text-bodyMd text-text-secondary">
-            {selectedFile.name}
+            {selectedFile?.name ?? ''}
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function findFirstFile(nodes: FileNode[]): FileNode | null {
+  for (const node of nodes) {
+    if (node.type === 'file') return node;
+    if (node.children) {
+      const found = findFirstFile(node.children);
+      if (found) return found;
+    }
+  }
+  return null;
 }

@@ -87,6 +87,17 @@ const manager = Modal.useModal({
 
 ---
 
+## AI Client (`@figma/ppg-ai`)
+
+All templates include `@figma/ppg-ai` for making Claude API calls from prototypes. See `README-ppg-ai.md` at the repo root for the full API reference, usage examples, and exported types. Key points:
+
+- Instantiate with `new AiClient()` — no config needed
+- `client.messages.create(params)` mirrors the Anthropic Messages API
+- Supports streaming via `stream: true`
+- Rate limited: 10 req/5s client-side, 100 req/5min server-side
+
+---
+
 ## ESLint Config — DO NOT EDIT
 
 **NEVER modify any ESLint configuration file** (`eslint.config.*`, `.eslintrc*`). These are maintained by humans only. A hook will block any attempt to edit them.

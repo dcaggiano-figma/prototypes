@@ -13,9 +13,8 @@ import type { AiChatSnapshot, AiChatStoreAPI, ModelOption } from './types';
 
 export const DEFAULT_MODEL_OPTIONS: ModelOption[] = [
   { value: 'default', label: 'Default', description: 'Standard setup' },
-  { value: 'claude-opus', label: 'Claude Opus 4.6', description: 'Proactive, thorough' },
-  { value: 'gemini-flash', label: 'Gemini 3 Flash', description: 'Fast, iterative' },
-  { value: 'gemini-pro', label: 'Gemini 3 Pro', description: 'Deep, creative' },
+  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', description: 'Fast, capable' },
+  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', description: 'Fastest, lightweight' },
 ];
 
 /* ------------------------------------------------------------------ */

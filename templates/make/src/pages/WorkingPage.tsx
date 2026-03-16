@@ -55,7 +55,7 @@ export function WorkingPage() {
   const ws = useWorkingState();
 
   /* Initialize prompt from navigation state (only on first arrival from Home) */
-  const { submittedPrompt, setSubmittedPromptData } = ws;
+  const { submittedPrompt, setSubmittedPromptData, sendMessage, chatMode } = ws;
   const initializedRef = useRef(false);
   useEffect(() => {
     if (initializedRef.current) return;
@@ -66,9 +66,16 @@ export function WorkingPage() {
         attachments: locationState?.attachments ?? [],
         inspectedElements: locationState?.inspectedElements ?? [],
       });
+      // In live mode, trigger the AI call for the initial prompt
+      if (chatMode === 'live') {
+        sendMessage(prompt);
+      }
       initializedRef.current = true;
+    } else if (!prompt && !submittedPrompt) {
+      // No prompt available (e.g. page refresh) — redirect to landing
+      navigate({ to: '/' });
     }
-  }, [locationState, submittedPrompt, setSubmittedPromptData]);
+  }, [locationState, submittedPrompt, setSubmittedPromptData, sendMessage, chatMode, navigate]);
 
   /* Theme */
   const [theme, setTheme] = useTheme();
@@ -308,6 +315,10 @@ export function WorkingPage() {
               ws.startNewConversation(submission);
             } else {
               ws.setSubmittedPromptData(submission);
+            }
+            // In live mode, trigger the actual AI call
+            if (ws.chatMode === 'live') {
+              ws.sendMessage(submission.text);
             }
           }}
         />

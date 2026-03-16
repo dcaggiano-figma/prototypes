@@ -36,6 +36,8 @@ export interface PromptPanelProps {
   modelOptions?: ModelOption[];
   /** Whether the AI is currently working */
   isWorking?: boolean;
+  /** Called when the user clicks the stop button while working */
+  onStop?: () => void;
   placeholder?: string;
   autoFocus?: boolean;
   inspectedElements?: InspectedElement[];
@@ -50,6 +52,7 @@ export function PromptPanel({
   onModelChange,
   modelOptions = DEFAULT_MODEL_OPTIONS,
   isWorking = false,
+  onStop,
   placeholder = 'Ask for changes',
   autoFocus = false,
   inspectedElements,
@@ -171,7 +174,7 @@ export function PromptPanel({
             </IconButton>
           </div>
           {isWorking ? (
-            <IconButton aria-label="Submit" variant="secondary">
+            <IconButton aria-label="Stop" variant="secondary" onClick={onStop}>
               <Icon24Stop />
             </IconButton>
           ) : (
