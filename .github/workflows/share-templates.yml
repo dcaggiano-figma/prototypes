@@ -16,9 +16,11 @@ permissions:
   pull-requests: write
 
 jobs:
-  check-templates:
-    name: Check templates
+  detect-changes:
+    name: Detect changed templates
     runs-on: ubuntu-latest
+    outputs:
+      templates: ${{ steps.changed.outputs.templates }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,121 +50,175 @@ jobs:
 
       - name: Find changed templates
         id: changed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          INFRA_CHANGED=$(git diff --name-only "${{ github.event.pull_request.base.sha }}"..."${{ github.event.pull_request.head.sha }}" -- '.github/workflows/share-templates.yml' 'package.json' 'pnpm-lock.yaml')
+          INFRA_CHANGED=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" -- '.github/workflows/share-templates.yml' 'package.json' 'pnpm-lock.yaml')
 
           if [ -n "$INFRA_CHANGED" ]; then
             echo "Infrastructure files changed — deploying all templates"
             echo "Changed: $INFRA_CHANGED"
             DIRS=$(ls -d templates/*/ | xargs -n1 basename)
           else
-            CHANGED_FILES=$(git diff --name-only --no-renames --diff-filter=d "${{ github.event.pull_request.base.sha }}"..."${{ github.event.pull_request.head.sha }}" -- 'templates/')
+            CHANGED_FILES=$(git diff --name-only --no-renames --diff-filter=d "$BASE_SHA"..."$HEAD_SHA" -- 'templates/')
 
             echo "Changed files (excluding deletions):"
             echo "$CHANGED_FILES"
 
             if [ -z "$CHANGED_FILES" ]; then
               echo "No non-deletion changes found"
-              echo "templates=" >> "$GITHUB_OUTPUT"
+              echo "templates=[]" >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
             DIRS=$(echo "$CHANGED_FILES" | sed -n 's|^templates/\([^/]*\)/.*|\1|p' | sort -u)
           fi
 
-          TEMPLATES=""
+          JSON="[]"
           for name in $DIRS; do
             if [ -f "templates/$name/package.json" ] && node -e "process.exit(require('./templates/$name/package.json').template ? 0 : 1)"; then
-              TEMPLATES="$TEMPLATES $name"
+              JSON=$(echo "$JSON" | jq -c --arg t "$name" '. + [$t]')
               echo "Template detected: $name"
             else
               echo "Skipping $name (not a template)"
             fi
           done
 
-          TEMPLATES=$(echo "$TEMPLATES" | xargs)
-          echo "templates=$TEMPLATES" >> "$GITHUB_OUTPUT"
-          echo "Final template list: $TEMPLATES"
+          echo "templates=$JSON" >> "$GITHUB_OUTPUT"
+          echo "Final template list: $JSON"
+
+  scaffold-and-deploy:
+    name: Deploy ${{ matrix.template }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.templates != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        template: ${{ fromJson(needs.detect-changes.outputs.templates) }}
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Setup pnpm
-        if: steps.changed.outputs.templates != ''
         uses: pnpm/action-setup@v4
         with:
           version: 10.0.0
 
       - name: Setup Node.js
-        if: steps.changed.outputs.templates != ''
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'pnpm'
 
       - name: Authenticate to GitHub Packages
-        if: steps.changed.outputs.templates != ''
         run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
 
       - name: Install dependencies
-        if: steps.changed.outputs.templates != ''
+        env:
+          CI: 'false'
         run: pnpm install
 
       - name: Configure AWS credentials
-        if: steps.changed.outputs.templates != ''
         uses: figma/actions-configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 #v4.0.2
         with:
           role-to-assume: arn:aws:iam::133326480594:role/protov2_playground_workflow_role
           aws-region: us-east-1
 
-      - name: Build and deploy templates
-        if: steps.changed.outputs.templates != ''
+      - name: Scaffold and build prototype
+        env:
+          BRANCH: ${{ github.head_ref }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: 'false'
         run: |
-          SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-8)
-          BRANCH="${{ github.head_ref }}"
-          TEMPLATES="${{ steps.changed.outputs.templates }}"
+          # proto-cli clones via git@github.com: SSH — rewrite to HTTPS with token auth
+          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+          # proto-cli reads git identity when creating the prototype branch
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          mkdir -p /tmp/share-urls
+          mkdir -p ~/.proto-playground
+          echo "{\"prototypesDir\":\"/tmp/prototypes\"}" > ~/.proto-playground/config.json
+          mkdir -p /tmp/prototypes
 
-          for TEMPLATE_DIR in $TEMPLATES; do
-            PKG_NAME=$(node -p "require('./templates/$TEMPLATE_DIR/package.json').name")
-            echo "::group::Build $TEMPLATE_DIR ($PKG_NAME)"
-            pnpm -r --filter "$PKG_NAME^..." run build
-            BASE_PATH="/share/$BRANCH/$SHORT_SHA/$TEMPLATE_DIR/"
-            VITE_PROTO_BRANCH="$BRANCH" \
-            VITE_PROTO_COMMIT="${{ github.event.pull_request.head.sha }}" \
-            VITE_PROTO_APP_PATH="templates/$TEMPLATE_DIR" \
-            pnpm --filter "$PKG_NAME" run build --base "$BASE_PATH"
-            echo "::endgroup::"
+          TEMPLATE_DIR="${{ matrix.template }}"
+          PROTO_NAME="ci-test-$TEMPLATE_DIR"
 
-            echo "::group::Deploy $TEMPLATE_DIR"
-            aws s3 sync "templates/$TEMPLATE_DIR/dist/" \
-              "s3://figma-protov2/share/$BRANCH/$SHORT_SHA/$TEMPLATE_DIR/" \
-              --delete
-            echo "::endgroup::"
+          echo "::group::Create prototype from $TEMPLATE_DIR via proto-cli"
+          pnpm exec proto-cli create "$PROTO_NAME" \
+            --template "$TEMPLATE_DIR" \
+            --branch "$BRANCH"
+          echo "::endgroup::"
 
-            URL="https://protov2.figma.design/share/$BRANCH/$SHORT_SHA/$TEMPLATE_DIR/"
-            echo "$URL" > "/tmp/share-urls/$TEMPLATE_DIR"
+          PROTO_DIR="/tmp/prototypes/$PROTO_NAME"
+          if [ ! -d "$PROTO_DIR/apps/prototype/dist" ]; then
+            echo "::error::proto-cli create did not produce build output for $TEMPLATE_DIR"
+            exit 1
+          fi
 
-            echo "## Shared" >> "$GITHUB_STEP_SUMMARY"
-            echo "[$TEMPLATE_DIR]($URL)" >> "$GITHUB_STEP_SUMMARY"
-          done
+      - name: Deploy to S3
+        env:
+          SHORT_SHA: ${{ github.event.pull_request.head.sha }}
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          TEMPLATE_DIR="${{ matrix.template }}"
+          PROTO_DIR="/tmp/prototypes/ci-test-$TEMPLATE_DIR"
+          SHORT_SHA=$(echo "$SHORT_SHA" | cut -c1-8)
+
+          ./ci-scripts/share.sh \
+            --branch "$BRANCH/$TEMPLATE_DIR" \
+            --sha "$SHORT_SHA" \
+            --dist "$PROTO_DIR/apps/prototype/dist" \
+            --test-deploy \
+            | tee /tmp/share-output.txt
+
+          DEV_URL=$(grep "SHA snapshot:" /tmp/share-output.txt | awk '{print $NF}')
+          echo "$DEV_URL" > /tmp/dev-url.txt
+
+          echo "## Dev Share (7-day)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[$TEMPLATE_DIR]($DEV_URL)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dev URL
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-url-${{ matrix.template }}
+          path: /tmp/dev-url.txt
+          retention-days: 1
+
+  post-comment:
+    name: Post PR comment
+    needs: [detect-changes, scaffold-and-deploy]
+    if: always() && needs.detect-changes.outputs.templates != '[]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all dev URL artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/dev-urls
+          pattern: dev-url-*
 
       - name: Post PR comment
-        if: steps.changed.outputs.templates != ''
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
 
-            const urlDir = '/tmp/share-urls';
-            const files = fs.readdirSync(urlDir);
-            if (files.length === 0) return;
+            const baseDir = '/tmp/dev-urls';
+            if (!fs.existsSync(baseDir)) return;
 
-            let body = '## Template Previews\n\n';
-            body += 'The following templates were updated in this PR:\n\n';
+            // Each artifact is in its own subdirectory: dev-url-<template>/dev-url.txt
+            const artifactDirs = fs.readdirSync(baseDir).sort();
+            if (artifactDirs.length === 0) return;
 
-            for (const file of files.sort()) {
-              const url = fs.readFileSync(path.join(urlDir, file), 'utf8').trim();
-              body += `- **${file}**: ${url}\n`;
+            let body = '## Prototype previews (expires in 7 days)\n\n';
+            body += 'Each template scaffolded as a full prototype:\n\n';
+            for (const dir of artifactDirs) {
+              const template = dir.replace('dev-url-', '');
+              const urlFile = path.join(baseDir, dir, 'dev-url.txt');
+              if (!fs.existsSync(urlFile)) continue;
+              const url = fs.readFileSync(urlFile, 'utf8').trim();
+              body += `- **${template}**: ${url}\n`;
             }
 
             body += `\n_Auto-deployed from ${{ github.event.pull_request.head.sha }}_`;
@@ -175,7 +231,7 @@ jobs:
 
             const existing = comments.find(c =>
               c.user.login === 'github-actions[bot]' &&
-              c.body.includes('Template Previews')
+              c.body.includes('Prototype Previews')
             );
 
             if (existing) {

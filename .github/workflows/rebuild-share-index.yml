@@ -1,9 +1,11 @@
-name: Rebuild Share Index
+name: Rebuild Share Index (disabled)
 
-on:
-  workflow_run:
-    workflows: ["Share Proto"]
-    types: [completed]
+# Disabled — will rework in a later PR
+# on:
+#   workflow_run:
+#     workflows: ["Share Proto"]
+#     types: [completed]
+on: []
 
 concurrency:
   group: rebuild-share-index

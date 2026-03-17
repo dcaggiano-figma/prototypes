@@ -61,30 +61,6 @@ jobs:
             "s3://figma-protov2/share/$BRANCH/$SHORT_SHA/" \
             --delete
 
-      - name: Write metadata
-        run: |
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
-          BRANCH="${{ github.ref_name }}"
-          URL="https://protov2.figma.design/share/$BRANCH/$SHORT_SHA/"
-          AUTHOR=$(git log -1 --format='%an')
-          MESSAGE=$(git log -1 --format='%s')
-          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-          cat > /tmp/metadata.json <<EOF
-          {
-            "branch": "$BRANCH",
-            "sha": "$SHORT_SHA",
-            "author": "$AUTHOR",
-            "message": "$MESSAGE",
-            "timestamp": "$TIMESTAMP",
-            "url": "$URL"
-          }
-          EOF
-
-          aws s3 cp /tmp/metadata.json \
-            "s3://figma-protov2/share/$BRANCH/$SHORT_SHA/metadata.json" \
-            --content-type "application/json"
-
       - name: Print share URL
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)

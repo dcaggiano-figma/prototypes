@@ -1,7 +1,9 @@
-name: Backfill Share Metadata
+name: Backfill Share Metadata (disabled)
 
-on:
-  workflow_dispatch:
+# Disabled — will rework in a later PR
+# on:
+#   workflow_dispatch:
+on: []
 
 permissions:
   id-token: write

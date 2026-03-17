@@ -1,0 +1,117 @@
+name: Share Pinned
+
+on:
+  workflow_dispatch:
+    inputs:
+      pin:
+        description: 'Pin name for a named snapshot (optional)'
+        required: false
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+  packages: read
+
+jobs:
+  share:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: share-pinned-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Authenticate to GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Validate .share-metadata.json
+        run: ci-scripts/validate-share-metadata.sh apps/prototype/.share-metadata.json
+
+      - name: Validate pin input
+        if: ${{ github.event.inputs.pin != '' }}
+        env:
+          PIN_INPUT: ${{ github.event.inputs.pin }}
+        run: |
+          if ! echo "$PIN_INPUT" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
+            echo "::error::Invalid pin name: \"$PIN_INPUT\". Must be a URL-safe slug (lowercase letters, digits, hyphens, no leading/trailing hyphens)."
+            exit 1
+          fi
+          if [ ${#PIN_INPUT} -gt 64 ]; then
+            echo "::error::Pin name too long (${#PIN_INPUT} chars, max 64)."
+            exit 1
+          fi
+
+      - name: Build
+        run: pnpm run build --base "./"
+
+      - name: Generate metadata
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_SHA: ${{ github.sha }}
+          GH_BRANCH: ${{ github.ref_name }}
+          GH_PIN: ${{ github.event.inputs.pin }}
+        run: |
+          SHORT_SHA=$(echo "$GH_SHA" | cut -c1-8)
+          PIN_NAME="$GH_PIN"
+
+          # Read AI-generated metadata from the repo
+          SUMMARY=$(jq -r '.summary // ""' apps/prototype/.share-metadata.json)
+          HASHTAGS=$(jq -c '.hashtags // []' apps/prototype/.share-metadata.json)
+          # File's pin value is a fallback if workflow input is empty
+          if [ -z "$PIN_NAME" ]; then
+            PIN_NAME=$(jq -r '.pin // ""' apps/prototype/.share-metadata.json)
+          fi
+
+          if [ -n "$PIN_NAME" ]; then
+            URL="https://protov2.figma.design/share/$GH_BRANCH/$PIN_NAME/"
+          else
+            URL="https://protov2.figma.design/share/$GH_BRANCH/latest/"
+          fi
+
+          jq -n \
+            --arg branch "$GH_BRANCH" \
+            --arg sha "$SHORT_SHA" \
+            --arg author "$GH_ACTOR" \
+            --arg message "$(git log -1 --pretty=%s)" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg url "$URL" \
+            --arg pin "$PIN_NAME" \
+            --arg summary "$SUMMARY" \
+            --argjson hashtags "$HASHTAGS" \
+            '{branch: $branch, sha: $sha, author: $author, message: $message, timestamp: $timestamp, url: $url, pin: $pin, summary: $summary, hashtags: $hashtags}' \
+            > apps/prototype/dist/metadata.json
+
+          echo "PIN=$PIN_NAME" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials
+        uses: figma/actions-configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 #v4.0.2
+        with:
+          role-to-assume: arn:aws:iam::133326480594:role/protov2_playground_workflow_role
+          aws-region: us-east-1
+
+      - name: Share
+        env:
+          GH_BRANCH: ${{ github.ref_name }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA=$(echo "$GH_SHA" | cut -c1-8)
+          if [ -n "$PIN" ]; then
+            ./ci-scripts/share.sh --branch "$GH_BRANCH" --sha "$SHORT_SHA" --dist apps/prototype/dist --pin "$PIN"
+          else
+            ./ci-scripts/share.sh --branch "$GH_BRANCH" --sha "$SHORT_SHA" --dist apps/prototype/dist
+          fi
