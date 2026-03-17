@@ -141,6 +141,10 @@ if gh auth status &>/dev/null; then
   GH_STATUS="$(gh auth status 2>&1)"
   MISSING_SCOPES=()
   for scope in "${REQUIRED_SCOPES[@]}"; do
+    # write:packages implies read:packages — accept either
+    if [[ "$scope" == "read:packages" ]]; then
+      echo "$GH_STATUS" | grep -qE "(read|write):packages" && continue
+    fi
     if ! echo "$GH_STATUS" | grep -q "$scope"; then
       MISSING_SCOPES+=("$scope")
     fi
@@ -199,6 +203,24 @@ else
     echo "  Slack: $SLACK_CHANNEL"
     exit 1
   fi
+fi
+
+# --- Step 4c: Verify push access ---
+
+PROBE_BRANCH="access-check/$(git config user.email)"
+# Branch is kept on remote intentionally as a usage metric.
+# First check if the branch already exists (previous run), then try pushing it.
+if git ls-remote --exit-code origin "refs/heads/$PROBE_BRANCH" &>/dev/null; then
+  pass "Push access verified"
+elif git push origin "HEAD:refs/heads/$PROBE_BRANCH" --quiet 2>/dev/null; then
+  pass "Push access verified"
+else
+  echo
+  info "You do not have push access to prototype-playground."
+  echo "  You can still continue prototyping, but sharing will be restricted."
+  echo "  Please reach out in #feat-prototype-playground for sharing access:"
+  echo "  $SLACK_CHANNEL"
+  echo
 fi
 
 # --- Step 5: ~/.npmrc (GitHub Packages auth) ---
