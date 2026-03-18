@@ -6,7 +6,7 @@ import {
   Icon16ChevronDown,
   Icon16FileFolderClosed,
   Icon16FileFolderOpen,
-  Icon16File,
+  Icon16FileTsx,
   Icon16FileCss,
   Icon16FileMd,
   Icon16FileJson,
@@ -214,7 +214,7 @@ const FILE_TREE: FileNode[] = [
   {
     name: 'App.tsx',
     type: 'file',
-    icon: Icon16File,
+    icon: Icon16FileTsx,
     content: APP_TSX_CONTENT,
   },
   {
@@ -224,13 +224,13 @@ const FILE_TREE: FileNode[] = [
       {
         name: 'Button.tsx',
         type: 'file',
-        icon: Icon16File,
+        icon: Icon16FileTsx,
         content: BUTTON_TSX_CONTENT,
       },
       {
         name: 'ProgressBar.tsx',
         type: 'file',
-        icon: Icon16File,
+        icon: Icon16FileTsx,
         content: PROGRESS_BAR_CONTENT,
       },
     ],
@@ -344,7 +344,7 @@ function FileTreeItem({
 
   const FolderIcon = expanded ? Icon16FileFolderOpen : Icon16FileFolderClosed;
   const ChevronIcon = expanded ? Icon16ChevronDown : Icon16ChevronRight;
-  const FileIcon = node.icon || Icon16File;
+  const FileIcon = node.icon || Icon16FileTsx;
 
   return (
     <>

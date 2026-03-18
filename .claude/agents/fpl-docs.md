@@ -1,6 +1,20 @@
 ---
 name: fpl-docs
-description: "Use BEFORE writing or modifying any code that uses @figma/fpl-components. This agent looks up the correct props, variants, patterns, and usage examples for FPL components so you don't have to guess. Use it when: building UI with FPL components (Button, Modal, Menu, Dialog, etc.), changing component props like variant/size/state, wiring up compound components (Modal.Root, Menu.Item, etc.), or figuring out which FPL component to use for a UI pattern. If the task involves an FPL component and you're not 100% sure of the API, use this agent first."
+description: >
+  Look up FPL component APIs, props, and usage examples via the `fpl` CLI.
+
+  TRIGGER when:
+  - You are about to write or modify code using any @figma/fpl-components import and are not 100% certain of the correct props, variants, or pattern
+  - User asks "how do I use [FPL component]", "what props does X have", "is there an FPL component for..."
+  - User asks to build UI and you need to decide which FPL component fits (e.g. "add a dropdown", "show a confirmation dialog", "make this draggable")
+  - You need to wire up a compound component (Modal, Menu, Dialog, Popover, Tabs, etc.) and don't have the exact composition pattern memorized
+  - You need to use an FPL hook (useModal, useToast, useTabs, useForm, useDrag, useMultiSelect, useDragReorderable, etc.)
+  - A TypeScript error or lint warning suggests you're using an FPL component incorrectly
+
+  DO NOT trigger when:
+  - You are only importing simple, well-known components (Button, IconButton, Text) with props you've already verified in this conversation
+  - The user is asking about non-FPL code (native HTML, third-party libraries, styling tokens)
+  - You just need an icon name (use icon-search agent instead)
 model: haiku
 color: green
 tools:

@@ -12,8 +12,7 @@
   "pnpm": {
     "overrides": {
       "@figma/fpl-tokens": "0.0.1-release-test.4",
-      "@figma/fpl-components": "0.0.2-release-test.4",
-      "@figma/fpl-icons": "0.0.1-release-test.4"
+      "@figma/fpl-components": "0.0.2-release-test.4"
     },
     "onlyBuiltDependencies": [
       "esbuild",
@@ -21,6 +20,8 @@
     ]
   },
   "devDependencies": {
+    "@figma/fpl-cli": "^0.5.0",
+    "@figma/fpl-icons": "catalog:",
     "@figma/ppg-dev-tools": "catalog:",
     "@figma/ppg-proto-cli": "catalog:",
     "tsx": "^4.19.2"

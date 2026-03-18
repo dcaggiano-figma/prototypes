@@ -19,7 +19,7 @@
   },
   "peerDependencies": {
     "@figma/fpl-components": "*",
-    "@figma/fpl-icons": "*",
+    "@figma/fpl-icons": "catalog:",
     "react": "^18.2.0"
   }
 }
