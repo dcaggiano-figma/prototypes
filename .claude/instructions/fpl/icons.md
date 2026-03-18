@@ -1,78 +1,46 @@
 # FPL Icons
 
-## Overview
-
-Icons are in a **separate package**: `@figma/fpl-icons` (not `@figma/fpl-components`).
-
-- Icons are React components
-- No separate CSS import required
-- Icons render as inline SVG
+Icons are in a **separate package**: `@figma/fpl-icons` (not `@figma/fpl-components`). No separate CSS import required.
 
 ## Import Pattern
 
 ```tsx
-import { IconPlus, IconSettings, IconEye } from '@figma/fpl-icons';
+import { Icon24Plus, Icon16Checkmark } from '@figma/fpl-icons';
 ```
 
 ## Naming Convention
 
-Icons use PascalCase with `Icon` prefix:
+Icons follow the pattern `Icon{size}{Name}{Variant}`:
 
-- `IconPlus`
-- `IconSettings`
-- `IconEye`
-- `IconChevronDown`
-- `IconSwatch`
+- **`Icon16*`** — 16px icons. Use in small containers (Badge `iconPrefix`, tight layouts)
+- **`Icon24*`** (default) — 24px icons. Use for most components (Button `iconPrefix`, Select `iconLead`, Chip `leading`/`trailing`)
+- **`Icon24*Large`** — Larger 24px icons. Use with `IconButton size="lg"`
 
-## Common Icons
+Examples: `Icon24Plus`, `Icon24Checkmark`, `Icon24SettingsLarge`, `Icon16ChevronDown`
 
-Based on project usage patterns:
+## Icon Placement by Component
 
-| Icon | Use Case |
-|------|----------|
-| `IconPlus` | Add actions, create buttons |
-| `IconSettings` | Settings, configuration |
-| `IconEye` | Visibility toggle |
-| `IconChevronDown` | Dropdowns, expandable sections |
-| `IconSwatch` | Color/style selection |
-
-**Note**: This is not a complete list. See Discovery section below.
+```
+Button:     iconPrefix={<Icon24Plus />}       (NOT icon as child)
+Badge:      iconPrefix={<Icon16Checkmark />}   (use Icon16 size)
+Chip:       leading={<Icon24Component />}            (before text)
+            trailing={<Icon16ChevronDown />}    (after text)
+Select:     iconLead={<Icon24Folder />}         (on Trigger and/or Option)
+IconButton: <IconButton aria-label="Add"><Icon24Plus /></IconButton>
+            (icon IS the child, aria-label REQUIRED)
+```
 
 ## Discovery
 
-The full icon list requires access to the FPL source. To find available icons:
-
-1. **Use the fpl-docs agent** - Ask it for the complete icon list
-2. **Run CLI** - `pnpm fpl list` shows all FPL exports including icons
-
-## Usage Examples
-
-### Icon Button
-
-```tsx
-import { Button } from '@figma/fpl-components';
-import { IconPlus } from '@figma/fpl-icons';
-
-<Button variant="ghost">
-  <IconPlus />
-</Button>
+```bash
+pnpm fpl icons search <keywords>   # Semantic search for icons by description
 ```
 
-### Icon with Text
-
-```tsx
-import { IconSettings } from '@figma/fpl-icons';
-
-<div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-  <IconSettings />
-  <span>Settings</span>
-</div>
+Examples:
+```bash
+pnpm fpl icons search "plus add"
+pnpm fpl icons search "settings gear"
+pnpm fpl icons search "arrow right"
 ```
 
-## Limitations
-
-The FPL icons source is not directly accessible in this environment. For complete documentation:
-
-- Use the `fpl-docs` agent for icon queries
-- Consult the FPL docs at `~/figma/figma/fpl/apps/docs/`
-- Run `pnpm fpl list` when FPL packages are installed
+Also available: the `icon-search` agent for natural language icon queries.

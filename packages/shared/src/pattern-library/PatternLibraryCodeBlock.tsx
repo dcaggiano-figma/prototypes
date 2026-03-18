@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { Button} from '@figma/fpl-components';
 import { Icon24Code, Icon24Clipboard, Icon24Check } from '@figma/fpl-icons';
 
-interface ComponentGalleryCodeBlockProps {
+interface PatternLibraryCodeBlockProps {
   code: string;
 }
 
-export function ComponentGalleryCodeBlock({ code }: ComponentGalleryCodeBlockProps) {
+export function PatternLibraryCodeBlock({ code }: PatternLibraryCodeBlockProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [copied, setCopied] = useState(false);
 

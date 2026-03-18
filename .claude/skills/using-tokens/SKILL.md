@@ -19,150 +19,125 @@ description: |
 
 # Using FPL Design Tokens
 
-This skill helps you make informed decisions about which design tokens from `@figma/fpl-tokens` to use when building interfaces and components.
+Recommend the correct FPL design tokens for any UI styling question. Outputs both **Tailwind classes** (for DOM components) and **CSS variable names** (for canvas/scenegraph rendering).
 
-## When to Use This Skill
+## Two Rendering Contexts
 
-Use this skill proactively when:
-1. Building new UI components or features
-2. You encounter hardcoded CSS values (colors, px spacing, font sizes)
-3. User asks for styling guidance
-4. Implementing designs without explicit token specifications
-5. Refactoring existing code to use the design system
+| Context | Format | Example |
+|---|---|---|
+| **DOM (Tailwind)** | className strings | `className="text-text bg-bg p-16px rounded-md"` |
+| **Canvas/Scenegraph** | CSS var → resolved value | `getComputedStyle(root).getPropertyValue('--color-text')` → hex |
 
-## Instructions
+Always provide **both formats** in your recommendations unless the user's context is unambiguous.
 
-### Step 1: Understand the Context
+## Step 1: Determine the Input Type
 
-Identify what the user is trying to style:
-- **Element type**: Button, card, text, icon, border, background, spacing?
-- **Visual hierarchy**: Primary, secondary, tertiary, disabled?
-- **Interactive state**: Default, hover, focus, active, disabled?
-- **Semantic meaning**: Brand, success, error, warning, neutral?
-- **Theme/mode**: Which theme (design, figjam, devmode) and mode (light, dark, EC)?
+Before consulting references, identify what you're working from:
 
-### Step 2: Consult the Token Guidelines
+### A) Figma MCP Structured Data
 
-Read [TOKEN_GUIDELINES.md](./TOKEN_GUIDELINES.md) to find the appropriate token using decision trees for:
-- **Colors**: Text, background, border, icon colors
-- **Typography**: Font size, weight, family for different text types
-- **Spacing**: Padding, margin, gap values
-- **Border Radius**: Corner rounding for different component types
-- **Sizing**: Component heights and widths
+If the user has Figma MCP output (structured JSON with fill/stroke/effect data):
 
-### Step 3: Apply Semantic Tokens
+1. Parse the structured data and normalize into FPL token names
+2. Validate against the reference files below
+3. Present the mapped tokens to the user
 
-**Always prefer semantic tokens over base ramps:**
-- ✅ `--color-text`, `--color-bg`, `--color-border`
-- ❌ `--ramp-black-800`, `--ramp-white-1000`
+### B) Screenshot or Visual Reference
 
-**Why?** Semantic tokens automatically adapt to theme and mode changes.
+Follow this visual analysis protocol:
 
-### Step 4: Check for Existing Patterns
+1. **Identify elements**: List every visible UI element (text, backgrounds, borders, icons, spacing)
+2. **Estimate proportions**: Compare spacing to known reference sizes (e.g., text height ~11px for body, ~24px for headings)
+3. **Map to tokens**: For each element, assign a token with a confidence level:
+   - **High**: Clear match to a known token (e.g., primary text on white bg → `text-text`)
+   - **Medium**: Reasonable inference (e.g., "looks like ~16px padding" → `p-3`)
+   - **Low**: Ambiguous (e.g., "could be secondary or tertiary text" — present both options)
+4. **Flag uncertainty**: Always note low-confidence recommendations and ask the user to confirm
 
-Before deciding, check if similar components exist in the codebase:
-- Search for similar component types
-- Look at existing FPL component usage
-- Follow established patterns for consistency
+### C) Text Description
 
-### Step 5: Provide Clear Recommendations
+Proceed directly to Step 2.
 
-When recommending tokens:
-1. **Name the token**: `--color-text`, `--spacer-3`, `--text-body-medium-font-size`
-2. **Explain why**: "This is for primary body text, so we use `--color-text` which meets WCAG AA contrast"
-3. **Show the pattern**: Provide a complete example with related tokens
-4. **Note any caveats**: Accessibility concerns, theme-specific behavior
+## Step 2: Search for Existing Patterns
 
-### Step 6: Validate Accessibility
+Before consulting reference files, search for matching patterns in the component gallery.
 
-Ensure token choices meet accessibility requirements:
-- Text colors must meet WCAG AA contrast (use `--color-text` or `--color-text-secondary`)
-- Avoid `--color-text-tertiary` for critical content
-- Provide focus indicators with sufficient contrast
-- Don't rely on color alone for meaning
+Search `packages/shared/src/pattern-library/recipeRegistry.tsx`:
+- Grep for keywords matching the user's request (component names, UI element types, layout terms)
+- Read **only** the matching recipe block — do NOT read the entire file
+- Extract the `code` string — it contains correct token usage in context
 
-## Common Patterns
+**Evaluate match quality:**
+- **Strong match** (same element type + layout + interaction states): Use the pattern directly → skip to Step 5
+- **Partial match** (similar pattern, missing specific tokens): Note what was found → proceed to Step 3 for the gaps only
+- **No match**: Proceed to Step 3
 
-### Button
-```css
-padding: var(--spacer-1) var(--spacer-2);
-background: var(--color-bg-brand);
-color: var(--color-text-onbrand);
-border-radius: var(--radius-medium);
-font-size: var(--text-body-medium-font-size);
-font-weight: var(--font-weight-strong);
-```
+**Skip this step** for canvas/scenegraph questions or specific token name lookups — go directly to Step 3.
 
-### Card
-```css
-padding: var(--spacer-3);
-background: var(--color-bg);
-border: 1px solid var(--color-border);
-border-radius: var(--radius-large);
-```
+## Step 3: Identify Token Categories Needed
 
-### Input Field
-```css
-padding: var(--spacer-1) var(--spacer-2);
-background: var(--color-bg-secondary);
-border: 1px solid var(--color-border);
-border-radius: var(--radius-medium);
-font-size: var(--text-body-medium-font-size);
-color: var(--color-text);
-```
+Determine which categories the query touches, and read **only** the relevant reference files:
 
-### Text Hierarchy
-```css
-/* Page title */
-font-size: var(--text-heading-large-font-size);
-font-weight: var(--text-heading-large-font-weight);
-color: var(--color-text);
+| Query About | Read This File |
+|---|---|
+| Any token question (start here) | [tailwind-token-map.md](./references/tailwind-token-map.md) |
+| Text, background, border, or icon colors | [color-tokens.md](./references/color-tokens.md) |
+| Font size, weight, family, text styles | [typography-tokens.md](./references/typography-tokens.md) |
+| Padding, margin, gap, radius, sizing | [spacing-and-layout-tokens.md](./references/spacing-and-layout-tokens.md) |
 
-/* Card title */
-font-size: var(--text-body-large-font-size);
-font-weight: var(--text-body-large-strong-font-weight);
-color: var(--color-text);
+**Selective reading**: For a color-only question, read `tailwind-token-map.md` + `color-tokens.md`. Do NOT load all 4 files for every query. After a partial match from Step 2, read only the reference file for the missing token category.
 
-/* Body text */
-font-size: var(--text-body-medium-font-size);
-color: var(--color-text);
+## Step 4: Apply Decision Trees
 
-/* Supporting text */
-font-size: var(--text-body-medium-font-size);
-color: var(--color-text-secondary);
-```
+Use the decision trees in the relevant reference file to select the right token:
 
-## Anti-Patterns to Avoid
+1. **Start with the element type**: What is being styled? (text, background, border, icon, spacing)
+2. **Consider hierarchy**: Primary, secondary, or tertiary?
+3. **Check semantic role**: Brand, danger, warning, success, neutral?
+4. **Check interaction state**: Default, hover, focus, disabled?
 
-❌ **Using base color ramps directly**
-```css
-color: var(--ramp-black-800); /* Breaks theming */
-```
+### Key Rules
 
-❌ **Hardcoding spacing values**
-```css
-padding: 14px; /* Inconsistent with design system */
-```
+- **Always use semantic tokens** (`text-text`, `bg-bg`) — never base ramps (`--ramp-black-800`)
+- **Use the spacing scale** — never hardcode arbitrary pixel values
+- **Pair tinted backgrounds with `-on` text**: `bg-bg-brand` + `text-text-onbrand`
+- **Tertiary colors are below WCAG AA** — decorative/placeholder only, never for critical content
 
-❌ **Creating custom font weights**
-```css
-font-weight: 475; /* Not part of the design system */
-```
+## Step 5: Provide Recommendations
 
-❌ **Using tertiary colors for critical content**
-```css
-.error { color: var(--color-text-tertiary); } /* Fails accessibility */
-```
+When a recipe match was found in Step 2, cite the recipe name and ground recommendations in its actual code.
 
-## Additional Resources
+Format every recommendation with:
 
-- **Detailed Decision Trees**: [TOKEN_GUIDELINES.md](./TOKEN_GUIDELINES.md)
-- **FPL Documentation**: `.claude/instructions/fpl/`
-- **Common Mistakes**: `.claude/instructions/fpl/common-mistakes.md`
+1. **Token name** in both formats:
+   - Tailwind: `text-text-secondary`
+   - CSS var: `--color-text-secondary`
+2. **Why this token**: Brief explanation of the semantic match
+3. **Context**: Show it in a realistic JSX snippet using real patterns from the templates
+4. **Caveats**: Accessibility notes, theme behavior, or alternatives
 
-## Notes
+### Example Output
 
-- This skill should complete quickly - just provide clear token recommendations
-- Always explain the "why" behind token choices
-- When uncertain between two tokens, explain the tradeoffs and let the user decide
-- Reference the TOKEN_GUIDELINES.md file for comprehensive decision trees
+> For the subtitle text under a card title:
+>
+> - **Tailwind**: `className="text-bodyMd text-text-secondary"`
+> - **CSS var**: `font-size: var(--text-body-medium-font-size); color: var(--color-text-secondary);`
+> - **Why**: Secondary text for supporting information below a primary heading. Meets WCAG AA contrast.
+>
+> ```tsx
+> <div className="bg-bg border border-border rounded-lg p-3">
+>   <h3 className="text-bodyLgStrong text-text">Card Title</h3>
+>   <p className="text-bodyMd text-text-secondary">Supporting description</p>
+> </div>
+> ```
+
+## Anti-Patterns to Flag
+
+If you spot any of these in existing code, recommend fixes:
+
+- Hardcoded hex colors or `rgb()` values → replace with semantic color tokens
+- Off-scale spacing (e.g., `p-[14px]`) → snap to nearest scale value
+- Custom font weights (e.g., `font-[475]`) → use `font-normal` (450) or `font-bold` (550)
+- Native `<button>` elements → use FPL `<Button>` or `<IconButton>`
+- Base ramp usage (`--ramp-*`) → replace with semantic token
+- Tertiary colors on critical content → upgrade to primary/secondary

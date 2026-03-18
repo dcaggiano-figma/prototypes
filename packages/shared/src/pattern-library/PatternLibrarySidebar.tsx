@@ -5,7 +5,7 @@ import { CATEGORY_LABELS } from './types';
 
 const { Sidebar } = Window;
 
-interface ComponentGallerySidebarProps {
+interface PatternLibrarySidebarProps {
   recipes: Recipe[];
   onSelect: (id: string) => void;
 }
@@ -20,7 +20,7 @@ const CATEGORY_ORDER: RecipeCategory[] = [
   'property-panels',
 ];
 
-export function ComponentGallerySidebar({ recipes, onSelect }: ComponentGallerySidebarProps) {
+export function PatternLibrarySidebar({ recipes, onSelect }: PatternLibrarySidebarProps) {
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {

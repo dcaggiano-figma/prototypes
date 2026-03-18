@@ -1,1 +1,0 @@
-export { ComponentGalleryWindow } from './ComponentGalleryWindow';

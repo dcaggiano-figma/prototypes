@@ -10,10 +10,10 @@ interface DesignMainMenuProps {
   onThemeChange: (setting: ThemeSetting) => void;
   onOpenActions: () => void;
   onToggleMinimize?: () => void;
-  onOpenComponentGallery?: () => void;
+  onOpenPatternLibrary?: () => void;
 }
 
-export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize, onOpenComponentGallery }: DesignMainMenuProps) {
+export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize, onOpenPatternLibrary }: DesignMainMenuProps) {
   const mainMenu = Menu.useMenu();
 
   // Consolidated preferences state
@@ -413,7 +413,7 @@ export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onT
     ]},
 
     { type: 'item', id: 'libraries', label: 'Libraries', onClick: noop },
-    { type: 'item', id: 'component-gallery', label: 'Component gallery', onClick: onOpenComponentGallery ?? noop },
+    { type: 'item', id: 'pattern-library', label: 'Pattern library', onClick: onOpenPatternLibrary ?? noop },
 
     { type: 'separator' },
 

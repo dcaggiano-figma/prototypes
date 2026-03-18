@@ -31,7 +31,7 @@ import { DesignMainMenu } from '../components/DesignMainMenu';
 import { FilePanel, SearchPanel, AiChatPanel, AssetsPanel } from '../components/panels';
 import { VariablesPanel } from '../components/variables';
 import { LibraryWindow } from '../components/LibraryWindow';
-import { ComponentGalleryWindow } from '@prototype/shared';
+import { PatternLibraryWindow } from '@prototype/shared';
 
 // ---------------------------------------------------------------------------
 // Panel content per nav item
@@ -100,7 +100,7 @@ function EditorContent() {
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [variablesViewMode, setVariablesViewMode] = useState<VariablesViewMode>('hidden');
   const [showLibrary, setShowLibrary] = useState(false);
-  const [showComponentGallery, setShowComponentGallery] = useState(false);
+  const [showPatternLibrary, setShowPatternLibrary] = useState(false);
 
   // Minimize UI state
   const [isMinimized, setIsMinimized] = useState(false);
@@ -209,7 +209,7 @@ function EditorContent() {
             onThemeChange={setThemeSetting}
             onOpenActions={() => setIsActionsOpen(true)}
             onToggleMinimize={toggleMinimized}
-            onOpenComponentGallery={() => setShowComponentGallery(true)}
+            onOpenPatternLibrary={() => setShowPatternLibrary(true)}
           />
           <LeftSidebar.Divider />
           <LeftSidebar.NavGroup>
@@ -268,8 +268,8 @@ function EditorContent() {
       {/* Library window */}
       {showLibrary && <LibraryWindow onClose={() => setShowLibrary(false)} />}
 
-      {/* Component gallery window */}
-      {showComponentGallery && <ComponentGalleryWindow onClose={() => setShowComponentGallery(false)} />}
+      {/* Pattern library window */}
+      {showPatternLibrary && <PatternLibraryWindow onClose={() => setShowPatternLibrary(false)} />}
 
       {/* Context menu — always mounted, visibility managed by FPL */}
       <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} />

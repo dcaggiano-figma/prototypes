@@ -120,5 +120,5 @@ export type {
   HeaderAction,
 } from './table';
 
-// Component Gallery
-export { ComponentGalleryWindow } from './component-gallery';
+// Pattern Library
+export { PatternLibraryWindow } from './pattern-library';

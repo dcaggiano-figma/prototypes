@@ -1,13 +1,13 @@
 import { Badge, Link } from '@figma/fpl-components';
 import type { Recipe } from './types';
 import { CATEGORY_LABELS } from './types';
-import { ComponentGalleryCodeBlock } from './ComponentGalleryCodeBlock';
+import { PatternLibraryCodeBlock } from './PatternLibraryCodeBlock';
 
-interface ComponentGalleryDetailProps {
+interface PatternLibraryDetailProps {
   recipe: Recipe | null;
 }
 
-export function ComponentGalleryDetail({ recipe }: ComponentGalleryDetailProps) {
+export function PatternLibraryDetail({ recipe }: PatternLibraryDetailProps) {
   if (!recipe) {
     return (
       <div className="flex-1 flex items-center justify-center text-text-tertiary text-bodyMd">
@@ -60,7 +60,7 @@ export function ComponentGalleryDetail({ recipe }: ComponentGalleryDetailProps) 
             <div className="p-4">
               {example.render()}
             </div>
-            <ComponentGalleryCodeBlock code={example.code} />
+            <PatternLibraryCodeBlock code={example.code} />
           </div>
         </div>
       ))}
