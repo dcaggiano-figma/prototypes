@@ -108,27 +108,17 @@ jobs:
               CREATED_LATEST=$((CREATED_LATEST + 1))
             fi
 
-            # --- Step 2: Ensure metadata.json exists at latest/ ---
-
-            if aws s3api head-object --bucket figma-protov2 --key "share/$branch/latest/metadata.json" 2>/dev/null; then
-              echo "  metadata.json already exists"
-              SKIPPED=$((SKIPPED + 1))
-              continue
-            fi
-
-            URL="https://protov2.figma.design/share/$branch/latest/"
+            # --- Step 2: Write metadata.json at latest/ (new schema) ---
 
             # Try to get git metadata from the branch
             AUTHOR=""
-            MESSAGE=""
+            COMMIT=""
             TIMESTAMP=""
-            SHA=""
 
             BRANCH_SHA=$(git rev-parse "origin/$branch" 2>/dev/null || echo "")
             if [ -n "$BRANCH_SHA" ]; then
-              SHA=$(echo "$BRANCH_SHA" | cut -c1-8)
+              COMMIT=$(echo "$BRANCH_SHA" | cut -c1-8)
               AUTHOR=$(git log -1 --format='%an' "$BRANCH_SHA" 2>/dev/null || echo "")
-              MESSAGE=$(git log -1 --format='%s' "$BRANCH_SHA" 2>/dev/null || echo "")
               TIMESTAMP=$(git log -1 --format='%aI' "$BRANCH_SHA" 2>/dev/null || echo "")
             fi
 
@@ -142,27 +132,29 @@ jobs:
             fi
 
             if [ -z "$AUTHOR" ]; then AUTHOR="Unknown"; fi
-            if [ -z "$MESSAGE" ]; then MESSAGE="$branch"; fi
-            if [ -z "$SHA" ]; then SHA="unknown"; fi
+            if [ -z "$COMMIT" ]; then COMMIT="unknown"; fi
             if [ -z "$TIMESTAMP" ]; then TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; fi
 
-            # Placeholder metadata for pre-description shares
-            SUMMARY="This prototype was published before descriptions were added."
-            HASHTAGS='["#beta-share"]'
+            DESCRIPTION="This prototype was published before descriptions were added."
 
-            echo "  Writing placeholder metadata (author: $AUTHOR)"
+            echo "  Writing metadata (author: $AUTHOR)"
 
             jq -n \
-              --arg branch "$branch" \
-              --arg sha "$SHA" \
+              --arg description "$DESCRIPTION" \
               --arg author "$AUTHOR" \
-              --arg message "$MESSAGE" \
+              --arg branch "$branch" \
+              --arg commit "$COMMIT" \
               --arg timestamp "$TIMESTAMP" \
-              --arg url "$URL" \
-              --arg pin "" \
-              --arg summary "$SUMMARY" \
-              --argjson hashtags "$HASHTAGS" \
-              '{branch: $branch, sha: $sha, author: $author, message: $message, timestamp: $timestamp, url: $url, pin: $pin, summary: $summary, hashtags: $hashtags}' \
+              '{
+                description: $description,
+                author: $author,
+                tags: ["backfill"],
+                base: {
+                  branch: $branch,
+                  commit: $commit,
+                  timestamp: $timestamp
+                }
+              }' \
               > /tmp/metadata.json
 
             aws s3 cp /tmp/metadata.json \
