@@ -1,4 +1,4 @@
-export type { ThemeSetting } from './theme';
+export type { ThemeSetting } from './theme/theme';
 
 /**
  * Set `data-preferred-theme` on `document.body` based on the stored theme.

@@ -1,4 +1,4 @@
-import type { MultiplayerColor } from '../Avatar';
+import type { MultiplayerColor } from '../avatar/Avatar';
 
 /** A single comment message within a thread */
 export interface Comment {

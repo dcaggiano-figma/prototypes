@@ -1,7 +1,24 @@
-import { Badge, Link } from '@figma/fpl-components';
-import type { Recipe } from './types';
+import { Badge } from '@figma/fpl-components';
+import type { Recipe, ComponentRef } from './types';
 import { CATEGORY_LABELS } from './types';
 import { PatternLibraryCodeBlock } from './PatternLibraryCodeBlock';
+import { Text } from '../typography';
+
+function ComponentBadgeList({ label, components, variant }: { label: string; components: ComponentRef[]; variant: 'componentOutline' | 'brandOutline' }) {
+  if (components.length === 0) return null;
+  return (
+    <div className="flex gap-2">
+      <div className="w-[48px]"><Text color="secondary">{label}:</Text></div>
+      <div className="flex flex-wrap gap-2">
+        {components.map((comp) => (
+          <Badge key={comp.name} variant={variant}>
+            {comp.name}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface PatternLibraryDetailProps {
   recipe: Recipe | null;
@@ -16,9 +33,12 @@ export function PatternLibraryDetail({ recipe }: PatternLibraryDetailProps) {
     );
   }
 
+  const fplComponents = recipe.components.filter((c) => c.source === 'fpl');
+  const sharedComponents = recipe.components.filter((c) => c.source === 'shared');
+
   return (
     <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-      
+
       <div className="flex flex-col gap-3">
         {/* Header */}
         <div className="flex items-center gap-2">
@@ -31,25 +51,10 @@ export function PatternLibraryDetail({ recipe }: PatternLibraryDetailProps) {
       </div>
 
       {/* Components used */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-text text-headingSm pb-2.5">Components used</span>
-        <div className="flex flex-wrap gap-2">
-          {recipe.components.map((comp) => (
-            <span key={comp.name}>
-              {comp.docsUrl ? (
-                <Link href={comp.docsUrl} target="_blank">
-                  <Badge variant={comp.source === 'fpl' ? 'componentOutline' : 'brandOutline'}>
-                    {comp.name}
-                  </Badge>
-                </Link>
-              ) : (
-                <Badge variant={comp.source === 'fpl' ? 'componentOutline' : 'brandOutline'}>
-                  {comp.name}
-                </Badge>
-              )}
-            </span>
-          ))}
-        </div>
+      <div className="flex flex-col gap-2.5 pb-2">
+        <span className="text-text text-headingSm">Components used</span>
+        <ComponentBadgeList label="FPL" components={fplComponents} variant="componentOutline" />
+        <ComponentBadgeList label="Shared" components={sharedComponents} variant="brandOutline" />
       </div>
 
       {/* Examples */}
@@ -57,7 +62,7 @@ export function PatternLibraryDetail({ recipe }: PatternLibraryDetailProps) {
         <div key={example.label} className="flex flex-col gap-2.5">
           <span className="text-text text-headingSm">Recipe: <span className="text-text-secondary">{example.label}</span></span>
           <div className="border border-border rounded-lg bg-bg">
-            <div className="p-4">
+            <div className="p-4 flex justify-center">
               {example.render()}
             </div>
             <PatternLibraryCodeBlock code={example.code} />

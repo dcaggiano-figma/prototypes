@@ -1,7 +1,7 @@
 import { IconButton } from '@figma/fpl-components';
 import { Icon24More } from '@figma/fpl-icons';
-import { Avatar } from '../Avatar';
-import type { MultiplayerColor } from '../Avatar';
+import { Avatar } from '../avatar/Avatar';
+import type { MultiplayerColor } from '../avatar/Avatar';
 import { formatRelativeTime } from './utils';
 
 interface CommentMessageProps {

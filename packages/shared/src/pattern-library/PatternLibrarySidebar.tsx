@@ -13,11 +13,15 @@ interface PatternLibrarySidebarProps {
 const CATEGORY_ORDER: RecipeCategory[] = [
   'forms',
   'navigation',
+  'toolbars',
   'overlays',
+  'interactions',
   'data-display',
   'layout',
+  'progress',
   'feedback',
   'property-panels',
+  'ai',
 ];
 
 export function PatternLibrarySidebar({ recipes, onSelect }: PatternLibrarySidebarProps) {
@@ -80,7 +84,7 @@ export function PatternLibrarySidebar({ recipes, onSelect }: PatternLibrarySideb
       <div className="overflow-y-auto">
       <Sidebar.TabStrip manager={tabManager}>
         {grouped.size === 0 && (
-          <div className="px-3 py-2 text-text-tertiary text-bodySm">No results</div>
+          <div className="px-3 py-3 text-text-secondary text-bodyMd">No results</div>
         )}
         {[...grouped.entries()].map(([category, items]) => (
           <Sidebar.TabGroup key={category}>

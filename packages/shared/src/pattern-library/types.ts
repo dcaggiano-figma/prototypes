@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export type RecipeCategory = 'forms' | 'navigation' | 'overlays' | 'data-display' | 'layout' | 'feedback' | 'property-panels';
+export type RecipeCategory = 'ai' | 'data-display' | 'feedback' | 'forms' | 'interactions' | 'layout' | 'navigation' | 'overlays' | 'progress' | 'property-panels' | 'toolbars';
 
 export interface RecipeExample {
   label: string;
@@ -25,11 +25,15 @@ export interface Recipe {
 }
 
 export const CATEGORY_LABELS: Record<RecipeCategory, string> = {
+  ai: 'AI',
+  'data-display': 'Data Display',
+  feedback: 'Feedback & messages',
   forms: 'Forms',
+  interactions: 'Interactions',
+  layout: 'Layout & content',
   navigation: 'Navigation',
   overlays: 'Overlays',
-  'data-display': 'Data Display',
-  layout: 'Layout',
-  feedback: 'Feedback',
+  progress: 'Progress',
   'property-panels': 'Property Panels',
+  toolbars: 'Toolbars',
 };

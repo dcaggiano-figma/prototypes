@@ -13,6 +13,14 @@
   --ag-row-height: var(--table-row-height);
 }
 
+/* Use outline instead of border so it collapses when the table is full-width
+   against a parent edge — outlines don't take up layout space. */
+.wrapper :global(.ag-root-wrapper) {
+  border: none;
+  outline: 1px solid var(--color-border);
+}
+
+
 /* Size: medium (12px) */
 .sizeMedium {
   --table-font-size: var(--text-body-medium-font-size, 12px);
@@ -51,13 +59,78 @@
   align-items: center;
 }
 
+/* Hide right border on the last cell in the center section — avoids
+   doubling with a pinned-right section's border, and the rightmost
+   cell doesn't need a trailing separator regardless. */
+.wrapper :global(.ag-center-cols-container .ag-cell:last-child) {
+  border-right-color: transparent !important;
+}
+
+/* Pinned right border turns blue on selected/focused rows */
+.wrapper :global(.ag-pinned-right-cols-container .ag-row-selected .ag-cell),
+.wrapper :global(.ag-pinned-right-cols-container .ag-row-focus .ag-cell) {
+  border-left-color: var(--color-border-onselected) !important;
+}
+
+/* Actions column — center the icon button with uniform padding */
+.wrapper :global(.ag-cell[col-id="__actions"]) {
+  justify-content: center;
+  padding: 0;
+}
+
+/* Alias cells — chip + detach button with asymmetric padding */
+.wrapper :global(.ag-cell):has(:global(.variable-alias-cell)) {
+  padding-left: 12px;
+  padding-right: 8px;
+}
+
+.wrapper :global(.variable-alias-cell) {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 4px;
+}
+
+.wrapper :global(.variable-alias-cell) > :last-child {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.wrapper :global(.ag-cell:hover) :global(.variable-alias-cell) > :last-child {
+  opacity: 1;
+}
+
+/* Actions cells — content only shows on row hover or when row is selected.
+   Uses .ag-row-hover (not :hover) because pinned columns render in a
+   separate container with their own row elements synced via this class. */
+.wrapper :global(.ag-row:not(.ag-row-hover):not(.ag-row-selected)) :global(.ag-cell-actions) > * {
+  opacity: 0;
+}
+
+.wrapper :global(.ag-row-hover) :global(.ag-cell-actions) > *,
+.wrapper :global(.ag-row-selected) :global(.ag-cell-actions) > * {
+  opacity: 1;
+}
+
 .wrapper :global(.ag-header-cell) {
   font-size: var(--table-font-size);
   line-height: var(--table-line-height);
 }
 
-.wrapper :global(.ag-header-cell:last-child::after) {
+/* Replace AG Grid's ::after-based header borders with explicit border-right
+   so dynamically added columns reliably show the separator.
+   Skip cells in editing mode — they use ::after for the focus ring. */
+.wrapper :global(.ag-header-cell:not([data-editing])::after) {
   display: none;
+}
+
+.wrapper :global(.ag-header-cell) {
+  border-right: 1px solid var(--color-border);
+}
+
+.wrapper :global(.ag-header-cell:last-child) {
+  border-right: none;
 }
 
 .wrapper :global(.ag-row) {
@@ -71,12 +144,10 @@
 
 .wrapper :global(.ag-header) {
   min-height: 0;
-  overflow: visible;
 }
 
 .wrapper :global(.ag-header-viewport) {
   min-height: 0;
-  overflow: visible;
 }
 
 /* Override AG Grid containment that creates stacking contexts interfering with menu portals */
@@ -84,10 +155,12 @@
   contain: none;
 }
 
-/* Selected/focused row borders */
+/* Selected/focused row borders — outset box-shadow for the top edge
+   so it doesn't shift layout or depend on DOM sibling order. */
 .wrapper :global(.ag-row-selected),
 .wrapper :global(.ag-row-focus) {
   border-bottom-color: var(--color-border-onselected);
+  box-shadow: 0 -1px 0 0 var(--color-border-onselected);
 }
 
 .wrapper :global(.ag-row-selected .ag-cell),
@@ -95,18 +168,22 @@
   border-bottom-color: transparent;
 }
 
-.wrapper :global(.ag-row-selected + .ag-row),
-.wrapper :global(.ag-row-focus + .ag-row) {
-  border-top-color: var(--color-border-onselected);
-}
-
 .verticalGridLines :global(.ag-row-selected .ag-cell),
 .verticalGridLines :global(.ag-row-focus .ag-cell) {
   border-right-color: var(--color-border-onselected);
 }
 
-/* Row with focused cell — visually select the row */
+/* Drag handle cell right border on selected/focused rows */
+.wrapper :global(.ag-row-selected .ag-cell[col-id="__drag"]),
+.wrapper :global(.ag-row-focus .ag-cell[col-id="__drag"]) {
+  border-right-color: var(--color-border-onselected) !important;
+}
+
+/* Row with focused cell — visually select the row.
+   z-index ensures the cell's outset focus ring (::after) paints
+   above adjacent rows' backgrounds. */
 .wrapper :global(.ag-row-focus) {
+  z-index: 1;
   background-color: var(--color-bg-selected-secondary);
 }
 
@@ -218,12 +295,23 @@
   cursor: grab;
 }
 
-/* Drag handle visibility */
-.wrapper :global(.ag-row:not(:hover)) .dragHandle {
+/* Row drag drop position indicator — 2px blue line via box-shadow
+   (avoids conflicting with AG Grid's own ::before/::after on rows) */
+.wrapper :global(.ag-row-highlight-above) {
+  box-shadow: inset 0 2px 0 0 var(--color-bg-brand);
+}
+
+.wrapper :global(.ag-row-highlight-below) {
+  box-shadow: inset 0 -2px 0 0 var(--color-bg-brand);
+}
+
+/* Drag handle visibility — show on hover or when row is selected */
+.wrapper :global(.ag-row:not(:hover):not(.ag-row-selected)) .dragHandle {
   opacity: 0;
 }
 
-.wrapper :global(.ag-row:hover) .dragHandle {
+.wrapper :global(.ag-row:hover) .dragHandle,
+.wrapper :global(.ag-row-selected) .dragHandle {
   opacity: 1;
 }
 
@@ -312,6 +400,53 @@
 
 .sortableHeaderLabelActive {
   color: var(--color-text);
+}
+
+/* Header cell editing — overflow:visible on the cell and its inner wrapper
+   so the outset focus ring (::after) is not clipped, matching cell editing. */
+.wrapper :global(.ag-header-cell[data-editing]),
+.wrapper :global(.ag-header-cell[data-editing]) :global(.ag-header-cell-comp-wrapper) {
+  overflow: visible;
+}
+
+/* Outset focus ring on the header cell — same pattern as .ag-cell-focus.ag-cell-inline-editing */
+.wrapper :global(.ag-header-cell[data-editing])::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  height: calc(100% + 2px);
+  width: calc(100% + 1px);
+  left: -1px;
+  top: -1px;
+  box-shadow: 0 0 0 1px var(--color-border-selected), 0 0 0 3px var(--color-border-onselected);
+  border-radius: var(--radius-md, 5px);
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Header editing wrapper — in-flow, same size as sortableHeader */
+.headerEditing {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* Input inherits cell padding so text stays in the same position as the label */
+.headerEditingInput {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  font-size: var(--table-font-size);
+  line-height: var(--table-line-height);
+  font-family: inherit;
+  font-weight: 600;
+  background: transparent;
+  color: var(--color-text);
+  border: none;
+  outline: none;
+  box-sizing: border-box;
 }
 
 .sortableHeaderTrailing {

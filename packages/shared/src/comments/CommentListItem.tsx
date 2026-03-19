@@ -1,4 +1,4 @@
-import { Avatar } from '../Avatar';
+import { Avatar } from '../avatar/Avatar';
 import { formatRelativeTime } from './utils';
 import type { CommentThread } from './types';
 

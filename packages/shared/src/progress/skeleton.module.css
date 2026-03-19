@@ -1,0 +1,32 @@
+.skeleton {
+  display: contents;
+}
+
+.bone {
+  animation: skeleton-shimmer 2s ease-out infinite;
+  background: linear-gradient(
+    100deg,
+    var(--color-bg-secondary),
+    var(--color-bg-secondary) 50%,
+    var(--color-bg-tertiary) 60%,
+    var(--color-bg-secondary) 70%
+  );
+  background-size: 200% 100%;
+  background-attachment: fixed;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position-x: 200%;
+  }
+  100% {
+    background-position-x: 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bone {
+    animation: none;
+    background: var(--color-bg-secondary);
+  }
+}

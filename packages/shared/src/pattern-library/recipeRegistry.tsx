@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Badge,
+  Banner,
   Button,
   ButtonPrimitive,
   Checkbox,
@@ -22,10 +23,10 @@ import {
   Switch,
   Tabs,
   Textarea,
+  Toast,
   Window,
 } from '@figma/fpl-components';
 import {
-  Icon24Adjust,
   Icon24AspectRatio,
   Icon24Eye,
   Icon24Hidden,
@@ -54,19 +55,72 @@ import {
   Icon24Import,
   Icon24Instance,
   Icon24Link,
-  Icon24Plus,
+  Icon24More,
+  Icon24PlayLarge,
   Icon24Text,
+  Icon24Plus,
+  Icon24Adjust,
+  Icon24Detach,
+  Icon24MoveLarge,
+  Icon24Rectangle,
+  Icon24RectangleLarge,
+  Icon24Line,
+  Icon24LineLarge,
+  Icon24Arrow,
+  Icon24ArrowLarge,
+  Icon24Ellipse,
+  Icon24EllipseLarge,
+  Icon24PenLarge,
+  Icon24HandLarge,
+  Icon24TextLarge,
+  Icon24ExpandLayers,
+  Icon24Settings,
+  Icon24Page,
+  Icon24Add,
+  Icon24Search,
+  Icon24Variable,
+  Icon24ListView,
+  Icon24Bold,
+  Icon24StrikeThrough,
+  Icon24Duplicate,
+  Icon24Lock,
+  Icon24Warning,
+  Icon24Key,
 } from '@figma/fpl-icons';
 import { Form, TextInput, useForm } from '@figma/fpl-components/form';
 import { z } from 'zod';
 import type { Recipe } from './types';
-import { PropertySection, PropertyRow, PlaceholderSection } from '../PropertyLayout';
-import { Avatar } from '../Avatar';
-import { Text } from '../Text';
-import { Heading } from '../Heading';
-import { NavList } from '../NavList';
+import { PropertySection, PropertyRow, PlaceholderSection } from '../layout/PropertyLayout';
+import { Avatar } from '../avatar/Avatar';
+import { Card } from '../card/Card';
+import { Text } from '../typography/Text';
+import { Heading } from '../typography/Heading';
+import { Code } from '../typography/Code';
+import { Pre } from '../typography/Pre';
+import { UnorderedList, ListItem } from '../typography/List';
+import { NavList } from '../navigation/NavList';
+import { LeftSidebar } from '../left-sidebar';
+import { Toolbar } from '../toolbar';
+import type { SubTool } from '../toolbar';
 import { Table } from '../table';
 import type { TableColumnDef } from '../table';
+import { Skeleton } from '../progress/Skeleton';
+import { Swatch } from '../swatch/Swatch';
+import { useContextMenu, ContextMenuRenderer } from '../context-menu';
+import type { MenuItemDef } from '../context-menu';
+import {
+  StreamingContent,
+  PromptPanel,
+  FileCard,
+  ChatMessage,
+  CollapsibleSection,
+  ProgressIndicator,
+  SystemMessage,
+  TodoList,
+  VersionCard,
+  AttachmentThumbnail,
+} from '../ai-chat';
+import type { Task } from '../ai-chat';
 
 // ---------------------------------------------------------------------------
 // ExampleContainer — visual wrapper for recipe demos only.
@@ -78,12 +132,14 @@ function ExampleContainer({
   width,
   padding = false,
   fullWidth = false,
+  bare = false,
   className,
 }: {
   children: React.ReactNode;
   width?: number;
   padding?: boolean;
   fullWidth?: boolean;
+  bare?: boolean;
   className?: string;
 }) {
   if (fullWidth) {
@@ -91,7 +147,7 @@ function ExampleContainer({
   }
   return (
     <div
-      className={`border border-border rounded-lg overflow-hidden bg-bg${padding ? ' p-4' : ''}${className ? ` ${className}` : ''}`}
+      className={`${bare ? '' : 'border border-border rounded-lg overflow-hidden bg-bg'}${padding ? ' p-4' : ''}${className ? ` ${className}` : ''}`}
       style={width ? { width } : undefined}
     >
       {children}
@@ -162,7 +218,7 @@ const accountSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
 });
 
-function AccountInfoFormDemo() {
+function InformationFormDemo() {
   const { manager: formManager } = useForm({
     schema: accountSchema,
     size: 'lg',
@@ -258,7 +314,7 @@ function SearchFilteredListDemo() {
             selectedVariant="default"
           />
         ) : (
-          <Text size="sm" color="tertiary" className="px-3 py-1.5">No results</Text>
+          <div className="px-3 py-2"><Text color="tertiary">No results</Text></div>
         )}
       </div>
     </ExampleContainer>
@@ -360,14 +416,14 @@ function AvatarNameRowDemo() {
   ];
 
   return (
-    <div className="flex flex-col gap-2">
+    <ExampleContainer width={200} className="flex flex-col gap-2 p-3">
       {users.map((user) => (
         <div key={user.name} className="flex items-center gap-2">
           <Avatar initial={user.initial} color={user.color} size="md" />
           <Text>{user.name}</Text>
         </div>
       ))}
-    </div>
+    </ExampleContainer>
   );
 }
 
@@ -552,18 +608,33 @@ const SEAT_COLUMNS: TableColumnDef<SeatAssignment>[] = [
       <Badge variant={SEAT_STATUS_BADGE_VARIANT[params.value] ?? 'neutral'}>{params.value}</Badge>
     ),
   },
+  {
+    colId: '__actions',
+    headerName: '',
+    width: 48,
+    maxWidth: 48,
+    minWidth: 48,
+    sortable: false,
+    resizable: false,
+    suppressMovable: true,
+    pinned: 'right',
+    cellRenderer: () => (
+      <IconButton variant="ghost" aria-label="More actions">
+        <Icon24More />
+      </IconButton>
+    ),
+  },
 ];
 
 function ActionTableBulkDemo() {
   const [selectedCount, setSelectedCount] = useState(0);
 
   return (
-    <div className="flex flex-col gap-2 w-full">
+    <ExampleContainer fullWidth className="flex flex-col gap-2">
       {selectedCount > 0 && (
         <div className="flex items-center gap-2">
-          <Text size="sm" color="secondary">{selectedCount} selected</Text>
-          <Button>Change role</Button>
-          <Button variant="destructive">Remove</Button>
+          <Text color="secondary">{selectedCount} selected</Text>
+          <Button variant="destructiveSecondary">Remove</Button>
         </div>
       )}
       <Table<SeatAssignment>
@@ -579,45 +650,47 @@ function ActionTableBulkDemo() {
           setSelectedCount(event.api.getSelectedRows().length);
         }}
       />
-    </div>
-  );
-}
-
-function ActionTableColumnDemo() {
-  const [columns, setColumns] = useState<TableColumnDef<SeatAssignment>[]>(SEAT_COLUMNS);
-
-  return (
-    <ExampleContainer fullWidth>
-      <Table<SeatAssignment>
-        columns={columns}
-        data={SEAT_DATA}
-        getRowId={(row) => row.id}
-        sorting
-        columnResizing
-        columnMenu
-        gridLines={{ vertical: true }}
-        onDeleteColumn={(colId) => {
-          setColumns((prev) => prev.filter((c) => c.field !== colId));
-        }}
-        onAddColumn={(colId, position) => {
-          setColumns((prev) => {
-            const idx = prev.findIndex((c) => c.field === colId);
-            const newCol: TableColumnDef<SeatAssignment> = {
-              field: `new_${Date.now()}` as keyof SeatAssignment & string,
-              headerName: 'New Column',
-              flex: 1,
-            };
-            const next = [...prev];
-            next.splice(position === 'left' ? idx : idx + 1, 0, newCol);
-            return next;
-          });
-        }}
-      />
     </ExampleContainer>
   );
 }
 
 // ── Recipe 3: Complex Table — Design variables editor + CMS ──
+
+// Shared helpers for dynamic column add/delete across complex table demos
+function useColumnManagement<T>(initialColumns: TableColumnDef<T>[]) {
+  const [columns, setColumns] = useState<TableColumnDef<T>[]>(initialColumns);
+
+  const onDeleteColumn = useCallback((colId: string) => {
+    setColumns((prev) => prev.filter((c) => c.field !== colId));
+  }, []);
+
+  const onAddColumn = useCallback((colId: string, position: 'left' | 'right') => {
+    setColumns((prev) => {
+      const idx = prev.findIndex((c) => c.field === colId);
+      const newCol: TableColumnDef<T> = {
+        field: `new_${Date.now()}` as TableColumnDef<T>['field'],
+        headerName: 'New Column',
+        flex: 1,
+      };
+      const next = [...prev];
+      next.splice(position === 'left' ? idx : idx + 1, 0, newCol);
+      return next;
+    });
+  }, []);
+
+  const onRenameColumn = useCallback((colId: string, newName: string) => {
+    setColumns((prev) =>
+      prev.map((c) => (c.field === colId ? { ...c, headerName: newName } : c)),
+    );
+  }, []);
+
+  return { columns, onDeleteColumn, onAddColumn, onRenameColumn };
+}
+
+interface VariableAlias {
+  name: string;
+  color: string;
+}
 
 interface DesignVariable {
   id: string;
@@ -627,10 +700,21 @@ interface DesignVariable {
   dark: string;
   lightEc: string;
   darkEc: string;
+  /** Optional per-mode alias references (shown as Chips instead of raw values) */
+  lightAlias?: VariableAlias;
+  darkAlias?: VariableAlias;
+  lightEcAlias?: VariableAlias;
+  darkEcAlias?: VariableAlias;
 }
 
 const VARIABLES_DATA: DesignVariable[] = [
-  { id: '1', name: 'bg', group: 'Color', light: '#FFFFFF', dark: '#1E1E1E', lightEc: '#FFFFFF', darkEc: '#000000' },
+  {
+    id: '1', name: 'bg', group: 'Color', light: '#FFFFFF', dark: '#1E1E1E', lightEc: '#FFFFFF', darkEc: '#000000',
+    lightAlias: { name: 'white-1000', color: '#FFFFFF' },
+    darkAlias: { name: 'black-1000', color: '#1E1E1E' },
+    lightEcAlias: { name: 'white-1000', color: '#FFFFFF' },
+    darkEcAlias: { name: 'black-1000', color: '#000000' },
+  },
   { id: '2', name: 'bg-secondary', group: 'Color', light: '#F5F5F5', dark: '#2C2C2C', lightEc: '#F0F0F0', darkEc: '#1A1A1A' },
   { id: '3', name: 'text', group: 'Color', light: '#1E1E1E', dark: '#FFFFFF', lightEc: '#000000', darkEc: '#FFFFFF' },
   { id: '4', name: 'text-secondary', group: 'Color', light: '#666666', dark: '#999999', lightEc: '#333333', darkEc: '#CCCCCC' },
@@ -647,42 +731,93 @@ const VARIABLES_DATA: DesignVariable[] = [
 
 function ColorSwatchRenderer(params: { data: DesignVariable; value: string; colDef: { field?: string } }) {
   const group = params.data.group;
-  if (group === 'Color') {
+  if (group !== 'Color') return params.value;
+
+  // Check for an alias on this column's mode
+  const field = params.colDef.field as keyof DesignVariable | undefined;
+  const aliasKey = field ? `${field}Alias` as keyof DesignVariable : undefined;
+  const alias = aliasKey ? params.data[aliasKey] as VariableAlias | undefined : undefined;
+
+  if (alias) {
     return (
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span
-          style={{
-            display: 'inline-block',
-            width: 14,
-            height: 14,
-            borderRadius: 3,
-            backgroundColor: params.value,
-            border: '1px solid var(--color-border)',
-            flexShrink: 0,
-          }}
-        />
-        {params.value}
+      <span className="variable-alias-cell">
+        <Chip
+          leading={<Swatch colors={[alias.color]} size="sm" padding={false} />}
+          onClick={() => {}}
+        >
+          {alias.name}
+        </Chip>
+        <IconButton variant="ghost" aria-label="Detach variable" onClick={() => {}}>
+          <Icon24Detach />
+        </IconButton>
       </span>
     );
   }
-  return params.value;
+
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <Swatch colors={[params.value]} size="sm" padding={false} />
+      {params.value}
+    </span>
+  );
+}
+
+function VariableActionsHeaderRenderer() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+      <IconButton variant="ghost" aria-label="Add variable" size="md">
+        <Icon24Plus />
+      </IconButton>
+    </div>
+  );
+}
+
+function VariableActionsCellRenderer() {
+  return (
+    <IconButton variant="ghost" aria-label="Edit variable" size="md">
+      <Icon24Adjust />
+    </IconButton>
+  );
+}
+
+// Editable unless cell has an alias reference
+function isVariableCellEditable(params: { data?: DesignVariable; colDef: { field?: string } }) {
+  if (!params.data) return false;
+  const field = params.colDef.field as keyof DesignVariable | undefined;
+  const aliasKey = field ? `${field}Alias` as keyof DesignVariable : undefined;
+  return !(aliasKey && params.data[aliasKey]);
 }
 
 const VARIABLE_COLUMNS: TableColumnDef<DesignVariable>[] = [
   { field: 'name', headerName: 'Name', flex: 1, editable: true },
-  { field: 'light', headerName: 'Light', flex: 1, editable: true, cellRenderer: ColorSwatchRenderer },
-  { field: 'dark', headerName: 'Dark', flex: 1, editable: true, cellRenderer: ColorSwatchRenderer },
-  { field: 'lightEc', headerName: 'Light EC', flex: 1, editable: true, cellRenderer: ColorSwatchRenderer },
-  { field: 'darkEc', headerName: 'Dark EC', flex: 1, editable: true, cellRenderer: ColorSwatchRenderer },
+  { field: 'light', headerName: 'Light', flex: 1, editable: isVariableCellEditable, cellRenderer: ColorSwatchRenderer },
+  { field: 'dark', headerName: 'Dark', flex: 1, editable: isVariableCellEditable, cellRenderer: ColorSwatchRenderer },
+  { field: 'lightEc', headerName: 'Light EC', flex: 1, editable: isVariableCellEditable, cellRenderer: ColorSwatchRenderer },
+  { field: 'darkEc', headerName: 'Dark EC', flex: 1, editable: isVariableCellEditable, cellRenderer: ColorSwatchRenderer },
+  {
+    colId: '__actions',
+    headerName: '',
+    width: 48,
+    maxWidth: 48,
+    minWidth: 48,
+    sortable: false,
+    resizable: false,
+    suppressMovable: true,
+    pinned: 'right',
+    headerComponent: VariableActionsHeaderRenderer,
+    cellRenderer: VariableActionsCellRenderer,
+    cellClass: 'ag-cell-actions',
+  },
 ];
 
 function ComplexTableVariablesDemo() {
   const [data, setData] = useState(VARIABLES_DATA);
+  const { columns, onAddColumn, onDeleteColumn, onRenameColumn } = useColumnManagement(VARIABLE_COLUMNS);
 
   return (
     <ExampleContainer fullWidth>
       <Table<DesignVariable>
-        columns={VARIABLE_COLUMNS}
+        columns={columns}
         data={data}
         getRowId={(row) => row.id}
         sectionField="group"
@@ -694,13 +829,18 @@ function ComplexTableVariablesDemo() {
         cellEditing
         rowDrag
         columnResizing
+        columnMenu
         density="comfortable"
         gridLines={{ vertical: true }}
+        rowSelectColumns={['name']}
         onCellValueChanged={(event) => {
           setData((prev) =>
             prev.map((row) => (row.id === event.data.id ? { ...event.data } : row)),
           );
         }}
+        onAddColumn={onAddColumn}
+        onDeleteColumn={onDeleteColumn}
+        onRenameColumn={onRenameColumn}
       />
     </ExampleContainer>
   );
@@ -759,11 +899,12 @@ const CMS_COLUMNS: TableColumnDef<ContentEntry>[] = [
 
 function ComplexTableCmsDemo() {
   const [data, setData] = useState(CMS_DATA);
+  const { columns, onAddColumn, onDeleteColumn, onRenameColumn } = useColumnManagement(CMS_COLUMNS);
 
   return (
     <ExampleContainer fullWidth>
       <Table<ContentEntry>
-        columns={CMS_COLUMNS}
+        columns={columns}
         data={data}
         getRowId={(row) => row.id}
         cellEditing
@@ -772,36 +913,57 @@ function ComplexTableCmsDemo() {
         columnResizing
         columnMenu
         gridLines={{ vertical: true }}
+        rowSelectColumns={['title']}
         onCellValueChanged={(event) => {
           setData((prev) =>
             prev.map((row) => (row.id === event.data.id ? { ...event.data } : row)),
           );
         }}
+        onAddColumn={onAddColumn}
+        onDeleteColumn={onDeleteColumn}
+        onRenameColumn={onRenameColumn}
       />
     </ExampleContainer>
   );
 }
 
-function ComplexTableRowClickDemo() {
+function SkeletonListDemo() {
   return (
-    <ExampleContainer fullWidth>
-      <Table<DesignVariable>
-        columns={VARIABLE_COLUMNS}
-        data={VARIABLES_DATA}
-        getRowId={(row) => row.id}
-        selectionMode="singleRow"
-        sorting
-        columnResizing
-        density="compact"
-        gridLines={{ vertical: true }}
-      />
+    <ExampleContainer bare>
+      <Skeleton>
+        <div className="flex flex-col">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="flex items-center gap-3 px-2 py-2">
+              <Skeleton.Bone variant="icon" size="md" />
+              <Skeleton.Bone variant="text" size="md" width="100px" />
+            </div>
+          ))}
+        </div>
+      </Skeleton>
+    </ExampleContainer>
+  );
+}
+
+function SkeletonCardDemo() {
+  return (
+    <ExampleContainer bare>
+    <Skeleton>
+      <div className="border border-border rounded-lg overflow-hidden" style={{ width: 240 }}>
+        <Skeleton.Bone variant="thumbnail" width="100%" height={120} className="rounded-none" />
+        <div className="flex flex-col gap-2 p-3">
+          <Skeleton.Bone variant="heading" size="md" width="70%" />
+          <Skeleton.Bone variant="text" size="sm" />
+          <Skeleton.Bone variant="text" size="sm" width="85%" />
+        </div>
+      </div>
+    </Skeleton>
     </ExampleContainer>
   );
 }
 
 function LoadingStatesDemo() {
   return (
-    <div className="flex items-center gap-6">
+    <ExampleContainer bare className="flex items-center gap-6">
       <div className="flex flex-col items-center gap-2">
         <Button variant="primary" loading="Saving">
           Save
@@ -818,13 +980,13 @@ function LoadingStatesDemo() {
         <LoadingSpinner />
         <Text mono color="tertiary">Standalone</Text>
       </div>
-    </div>
+    </ExampleContainer>
   );
 }
 
 function LinkButtonDemo() {
   return (
-    <div className="flex flex-col gap-2">
+    <ExampleContainer bare className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <Button variant="primary">Primary</Button>
         <Button variant="secondary">Secondary</Button>
@@ -837,13 +999,13 @@ function LinkButtonDemo() {
       <div className="flex items-center gap-2 py-2">
         This is an <Link href="https://fpl.figma.design" target="_blank">inline link</Link>
       </div>
-    </div>
+    </ExampleContainer>
   );
 }
 
 function GhostContainedDemo() {
   return (
-    <div className="flex items-center gap-2">
+    <ExampleContainer bare className="flex items-center gap-2">
       <div className="flex items-center gap-1">
       <IconButton variant="ghost" aria-label="Collapse">
         <Icon24Collapse />
@@ -853,13 +1015,13 @@ function GhostContainedDemo() {
       </IconButton>
       </div>
       <Button variant="primary">Share</Button>
-    </div>
+    </ExampleContainer>
   );
 }
 
 function FooterActionsDemo() {
   return (
-    <ExampleContainer className="flex flex-col gap-3">
+    <ExampleContainer className="flex flex-col gap-3 w-full">
       <div className="flex items-center justify-between p-3">
         <Button variant="link" iconPrefix={<Icon24Link />}>Copy link</Button>
         <div className="flex items-center gap-2">
@@ -873,7 +1035,7 @@ function FooterActionsDemo() {
 
 function HeaderButtonsDemo() {
   return (
-    <div className="flex items-center justify-between w-full">
+    <ExampleContainer className="flex items-center justify-between w-full p-3">
       <div className="flex items-center gap-2">
         <Button variant="secondary" size="lg" iconPrefix={<Icon24Plus />}>Create</Button>
         <Button size="lg" variant="secondary" iconPrefix={<Icon24Import />}>Import</Button>
@@ -889,39 +1051,92 @@ function HeaderButtonsDemo() {
       </div>
         <Button variant="primary" size="lg">Share</Button>
       </div>
-    </div>
+    </ExampleContainer>
   );
 }
 
 function TypographyDemo() {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <Heading size="lg">Heading large</Heading>
-        <Heading size="md">Heading medium</Heading>
-        <Heading size="sm">Heading small</Heading>
+    <ExampleContainer className="w-full flex flex-col gap-4" bare>
+
+      <div className="flex flex-col gap-3">
+      <Heading size="lg">Created a confirmation modal</Heading>
+
+      <Text size="lg" as="p">
+        I added a new <Code>ConfirmDeleteModal</Code> component that handles
+        destructive actions with a two-step confirmation flow. The modal uses
+        the{' '}
+        <Link href="https://fpl.figma.com/components/modal">
+          FPL Modal
+        </Link>{' '}
+        compound component and is controlled via the <Code>useModal</Code> hook.
+      </Text>
       </div>
-      <div className="flex flex-col gap-1">
-        <Text size="lg">Text large — body copy for prominent content</Text>
-        <Text size="md">Text medium — default body copy</Text>
-        <Text size="sm">Text small — metadata or lebgal text - avoid using for main content</Text>
+
+      <div className="flex flex-col gap-3">
+
+      <Heading size="md">What changed</Heading>
+
+      <Text size="lg" as="p">
+        The implementation touches three files. The modal itself lives in{' '}
+        <Code>ConfirmDeleteModal.tsx</Code> and exposes a simple{' '}
+        <Code>onConfirm</Code> callback. I wired it into the existing{' '}
+        <Code>ProjectSettings</Code> page and added a{' '}
+        <Text strong>type-to-confirm</Text> input that requires the user to
+        type the project name before the delete button enables. Here is the
+        core of the component:
+      </Text>
+
+      <Pre lineNumbers syntax="jsx">{`function ConfirmDeleteModal({ projectName, onConfirm, onClose }) {
+  const [typed, setTyped] = useState('');
+  const confirmed = typed === projectName;
+
+  return (
+    <Modal.Root manager={manager} width="sm">
+      <Modal.Contents>
+        <Modal.Header>
+          <Modal.Title>Delete {projectName}?</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Text color="secondary">
+            This action cannot be undone. Type the project
+            name to confirm.
+          </Text>
+          <Input value={typed} onChange={setTyped} />
+        </Modal.Body>
+        <Modal.Footer>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            variant="destructive"
+            disabled={!confirmed}
+            onClick={onConfirm}
+          >
+            Delete project
+          </Button>
+        </Modal.Footer>
+      </Modal.Contents>
+    </Modal.Root>
+  );
+}`}</Pre>
+</div>
+
+<div className="flex flex-col gap-3">
+
+      <Heading size="md">Key decisions</Heading>
+
+      <UnorderedList size="lg">
+        <ListItem>Used <Code>width=&quot;sm&quot;</Code> to keep the modal compact since it only contains a single input</ListItem>
+        <ListItem>The <Code>destructive</Code> button variant signals danger without needing extra color tokens</ListItem>
+        <ListItem>Moved the <Code>onClose</Code> handler into the hook so the <Link href="https://developer.mozilla.org/en-US/docs/Web/API/HTMLDialogElement">escape key</Link> and backdrop click work automatically</ListItem>
+        <ListItem>Added a <Text strong>300ms debounce</Text> on the confirm comparison to avoid flicker while typing</ListItem>
+      </UnorderedList>
+
+      <Text size="lg" as="p">
+        Let me know if you want me to add unit tests or adjust the
+        confirmation logic.
+      </Text>
       </div>
-      <div className="flex flex-col gap-1">
-        <Text size="md" strong>Strong text for emphasis or section labels</Text>
-        <Text size="md" color="secondary">Secondary-colored text for less important content</Text>
-        <Text size="md" color="brand">Brand-colored text</Text>
-        <Text size="md" color="danger">Danger-colored text for errors</Text>
-        <Text size="md" color="success">Success-colored text</Text>
-      </div>
-      <div className="flex flex-col gap-1">
-        <Text mono>Monospace text — code snippets and values</Text>
-        <Text mono color="secondary">fontSize: 14px</Text>
-        <Text mono color="brand">--color-bg-brand</Text>
-      </div>
-      <div className="w-[200px]">
-        <Text truncate>This is a very long line of text that will be truncated with an ellipsis</Text>
-      </div>
-    </div>
+    </ExampleContainer>
   );
 }
 
@@ -1146,7 +1361,10 @@ function FillLayoutDemo() {
       >
         <PropertyRow columns="1fr auto auto" style={{ opacity: visible ? 1 : 0.4 }}>
           <Input.Group columns="1fr 52px">
-            <Input aria-label="Hex color" value={hex} onChange={setHex} />
+            <Input.Root>
+              <Swatch colors={[`#${hex}`]} onClick={() => {}} />
+              <Input aria-label="Hex color" value={hex} onChange={setHex} />
+            </Input.Root>
             <Input aria-label="Opacity" value={opacity} onChange={setOpacity} />
           </Input.Group>
           <IconButton aria-label="Toggle visibility" onClick={() => setVisible(!visible)}>
@@ -1275,13 +1493,1400 @@ function InstancePropertiesDemo() {
 }
 
 // ---------------------------------------------------------------------------
+// Card demos
+// ---------------------------------------------------------------------------
+
+function CardBasicDemo() {
+  return (
+    <ExampleContainer width={200} bare>
+      <Card
+        label="Library name"
+        subtext="100 components"
+        onClick={() => {}}
+      >
+        <div className="overflow-hidden border border-border rounded-md aspect-[16/9] bg-bg-secondary" />
+      </Card>
+    </ExampleContainer>
+  );
+}
+
+const CARD_GRID_ITEMS = [
+  { id: '1', title: 'Wireframe kit', subtitle: 'UI Design' },
+  { id: '2', title: 'Brand guidelines', subtitle: 'Branding' },
+  { id: '3', title: 'App prototype', subtitle: 'Mobile' },
+];
+
+function CardGridDemo() {
+  return (
+    <ExampleContainer fullWidth bare>
+      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+        {CARD_GRID_ITEMS.map(item => (
+          <Card key={item.id} size="lg" label={item.title} subtext={item.subtitle} onClick={() => {}}>
+            <div className="overflow-hidden border border-border rounded-lg aspect-[16/9] bg-bg-secondary" />
+          </Card>
+        ))}
+      </div>
+    </ExampleContainer>
+  );
+}
+
+const CARD_TRAILING_SECTIONS = [
+  { id: 'timer', name: 'Timer', description: '5 minute countdown' },
+  { id: 'music', name: 'Music', description: 'Acoustic ambient' },
+];
+
+function CardTrailingDemo() {
+  return (
+    <ExampleContainer width={240} bare>
+      <div className="flex flex-col gap-1" style={{ margin: '0 -8px' }}>
+        {CARD_TRAILING_SECTIONS.map(section => (
+          <Card
+            key={section.id}
+            label={section.name}
+            subtext={section.description}
+            onClick={() => {}}
+            trailing={
+              <IconButton aria-label="Play" variant="primaryCircle" size="lg">
+                <Icon24PlayLarge />
+              </IconButton>
+            }
+          >
+            <div className="overflow-hidden border border-border rounded-md aspect-[16/9] bg-bg-secondary" />
+          </Card>
+        ))}
+      </div>
+    </ExampleContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AI demo helpers
+// ---------------------------------------------------------------------------
+
+function PromptPanelDemo({ isWorking = false }: { isWorking?: boolean }) {
+  const [value, setValue] = useState('');
+  const [model, setModel] = useState('claude-4-sonnet');
+
+  return (
+    <ExampleContainer width={400} bare>
+      <PromptPanel
+        value={isWorking ? 'Make the sidebar collapsible' : value}
+        onChange={setValue}
+        selectedModel={model}
+        onModelChange={setModel}
+        onSubmit={() => setValue('')}
+        isWorking={isWorking}
+        onStop={() => {}}
+        placeholder="Ask for changes"
+      />
+    </ExampleContainer>
+  );
+}
+
+function PromptPanelWithAttachmentsDemo() {
+  const [value, setValue] = useState('Fix the layout on these elements');
+  const [model, setModel] = useState('claude-4-sonnet');
+
+  return (
+    <ExampleContainer width={400} bare>
+      <PromptPanel
+        value={value}
+        onChange={setValue}
+        selectedModel={model}
+        onModelChange={setModel}
+        onSubmit={() => setValue('')}
+        placeholder="Ask for changes"
+        inspectedElements={MOCK_INSPECTED_ELEMENTS}
+        onRemoveElement={() => {}}
+      />
+    </ExampleContainer>
+  );
+}
+
+function PromptPanelWithImageDemo() {
+  const [value, setValue] = useState('Update the hero section to match this design');
+  const [model, setModel] = useState('claude-4-sonnet');
+
+  return (
+    <ExampleContainer width={400} bare>
+      <div className="flex flex-col w-full border border-bordertranslucent hover:border-bordertranslucentstrong rounded-lg overflow-hidden">
+        <div className="px-3 pt-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <AttachmentThumbnail
+              attachment={MOCK_ATTACHMENTS[0]}
+              onRemove={() => {}}
+            />
+          </div>
+        </div>
+        <div className="[&>div]:border-none [&>div]:shadow-none">
+          <PromptPanel
+            value={value}
+            onChange={setValue}
+            selectedModel={model}
+            onModelChange={setModel}
+            onSubmit={() => setValue('')}
+            placeholder="Ask for changes"
+          />
+        </div>
+      </div>
+    </ExampleContainer>
+  );
+}
+
+function TodoListWithConfirmDemo() {
+  const [started, setStarted] = useState(false);
+
+  const tasks: Task[] = started
+    ? MOCK_TASKS
+    : MOCK_TASKS.map((t) => ({ ...t, status: 'pending' as const }));
+
+  return (
+    <ExampleContainer width={400} bare>
+      <div className="p-4">
+        <SystemMessage icon={<Icon24ListView />} label="To do list">
+          <TodoList tasks={tasks} />
+          {!started && (
+            <div className="px-3 pb-3">
+              <Button variant="primary" size="lg" onClick={() => setStarted(true)}>
+                Start tasks
+              </Button>
+            </div>
+          )}
+        </SystemMessage>
+      </div>
+    </ExampleContainer>
+  );
+}
+
+function StreamingWordDemo() {
+  return (
+    <ExampleContainer width={400} padding bare>
+      <StreamingContent
+        content="The quick brown fox jumps over the lazy dog. This text streams in word by word to demonstrate the streaming content component."
+        status="active"
+        chunkBy="words"
+        speed={8}
+        fade={false}
+      >
+        {(visible) => <span className="text-text">{visible}</span>}
+      </StreamingContent>
+    </ExampleContainer>
+  );
+}
+
+function StreamingLineDemo() {
+  return (
+    <ExampleContainer width={400} padding bare>
+      <StreamingContent
+        content={`Step 1: Analyze the component structure\nStep 2: Identify the collapsible regions\nStep 3: Add state management for open/closed\nStep 4: Wire up the toggle button\nStep 5: Add transition animations`}
+        status="active"
+        chunkBy="lines"
+        speed={2}
+        fade={false}
+      >
+        {(visible) => <span className="text-text-secondary whitespace-pre-line">{visible}</span>}
+      </StreamingContent>
+    </ExampleContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Simple syntax highlighting (mirrors templates/make CodeView.tsx)
+// ---------------------------------------------------------------------------
+
+const KEYWORD_RE = /\b(import|export|from|const|let|var|function|return|if|else|default|typeof|new|class|extends|interface|type|as)\b/g;
+const STRING_RE = /(["'`])(?:(?=(\\?))\2.)*?\1/g;
+const COMMENT_RE = /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm;
+const JSX_TAG_RE = /(<\/?)([\w.]+)/g;
+const ATTR_RE = /\b([a-zA-Z-]+)(=)/g;
+
+function highlightLine(line: string): React.ReactNode[] {
+  type Span = { start: number; end: number; cls: string };
+  const spans: Span[] = [];
+
+  const collect = (re: RegExp, cls: string, group?: number) => {
+    const pattern = new RegExp(re.source, re.flags);
+    let m = pattern.exec(line);
+    while (m !== null) {
+      const idx = group !== undefined ? m.index + (m[0].indexOf(m[group]) - 0) : m.index;
+      const text = group !== undefined ? m[group] : m[0];
+      spans.push({ start: group !== undefined ? idx : m.index, end: (group !== undefined ? idx : m.index) + text.length, cls });
+      m = pattern.exec(line);
+    }
+  };
+
+  collect(COMMENT_RE, 'text-text-success');
+  collect(STRING_RE, 'text-text-warning');
+  collect(KEYWORD_RE, 'text-text-brand');
+  collect(JSX_TAG_RE, 'text-text-danger', 2);
+  collect(ATTR_RE, 'text-text-component', 1);
+
+  spans.sort((a, b) => a.start - b.start);
+  const merged: Span[] = [];
+  let cursor = 0;
+  spans.forEach((s) => {
+    if (s.start >= cursor) {
+      merged.push(s);
+      cursor = s.end;
+    }
+  });
+
+  const nodes: React.ReactNode[] = [];
+  let pos = 0;
+  merged.forEach((s) => {
+    if (s.start > pos) {
+      nodes.push(line.slice(pos, s.start));
+    }
+    nodes.push(
+      <span key={s.start} className={s.cls}>
+        {line.slice(s.start, s.end)}
+      </span>,
+    );
+    pos = s.end;
+  });
+  if (pos < line.length) {
+    nodes.push(line.slice(pos));
+  }
+  return nodes;
+}
+
+// ---------------------------------------------------------------------------
+// Streaming code demo
+// ---------------------------------------------------------------------------
+
+const STREAMING_CODE_CONTENT = `import { useState } from 'react';
+import { Sidebar } from './Sidebar';
+
+export function Layout({ children }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <div className="flex h-screen">
+      <Sidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(!collapsed)}
+      />
+      <main className="flex-1 overflow-auto">
+        {children}
+      </main>
+    </div>
+  );
+}`;
+
+function StreamingCodeDemo() {
+  return (
+    <ExampleContainer width={400} bare>
+      <FileCard variant="writing" fileName="Layout.tsx" loading>
+        <StreamingContent
+          content={STREAMING_CODE_CONTENT}
+          status="active"
+          chunkBy="lines"
+          speed={2}
+          maxHeight={200}
+        >
+          {(visible) => {
+            const lines = visible.split('\n');
+            return (
+              <table className="w-full border-collapse font-mono text-bodyMd">
+                <tbody>
+                  {lines.map((line, i) => (
+                    <tr key={`line-${i}`}>
+                      <td className="select-none text-right px-3 text-text-tertiary w-[1%] whitespace-nowrap align-top">
+                        {i + 1}
+                      </td>
+                      <td className="text-text font-mono pr-16px whitespace-pre">
+                        {highlightLine(line)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          }}
+        </StreamingContent>
+      </FileCard>
+    </ExampleContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AI Chat demo helpers
+// ---------------------------------------------------------------------------
+
+const MOCK_TASKS: Task[] = [
+  { label: 'Analyze component structure', status: 'complete' },
+  { label: 'Update imports', status: 'complete' },
+  { label: 'Refactor state management', status: 'in_progress' },
+  { label: 'Add tests', status: 'pending' },
+  { label: 'Update documentation', status: 'pending' },
+];
+
+const MOCK_ATTACHMENTS = [
+  { id: '1', url: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect fill="%23e2e2e2" width="80" height="80"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23999" font-size="10">image</text></svg>', fileName: 'screenshot.png', loading: false },
+];
+
+const MOCK_INSPECTED_ELEMENTS = [
+  { id: 'el-1', type: 'div', label: 'div' },
+  { id: 'el-2', type: 'button', label: 'button' },
+];
+
+// ---------------------------------------------------------------------------
+// Navigation demo helpers
+// ---------------------------------------------------------------------------
+
+function FilePanel() {
+  return <div className="p-3"><Text color="secondary">File browser panel</Text></div>;
+}
+function AssetsPanel() {
+  return <div className="p-3"><Text color="secondary">Assets panel</Text></div>;
+}
+function SearchPanel() {
+  return <div className="p-3"><Text color="secondary">Search panel</Text></div>;
+}
+function VariablesPanel() {
+  return <div className="p-3"><Text color="secondary">Variables panel</Text></div>;
+}
+
+function LeftSidebarDemo() {
+  const [activeItem, setActiveItem] = useState('file');
+
+  return (
+    <ExampleContainer className="w-full h-[400px]">
+      <div className="flex h-full">
+        <LeftSidebar.Provider activeItem={activeItem} onItemChange={setActiveItem}>
+          <LeftSidebar.Rail>
+            <LeftSidebar.NavGroup>
+              <LeftSidebar.NavItem id="file" icon={Icon24Page} label="File" />
+              <LeftSidebar.NavItem id="assets" icon={Icon24Add} label="Assets" />
+              <LeftSidebar.NavItem id="search" icon={Icon24Search} label="Find" />
+            </LeftSidebar.NavGroup>
+            <LeftSidebar.Divider />
+            <LeftSidebar.NavGroup>
+              <LeftSidebar.NavItem id="variables" icon={Icon24Variable} label="Variables" />
+            </LeftSidebar.NavGroup>
+          </LeftSidebar.Rail>
+          <LeftSidebar.Panel
+            panels={{
+              file: FilePanel,
+              assets: AssetsPanel,
+              search: SearchPanel,
+              variables: VariablesPanel,
+            }}
+            fallback={FilePanel}
+          />
+        </LeftSidebar.Provider>
+        <div className="flex-1 flex items-center justify-center bg-bg-secondary">
+          <Text color="tertiary">Main content area</Text>
+        </div>
+      </div>
+    </ExampleContainer>
+  );
+}
+
+function NavListCompoundDemo() {
+  const [selected, setSelected] = useState('layers');
+
+  return (
+    <div className="flex gap-4 flex-wrap">
+      <ExampleContainer width={220}>
+        <div className="p-2">
+          <NavList.Root
+            aria-label="Pages"
+            value={selected}
+            onChange={setSelected}
+            selectedVariant="default"
+            size="lg"
+          >
+            <NavList.Item value="layers" icon={Icon24ExpandLayers} label="Layers" trailing={<div className="px-1"><Badge>12</Badge></div>} />
+            <NavList.Item value="components" icon={Icon24Component} label="Components" trailing={<div className="px-1"><Badge>4</Badge></div>} />
+            <NavList.Item
+              value="styles"
+              icon={Icon24Styles}
+              label="Styles"
+              trailingOnInteraction={<IconButton size="md" aria-label="More" variant="ghost"><Icon24More /></IconButton>}
+            />
+            <NavList.Item value="settings" icon={Icon24Settings} label="Settings" />
+          </NavList.Root>
+        </div>
+      </ExampleContainer>
+      <ExampleContainer width={220}>
+        <div className="p-2">
+          <NavList.Root
+            aria-label="Pages highlighted"
+            value={selected}
+            onChange={setSelected}
+            selectedVariant="highlighted"
+            size="lg"
+          >
+            <NavList.Item value="layers" icon={Icon24ExpandLayers} label="Layers" trailing={<div className="px-1"><Badge>12</Badge></div>} />
+            <NavList.Item value="components" icon={Icon24Component} label="Components" trailing={<div className="px-1"><Badge>4</Badge></div>} />
+            <NavList.Item
+              value="styles"
+              icon={Icon24Styles}
+              label="Styles"
+              trailingOnInteraction={<IconButton size="md" aria-label="More" variant="ghost"><Icon24More /></IconButton>}
+            />
+            <NavList.Item value="settings" icon={Icon24Settings} label="Settings" />
+          </NavList.Root>
+        </div>
+      </ExampleContainer>
+    </div>
+  );
+}
+
+const SHAPE_SUB_TOOLS: SubTool[] = [
+  { id: 'rectangle', label: 'Rectangle', Icon: Icon24Rectangle, LargeIcon: Icon24RectangleLarge, shortcut: 'R' },
+  { id: 'line', label: 'Line', Icon: Icon24Line, LargeIcon: Icon24LineLarge, shortcut: 'L' },
+  { id: 'arrow', label: 'Arrow', Icon: Icon24Arrow, LargeIcon: Icon24ArrowLarge, shortcut: '⇧L' },
+  { id: 'ellipse', label: 'Ellipse', Icon: Icon24Ellipse, LargeIcon: Icon24EllipseLarge, shortcut: 'O' },
+];
+
+function PrimaryToolbarDemo() {
+  const [activeTool, setActiveTool] = useState('move');
+  const [selectedSubToolId, setSelectedSubToolId] = useState('rectangle');
+
+  const handleSelectTool = (id: string) => {
+    setActiveTool(id);
+    if (SHAPE_SUB_TOOLS.some((st) => st.id === id)) {
+      setSelectedSubToolId(id);
+    }
+  };
+
+  return (
+    <ExampleContainer bare padding>
+      <div className="flex justify-center">
+        <Toolbar.Shell>
+          <div className="flex items-center gap-2 p-2">
+            <Toolbar.FlatToolButton icon={Icon24MoveLarge} label="Move" isActive={activeTool === 'move'} onClick={() => handleSelectTool('move')} />
+            <Toolbar.FlatToolButton icon={Icon24HandLarge} label="Hand" isActive={activeTool === 'hand'} onClick={() => handleSelectTool('hand')} />
+            <Toolbar.ToolButton
+              id="shapes"
+              Icon={Icon24RectangleLarge}
+              label="Shape tools"
+              activeTool={activeTool}
+              selectedSubToolId={selectedSubToolId}
+              subTools={SHAPE_SUB_TOOLS}
+              onSelectTool={handleSelectTool}
+            />
+            <Toolbar.FlatToolButton icon={Icon24PenLarge} label="Pen" isActive={activeTool === 'pen'} onClick={() => handleSelectTool('pen')} />
+            <Toolbar.FlatToolButton icon={Icon24TextLarge} label="Text" isActive={activeTool === 'text'} onClick={() => handleSelectTool('text')} />
+            
+          </div>
+        </Toolbar.Shell>
+      </div>
+    </ExampleContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Secondary toolbar demo (color/option bar above primary toolbar)
+// ---------------------------------------------------------------------------
+
+const SECONDARY_COLORS = [
+  { id: 'black', label: 'Black', css: '#1B1B1B' },
+  { id: 'grey', label: 'Grey', css: '#A5A5A5' },
+  { id: 'red', label: 'Red', css: '#F24822' },
+  { id: 'orange', label: 'Orange', css: '#FFA629' },
+  { id: 'yellow', label: 'Yellow', css: '#FFCD29' },
+  { id: 'green', label: 'Green', css: '#14AE5C' },
+  { id: 'blue', label: 'Blue', css: '#0D99FF' },
+  { id: 'purple', label: 'Purple', css: '#9747FF' },
+];
+
+function SecondaryToolbarDemo() {
+  const [activeColor, setActiveColor] = useState('#0D99FF');
+  const [activeOption, setActiveOption] = useState('shape-rect');
+
+  return (
+    <ExampleContainer bare padding>
+      <div className="flex flex-col items-center gap-2">
+        {/* Secondary toolbar (appears above primary) */}
+        <div className="flex items-center bg-bg rounded-lg shadow-300 px-1 gap-1">
+          {/* Color section */}
+          <div className="flex items-center gap-1 p-1">
+            {SECONDARY_COLORS.map((c) => (
+              <IconButton
+                key={c.id}
+                aria-label={c.label}
+                variant="ghost"
+                onClick={() => setActiveColor(c.css)}
+              >
+                <Swatch
+                  type="circle"
+                  colors={[c.css]}
+                  padding={false}
+                  selected={activeColor === c.css}
+                />
+              </IconButton>
+            ))}
+          </div>
+          <div className="border-l border-border self-stretch" />
+          {/* Shape options */}
+          <div className="flex items-center gap-1 py-2 px-2">
+            <IconButton aria-label="Rectangle" variant={activeOption === 'shape-rect' ? 'highlighted' : 'ghost'} onClick={() => setActiveOption('shape-rect')}><Icon24ListView /></IconButton>
+            <IconButton aria-label="Ellipse" variant={activeOption === 'shape-ellipse' ? 'highlighted' : 'ghost'} onClick={() => setActiveOption('shape-ellipse')}><Icon24GridView /></IconButton>
+          </div>
+        </div>
+        {/* Primary toolbar below */}
+        <Toolbar.Shell>
+          <div className="flex items-center gap-2 p-2">
+            <Toolbar.FlatToolButton icon={Icon24MoveLarge} label="Move" isActive={false} onClick={() => {}} />
+            <Toolbar.FlatToolButton icon={Icon24HandLarge} label="Hand" isActive={false} onClick={() => {}} />
+          </div>
+        </Toolbar.Shell>
+      </div>
+    </ExampleContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Floating object toolbar demos (dark popover above selection)
+// ---------------------------------------------------------------------------
+
+const FLOATING_COLORS = [
+  { id: 'yellow', css: '#FFD966' },
+  { id: 'orange', css: '#FFB347' },
+  { id: 'red', css: '#FF6B6B' },
+  { id: 'pink', css: '#F9A8D4' },
+  { id: 'purple', css: '#C4B5FD' },
+  { id: 'blue', css: '#93C5FD' },
+  { id: 'teal', css: '#5EEAD4' },
+  { id: 'green', css: '#86EFAC' },
+];
+
+function FloatingShapeToolbarDemo() {
+  const [fillColor, setFillColor] = useState('#93C5FD');
+  const [showColors, setShowColors] = useState(false);
+  const [align, setAlign] = useState('left');
+
+  return (
+    <ExampleContainer bare padding>
+      <div className="flex justify-center">
+        <div data-preferred-theme="dark" className="relative">
+          <div className="flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1">
+            {/* Color swatch */}
+            <div className="relative">
+              <IconButton
+                size="lg"
+                aria-label="Fill color"
+                variant="ghost"
+                onClick={() => setShowColors((v) => !v)}
+              >
+                <Swatch type="circle" colors={[fillColor]} size="sm" padding={false} />
+              </IconButton>
+              {showColors && (
+                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-bg rounded-lg shadow-300 p-2 flex gap-1">
+                  {FLOATING_COLORS.map((c) => (
+                    <IconButton
+                      key={c.id}
+                      aria-label={c.id}
+                      variant="ghost"
+                      onClick={() => { setFillColor(c.css); setShowColors(false); }}
+                    >
+                      <Swatch type="circle" colors={[c.css]} size="sm" padding={false} />
+                    </IconButton>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="border-l border-border h-4" />
+            {/* Text formatting */}
+            <IconButton size="lg" aria-label="Bold" variant="ghost"><Icon24Bold /></IconButton>
+            <IconButton size="lg" aria-label="Strikethrough" variant="ghost"><Icon24StrikeThrough /></IconButton>
+            <div className="border-l border-border h-4" />
+            {/* Alignment */}
+            <IconButton size="lg" aria-label="Align left" variant={align === 'left' ? 'highlighted' : 'ghost'} onClick={() => setAlign('left')}><Icon24TextAlignLeft /></IconButton>
+            <IconButton size="lg" aria-label="Align center" variant={align === 'center' ? 'highlighted' : 'ghost'} onClick={() => setAlign('center')}><Icon24TextAlignCenter /></IconButton>
+            <IconButton size="lg" aria-label="Align right" variant={align === 'right' ? 'highlighted' : 'ghost'} onClick={() => setAlign('right')}><Icon24TextAlignRight /></IconButton>
+            <div className="border-l border-border h-4" />
+            {/* Actions */}
+            <IconButton size="lg" aria-label="Duplicate" variant="ghost"><Icon24Duplicate /></IconButton>
+            <IconButton size="lg" aria-label="Lock" variant="ghost"><Icon24Lock /></IconButton>
+          </div>
+        </div>
+      </div>
+    </ExampleContainer>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Right-Click Context Menu Demo
+// ---------------------------------------------------------------------------
+
+function RightClickContextMenuDemo() {
+  const { handleOpen, manager } = useContextMenu();
+
+  const menuItems: MenuItemDef[] = [
+    { type: 'item', id: 'copy', label: 'Copy', shortcut: '⌘C', onClick: () => {} },
+    { type: 'item', id: 'paste', label: 'Paste here', shortcut: '⌘V', onClick: () => {} },
+    { type: 'item', id: 'rename', label: 'Rename', onClick: () => {} },
+    { type: 'separator' },
+    { type: 'item', id: 'delete', label: 'Delete', shortcut: '⌫', onClick: () => {} },
+    { type: 'separator' },
+    { type: 'submenu', id: 'more', label: 'More options', children: [
+      { type: 'item', id: 'export', label: 'Export…', onClick: () => {} },
+      { type: 'item', id: 'duplicate', label: 'Duplicate', shortcut: '⌘D', onClick: () => {} },
+    ]},
+  ];
+
+  return (
+    <ExampleContainer>
+      <div
+        className="bg-bg-secondary p-3 w-full h-[200px] flex items-center justify-center select-none"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          handleOpen('canvas', e.clientX, e.clientY);
+        }}
+      >
+        <Text color="secondary">Right-click anywhere in this area</Text>
+      </div>
+      <ContextMenuRenderer manager={manager} items={menuItems} />
+    </ExampleContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Feedback & messages demos
+// ---------------------------------------------------------------------------
+
+function InlineBannerFormDemo() {
+  return (
+    <ExampleContainer width={320}>
+      <div className="flex flex-col gap-3 p-3">
+        <Text strong>Publish settings</Text>
+        <Banner.Inline variant="warn">
+          <Banner.Message title="Caution">Publishing will replace the current live version.</Banner.Message>
+        </Banner.Inline>
+        <div className="flex flex-col gap-2">
+          <Label>
+            Version name
+            <Input value="v2.4.1" id="version-name" />
+          </Label>
+          <Label>
+            Description
+            <Textarea id="description" value="Bug fixes and performance improvements" />
+          </Label>
+        </div>
+        <div className="flex justify-end">
+          <Button variant="primary">Publish</Button>
+        </div>
+      </div>
+    </ExampleContainer>
+  );
+}
+
+function InlineBannerPropertyPanelDemo() {
+  return (
+    <ExampleContainer width={260}>
+      <PropertySection title="Export settings">
+        <Banner.Informational variant="default">
+          <Banner.Message>SVG exports will flatten all layers.</Banner.Message>
+        </Banner.Informational>
+        <div className="flex flex-col pt-3">
+        <PropertyRow columns="1fr 1fr 24px">
+          <Select.Root value="svg" onChange={() => {}}>
+            <Select.Trigger label={<HiddenLabel>Format</HiddenLabel>} width="fill" />
+            <Select.Container>
+              <Select.Option value="svg">SVG</Select.Option>
+              <Select.Option value="png">PNG</Select.Option>
+              <Select.Option value="pdf">PDF</Select.Option>
+            </Select.Container>
+          </Select.Root>
+          <Input value="1x" id="scale" />
+          <IconButton aria-label="Remove"><Icon24Minus /></IconButton>
+        </PropertyRow>
+        <PropertyRow columns="1fr 1fr 24px">
+          <Select.Root value="svg" onChange={() => {}}>
+            <Select.Trigger label={<HiddenLabel>Format</HiddenLabel>} width="fill" />
+            <Select.Container>
+              <Select.Option value="svg">SVG</Select.Option>
+              <Select.Option value="png">PNG</Select.Option>
+              <Select.Option value="pdf">PDF</Select.Option>
+            </Select.Container>
+          </Select.Root>
+          <Input value="2x" id="scale" />
+          <IconButton aria-label="Remove"><Icon24Minus /></IconButton>
+        </PropertyRow>
+        </div>
+        <div className="px-3 py-1"><Button variant="secondary" width="fill">Export</Button></div>
+      </PropertySection>
+    </ExampleContainer>
+  );
+}
+
+function GlobalBannerDemo() {
+  const [visible, setVisible] = useState(true);
+  return (
+    <ExampleContainer className="w-full">
+      <div className="flex flex-col">
+        {visible && (
+          <Banner.FullWidth variant="brand" onDismiss={() => setVisible(false)}>
+            <Banner.Message>New version available — improvements to auto layout and components.</Banner.Message>
+            <Banner.Button onClick={() => setVisible(false)}>Update now</Banner.Button>
+          </Banner.FullWidth>
+        )}
+        <div className="p-4 flex flex-col gap-2">
+          <Text color="secondary">My designs</Text>
+          <div className="flex gap-2">
+            <div className="w-24 h-16 rounded bg-bg-secondary" />
+            <div className="w-24 h-16 rounded bg-bg-secondary" />
+            <div className="w-24 h-16 rounded bg-bg-secondary" />
+          </div>
+        </div>
+      </div>
+    </ExampleContainer>
+  );
+}
+
+function DeleteConfirmationDemo() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const modalManager = Modal.useModal({
+    open: isOpen,
+    onClose: () => setIsOpen(false),
+  });
+
+  return (
+    <ExampleContainer bare>
+      <Button variant="destructive" onClick={() => setIsOpen(true)}>Delete file</Button>
+      <Modal.Root manager={modalManager} width="sm">
+        <Modal.Contents>
+          <Modal.Header>
+            <Modal.Title>Delete design-system-v2.fig?</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Text color="secondary">
+              This file will be permanently deleted. This action cannot be undone.
+            </Text>
+          </Modal.Body>
+          <Modal.Footer>
+            <Modal.ActionStrip>
+              <Button variant="secondary" onClick={() => setIsOpen(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => setIsOpen(false)}>Delete</Button>
+            </Modal.ActionStrip>
+          </Modal.Footer>
+        </Modal.Contents>
+      </Modal.Root>
+    </ExampleContainer>
+  );
+}
+
+function CriticalToastDemo() {
+  const [showToast, setShowToast] = useState(false);
+
+  return (
+    <ExampleContainer bare className="flex flex-col items-start gap-3">
+      <Button variant="primary" onClick={() => setShowToast(true)}>Publish changes</Button>
+      {showToast && (
+        <div data-preferred-theme="dark">
+          <Toast.Root variant="danger" onClose={() => setShowToast(false)} timeout={8000}>
+            <Icon24Warning />
+            <Toast.Message role="alert">Failed to publish changes</Toast.Message>
+            <Toast.ActionButton action={() => setShowToast(false)}>Retry</Toast.ActionButton>
+            <Toast.DismissButton />
+          </Toast.Root>
+        </div>
+      )}
+    </ExampleContainer>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Recipe Registry
 // ---------------------------------------------------------------------------
 
 const FPL_DOCS = 'https://fpl.figma.design';
 
 export const RECIPE_REGISTRY: Recipe[] = [
-  // ── Forms ────────────────────────────────────────────────────────────────
+  // ── Data Display ──────────────────────────────────────────────────────
+  {
+    id: 'action-table',
+    name: 'Action table',
+    category: 'data-display',
+    description: 'Table with bulk actions via checkbox selection. Useful for admin panels and settings pages.',
+    components: [
+      { name: 'Table', source: 'shared' },
+      { name: 'Badge', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Chip', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Seat management with bulk actions',
+        render: () => <ActionTableBulkDemo />,
+        code: `const [selectedCount, setSelectedCount] = useState(0);
+
+{selectedCount > 0 && (
+  <div>
+    <Text>{selectedCount} selected</Text>
+    <Button size="sm">Change role</Button>
+    <Button size="sm" variant="danger">Remove</Button>
+  </div>
+)}
+<Table
+  columns={columns}
+  data={data}
+  checkboxSelection
+  sorting
+  columnResizing
+  columnMenu
+  gridLines={{ vertical: true }}
+  onSelectionChanged={(event) => {
+    setSelectedCount(event.api.getSelectedRows().length);
+  }}
+/>`,
+      },
+    ],
+    tags: ['table', 'checkbox', 'selection', 'bulk-actions', 'column-menu', 'admin'],
+  },
+
+  {
+    id: 'avatar-name-row',
+    name: 'Avatar + name rows',
+    category: 'data-display',
+    description: 'Simple list of avatar and name pairs. Uses the Avatar shared component with Text.',
+    components: [
+      { name: 'Avatar', source: 'shared' },
+      { name: 'Text', source: 'shared' },
+    ],
+    examples: [
+      {
+        label: 'User list with avatars',
+        render: () => <AvatarNameRowDemo />,
+        code: `import { Avatar, Text } from '@prototype/shared';
+
+{users.map(user => (
+  <div className="flex items-center gap-2">
+    <Avatar initial={user.initial} color={user.color} size="md" />
+    <Text size="sm">{user.name}</Text>
+  </div>
+))}`,
+      },
+    ],
+    tags: ['avatar', 'user', 'list', 'name'],
+  },
+
+  {
+    id: 'badge-status-list',
+    name: 'Badge status list',
+    category: 'data-display',
+    description: 'List items with trailing Badge indicators showing status. Uses Badge variants for semantic colors.',
+    components: [
+      { name: 'Badge', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Service status list',
+        render: () => <BadgeStatusListDemo />,
+        code: `import { Badge } from '@figma/fpl-components';
+
+const items = [
+  { name: 'API Server', status: 'Active', variant: 'successFilled' },
+  { name: 'Database', status: 'Warning', variant: 'warningFilled' },
+  { name: 'CDN', status: 'Down', variant: 'dangerFilled' },
+];
+
+{items.map(item => (
+  <div className="flex items-center justify-between px-3 py-2">
+    <Text size="sm">{item.name}</Text>
+    <Badge variant={item.variant}>{item.status}</Badge>
+  </div>
+))}`,
+      },
+    ],
+    tags: ['badge', 'status', 'list', 'indicator'],
+  },
+
+  {
+    id: 'complex-table',
+    name: 'Complex table',
+    category: 'data-display',
+    description: 'Advanced table combining sections, cell editing, drag reorder, custom renderers, and dynamic column management. Shows how to compose multiple table features together.',
+    components: [
+      { name: 'Table', source: 'shared' },
+      { name: 'Badge', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Variables editor with sections',
+        render: () => <ComplexTableVariablesDemo />,
+        code: `const [data, setData] = useState(variablesData);
+const { columns, onAddColumn, onDeleteColumn, onRenameColumn } = useColumnManagement(initialColumns);
+
+<Table
+  columns={columns}
+  data={data}
+  sectionField="group"
+  sections={[
+    { field: 'Color', label: 'Color' },
+    { field: 'Spacing', label: 'Spacing' },
+    { field: 'Radius', label: 'Radius' },
+  ]}
+  cellEditing
+  rowDrag
+  columnResizing
+  columnMenu
+  density="comfortable"
+  gridLines={{ vertical: true }}
+  onCellValueChanged={(event) => {
+    setData(prev => prev.map(row =>
+      row.id === event.data.id ? { ...event.data } : row
+    ));
+  }}
+  onAddColumn={onAddColumn}
+  onDeleteColumn={onDeleteColumn}
+  onRenameColumn={onRenameColumn}  // double-click header to rename
+/>`,
+      },
+      {
+        label: 'CMS content table',
+        render: () => <ComplexTableCmsDemo />,
+        code: `const { columns, onAddColumn, onDeleteColumn, onRenameColumn } = useColumnManagement(cmsColumns);
+
+<Table
+  columns={columns}
+  data={data}
+  cellEditing
+  checkboxSelection
+  sorting
+  columnResizing
+  columnMenu
+  gridLines={{ vertical: true }}
+  onCellValueChanged={(event) => {
+    setData(prev => prev.map(row =>
+      row.id === event.data.id ? { ...event.data } : row
+    ));
+  }}
+  onAddColumn={onAddColumn}
+  onDeleteColumn={onDeleteColumn}
+  onRenameColumn={onRenameColumn}
+/>`,
+      },
+    ],
+    tags: ['table', 'sections', 'editable', 'drag', 'reorder', 'inline-edit', 'grouping', 'cms', 'variables', 'selection', 'add-column', 'delete-column', 'rename-column', 'column-menu'],
+  },
+
+  {
+    id: 'informational-table',
+    name: 'Informational table',
+    category: 'data-display',
+    description: 'Read-only data table with custom cell renderers (Badge for status, formatted numbers). Ideal for dashboards and monitoring views.',
+    components: [
+      { name: 'Table', source: 'shared' },
+      { name: 'Badge', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'API monitoring dashboard',
+        render: () => <InformationalTableDemo />,
+        code: `import { Table, TableColumnDef } from '@prototype/shared';
+import { Badge } from '@figma/fpl-components';
+
+interface ApiEndpoint {
+  id: string; method: string; path: string;
+  avgLatency: number; requests24h: number;
+  errorRate: number; status: string;
+}
+
+const columns: TableColumnDef<ApiEndpoint>[] = [
+  {
+    field: 'method', headerName: 'Method', width: 100,
+    cellRenderer: ({ value }) => <Badge variant={methodVariant[value]}>{value}</Badge>,
+  },
+  { field: 'path', headerName: 'Endpoint', flex: 1 },
+  { field: 'avgLatency', headerName: 'Avg Latency', width: 120,
+    valueFormatter: ({ value }) => \`\${value} ms\` },
+  { field: 'requests24h', headerName: 'Requests (24h)', width: 140,
+    valueFormatter: ({ value }) => value.toLocaleString() },
+  { field: 'status', headerName: 'Status', width: 110,
+    cellRenderer: ({ value }) => <Badge variant={statusVariant[value]}>{value}</Badge>,
+  },
+];
+
+<Table columns={columns} data={data} sorting columnResizing columnMenu gridLines={{ vertical: true }} />`,
+      },
+      {
+        label: 'Compact density',
+        render: () => <InformationalTableCompactDemo />,
+        code: `<Table
+  columns={columns}
+  data={data}
+  sorting
+  columnResizing
+  columnMenu
+  density="compact"
+  gridLines={{ vertical: true }}
+/>`,
+      },
+    ],
+    tags: ['table', 'grid', 'data', 'sort', 'resize', 'column-menu', 'badge', 'dashboard', 'density', 'compact'],
+  },
+
+  // ── Feedback ───────────────────────────────────────────────────────────
+  {
+    id: 'confirmation-dialog',
+    name: 'Confirmation',
+    category: 'feedback',
+    description: 'A blocking confirmation dialog for destructive or irreversible actions. Uses a modal to ensure the user explicitly confirms before proceeding.',
+    components: [
+      { name: 'Modal.Root', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Modal.Contents', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Modal.Header', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Modal.Title', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Modal.Body', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Modal.Footer', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Modal.ActionStrip', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Delete file confirmation',
+        render: () => <DeleteConfirmationDemo />,
+        code: `import { Modal, Button } from '@figma/fpl-components';
+import { useState } from 'react';
+
+const [isOpen, setIsOpen] = useState(false);
+
+const modalManager = Modal.useModal({
+  open: isOpen,
+  onClose: () => setIsOpen(false),
+});
+
+<Button variant="destructive" onClick={() => setIsOpen(true)}>
+  Delete file
+</Button>
+
+<Modal.Root manager={modalManager} width="sm">
+  <Modal.Contents>
+    <Modal.Header>
+      <Modal.Title>Delete design-system-v2.fig?</Modal.Title>
+    </Modal.Header>
+    <Modal.Body>
+      <Text color="secondary">
+        This file will be permanently deleted. This action cannot be undone.
+      </Text>
+    </Modal.Body>
+    <Modal.Footer>
+      <Modal.ActionStrip>
+        <Button variant="secondary" onClick={() => setIsOpen(false)}>Cancel</Button>
+        <Button variant="destructive" onClick={() => setIsOpen(false)}>Delete</Button>
+      </Modal.ActionStrip>
+    </Modal.Footer>
+  </Modal.Contents>
+</Modal.Root>`,
+      },
+    ],
+    tags: ['confirmation', 'dialog', 'modal', 'delete', 'destructive', 'confirm', 'feedback'],
+  },
+
+  {
+    id: 'critical-alert',
+    name: 'Critical',
+    category: 'feedback',
+    description: 'An urgent transient alert for critical failures. Uses a danger toast with a retry action to communicate errors that need immediate attention.',
+    components: [
+      { name: 'Toast.Root', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Toast.Message', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Toast.ActionButton', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Toast.DismissButton', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Failed publish with retry',
+        render: () => <CriticalToastDemo />,
+        code: `import { Toast, Button } from '@figma/fpl-components';
+import { Icon24Warning } from '@figma/fpl-icons';
+import { useState } from 'react';
+
+const [showToast, setShowToast] = useState(false);
+
+<Button variant="primary" onClick={() => setShowToast(true)}>
+  Publish changes
+</Button>
+
+{showToast && (
+  <Toast.Root variant="danger" onClose={() => setShowToast(false)} timeout={8000}>
+    <Icon24Warning />
+    <Toast.Message role="alert">Failed to publish changes</Toast.Message>
+    <Toast.ActionButton action={() => setShowToast(false)}>Retry</Toast.ActionButton>
+    <Toast.DismissButton />
+  </Toast.Root>
+)}`,
+      },
+    ],
+    tags: ['critical', 'alert', 'danger', 'toast', 'error', 'failure', 'retry', 'feedback'],
+  },
+
+  {
+    id: 'informational-banners',
+    name: 'Informational',
+    category: 'feedback',
+    description: 'Non-blocking contextual messages using banners. Inline banners provide context within forms or panels, while full-width banners announce global information above app content.',
+    components: [
+      { name: 'Banner.FullWidth', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Banner.Inline', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Banner.Message', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Banner.Button', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Inline banner in a form',
+        render: () => <InlineBannerFormDemo />,
+        code: `import { Banner, Label, Input, Textarea, Button } from '@figma/fpl-components';
+
+<div className="flex flex-col gap-3">
+  <Text weight="bold">Publish settings</Text>
+  <Banner.Inline variant="warn">
+    <Banner.Message>Publishing will replace the current live version.</Banner.Message>
+  </Banner.Inline>
+  <Label>
+    Version name
+    <Input defaultValue="v2.4.1" />
+  </Label>
+  <Button variant="primary">Publish</Button>
+</div>`,
+      },
+      {
+        label: 'Inline banner in a property panel',
+        render: () => <InlineBannerPropertyPanelDemo />,
+        code: `import { Banner, Select, Input, HiddenLabel } from '@figma/fpl-components';
+import { PropertySection, PropertyRow } from '@prototype/shared';
+
+<PropertySection label="Export settings">
+  <Banner.Inline variant="default">
+    <Banner.Message>SVG exports will flatten all layers.</Banner.Message>
+  </Banner.Inline>
+  <PropertyRow label="Format">
+    <Select.Root value="svg" onChange={() => {}}>
+      <Select.Trigger label={<HiddenLabel>Format</HiddenLabel>} width="fill" />
+      <Select.Container>
+        <Select.Option value="svg">SVG</Select.Option>
+        <Select.Option value="png">PNG</Select.Option>
+      </Select.Container>
+    </Select.Root>
+  </PropertyRow>
+</PropertySection>`,
+      },
+      {
+        label: 'Full-width banner above app content',
+        render: () => <GlobalBannerDemo />,
+        code: `import { Banner } from '@figma/fpl-components';
+import { useState } from 'react';
+
+const [visible, setVisible] = useState(true);
+
+{visible && (
+  <Banner.FullWidth variant="brand" onDismiss={() => setVisible(false)}>
+    <Banner.Message>
+      New version available — improvements to auto layout and components.
+    </Banner.Message>
+    <Banner.Button onClick={() => setVisible(false)}>
+      Update now
+    </Banner.Button>
+  </Banner.FullWidth>
+)}`,
+      },
+    ],
+    tags: ['banner', 'inline', 'fullwidth', 'info', 'warning', 'contextual', 'message', 'feedback'],
+  },
+
+  {
+    id: 'toast-snackbar',
+    name: 'Toasts',
+    category: 'feedback',
+    description: 'Toasts provide brief, non-blocking feedback messages. Supports auto-dismiss with timeout, action buttons, danger variant for errors, and progress indicators.',
+    components: [
+      { name: 'Toast.Root', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Toast.Message', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Toast.DismissButton', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Toast.ActionButton', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Toast.Progress', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Trigger with showToast()',
+        render: () => (
+          <ExampleContainer bare>
+            <div data-preferred-theme="dark">
+              <Toast.Root>
+                <Toast.Message>Changes saved</Toast.Message>
+                <Toast.DismissButton />
+              </Toast.Root>
+            </div>
+          </ExampleContainer>
+        ),
+        code: `import { showToast } from '../components/toast';
+
+// Each template includes a showToast() function that renders
+// a toast above the app toolbar. Auto-dismisses after 5s.
+showToast({ message: 'Changes saved' });
+
+// With action button:
+showToast({
+  message: 'Component deleted',
+  button: { label: 'Undo', onClick: handleUndo },
+});
+
+// Danger variant:
+showToast({
+  message: 'Failed to publish',
+  variant: 'danger',
+  button: { label: 'Retry', onClick: handleRetry },
+});`,
+      },
+      {
+        label: 'Default with dismiss',
+        render: () => (
+          <ExampleContainer bare>
+            <Toast.Root>
+              <Toast.Message>Changes saved</Toast.Message>
+              <Toast.DismissButton />
+            </Toast.Root>
+          </ExampleContainer>
+        ),
+        code: `import { Toast } from '@figma/fpl-components';
+
+<Toast.Root onClose={() => setIsVisible(false)} timeout={5000}>
+  <Toast.Message>Changes saved</Toast.Message>
+  <Toast.DismissButton />
+</Toast.Root>`,
+      },
+      {
+        label: 'With action button',
+        render: () => (
+          <ExampleContainer bare>
+            <Toast.Root>
+              <Toast.Message>Component deleted</Toast.Message>
+              <Toast.ActionButton action={() => {}}>Undo</Toast.ActionButton>
+              <Toast.DismissButton />
+            </Toast.Root>
+          </ExampleContainer>
+        ),
+        code: `import { Toast } from '@figma/fpl-components';
+
+<Toast.Root onClose={() => setIsVisible(false)} timeout={8000}>
+  <Toast.Message>Component deleted</Toast.Message>
+  <Toast.ActionButton action={handleUndo}>Undo</Toast.ActionButton>
+  <Toast.DismissButton />
+</Toast.Root>`,
+      },
+      {
+        label: 'Danger variant',
+        render: () => (
+          <ExampleContainer bare>
+            <Toast.Root variant="danger">
+            <Icon24Warning />
+              <Toast.Message role="alert">Failed to publish changes</Toast.Message>
+              <Toast.ActionButton action={() => {}}>Retry</Toast.ActionButton>
+              <Toast.DismissButton />
+            </Toast.Root>
+          </ExampleContainer>
+        ),
+        code: `import { Toast } from '@figma/fpl-components';
+
+<Toast.Root variant="danger" onClose={() => setIsVisible(false)}>
+  <Toast.Message role="alert">Failed to publish changes</Toast.Message>
+  <Toast.ActionButton action={handleRetry}>Retry</Toast.ActionButton>
+  <Toast.DismissButton />
+</Toast.Root>`,
+      },
+      {
+        label: 'With progress bar',
+        render: () => (
+          <ExampleContainer bare>
+            <Toast.Root>
+              <Toast.Progress progressFraction={0.6} />
+              <Toast.Message>Uploading file…</Toast.Message>
+            </Toast.Root>
+          </ExampleContainer>
+        ),
+        code: `import { Toast } from '@figma/fpl-components';
+
+<Toast.Root onClose={() => setIsVisible(false)}>
+  <Toast.Message>Uploading file…</Toast.Message>
+  <Toast.Progress progressFraction={progress} />
+</Toast.Root>`,
+      },
+    ],
+    tags: ['toast', 'snackbar', 'notification', 'feedback', 'alert', 'undo', 'error', 'progress'],
+  },
+
+  // ── Forms ──────────────────────────────────────────────────────────────
+  {
+    id: 'information-form',
+    name: 'Information form',
+    category: 'forms',
+    description: 'A form using the FPL Form system at large size with zod validation, a Textarea, a Select, a RadioInput group, and a Checkbox.',
+    components: [
+      { name: 'Form', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Form.Row', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Form.Label', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'TextInput', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Textarea', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Select', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'RadioInput', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Checkbox', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Information form',
+        render: () => <InformationFormDemo />,
+        code: `import { Form, TextInput, useForm } from '@figma/fpl-components/form';
+import { Button, Select, RadioInput, Checkbox, Label, Legend, Textarea } from '@figma/fpl-components';
+import { z } from 'zod';
+
+const schema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  email: z.string().email('Invalid email address'),
+  username: z.string().min(3, 'Username must be at least 3 characters'),
+});
+
+const { manager } = useForm({ schema, size: 'lg', defaultValues: { ... } });
+const [bio, setBio] = useState('...');
+const [role, setRole] = useState('editor');
+const [visibility, setVisibility] = useState('team');
+const [agreeToTerms, setAgreeToTerms] = useState(false);
+
+<Form manager={manager} onSubmit={handleSubmit}>
+  <Form.Row name="firstName" label={<Form.Label>First name</Form.Label>}>
+    <TextInput type="text" placeholder="Jane" autoComplete="given-name" />
+  </Form.Row>
+  ...
+  <Label>Bio</Label>
+  <Textarea size="lg" value={bio} onChange={setBio} rows={3} />
+
+  <Select.Root value={role} onChange={setRole}>
+    <Select.Trigger label={<Label>Role</Label>} width="fill" size="lg" />
+    <Select.Container>
+      <Select.Option value="viewer">Viewer</Select.Option>
+      <Select.Option value="editor">Editor</Select.Option>
+      <Select.Option value="admin">Admin</Select.Option>
+    </Select.Container>
+  </Select.Root>
+
+  <RadioInput.Root value={visibility} onChange={setVisibility}
+    legend={<Legend>Profile visibility</Legend>}>
+    <RadioInput.Option value="public" label={<Label>Public</Label>} />
+    <RadioInput.Option value="team" label={<Label>Team only</Label>} />
+    <RadioInput.Option value="private" label={<Label>Private</Label>} />
+  </RadioInput.Root>
+
+  <Checkbox label={<Label>I agree to the terms of service</Label>}
+    checked={agreeToTerms} onChange={setAgreeToTerms} />
+
+  <Button variant="secondary" size="lg">Cancel</Button>
+  <Button variant="primary" size="lg" type="submit">Save changes</Button>
+</Form>`,
+      },
+    ],
+    tags: ['form', 'account', 'user', 'input', 'textarea', 'select', 'radio', 'checkbox', 'validation', 'zod', 'settings'],
+  },
+
   {
     id: 'modal-form',
     name: 'Modal with form',
@@ -1348,79 +2953,334 @@ const modalManager = Modal.useModal({
     tags: ['modal', 'form', 'dialog', 'input', 'label'],
   },
 
+  // ── Layout ─────────────────────────────────────────────────────────────
   {
-    id: 'account-info-form',
-    name: 'Account information form',
-    category: 'forms',
-    description: 'A user account form using the FPL Form system at large size with zod validation, a Textarea for bio, a Select for role, a RadioInput group for visibility, and a Checkbox for terms.',
+    id: 'button-variants',
+    name: 'Button & link variants',
+    category: 'layout',
+    description: 'All Button variants and Link component for actions and navigation.',
     components: [
-      { name: 'Form', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Form.Row', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Form.Label', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'TextInput', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Textarea', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Select', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'RadioInput', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Checkbox', source: 'fpl', docsUrl: FPL_DOCS },
       { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'IconButton', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Link', source: 'fpl', docsUrl: FPL_DOCS },
     ],
     examples: [
       {
-        label: 'Account information',
-        render: () => <AccountInfoFormDemo />,
-        code: `import { Form, TextInput, useForm } from '@figma/fpl-components/form';
-import { Button, Select, RadioInput, Checkbox, Label, Legend, Textarea } from '@figma/fpl-components';
-import { z } from 'zod';
+        label: 'Button variants + links',
+        render: () => <LinkButtonDemo />,
+        code: `import { Button, Link } from '@figma/fpl-components';
 
-const schema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  email: z.string().email('Invalid email address'),
-  username: z.string().min(3, 'Username must be at least 3 characters'),
-});
+<div className="flex items-center gap-2">
+  <Button variant="primary">Primary</Button>
+  <Button variant="secondary">Secondary</Button>
+  <Button variant="ghost">Ghost</Button>
+  <Button variant="destructive">Destructive</Button>
+</div>
+<Link href="https://fpl.figma.design" target="_blank">
+  FPL docs
+</Link>`,
+      },
+      {
+        label: 'Ghost + contained combo',
+        render: () => <GhostContainedDemo />,
+        code: `import { Button, IconButton } from '@figma/fpl-components';
+import { Icon24Collapse, Icon24Adjust } from '@figma/fpl-icons';
 
-const { manager } = useForm({ schema, size: 'lg', defaultValues: { ... } });
-const [bio, setBio] = useState('...');
-const [role, setRole] = useState('editor');
-const [visibility, setVisibility] = useState('team');
-const [agreeToTerms, setAgreeToTerms] = useState(false);
+<div className="flex items-center gap-2">
+  <IconButton variant="ghost" aria-label="Collapse">
+    <Icon24Collapse />
+  </IconButton>
+  <IconButton variant="ghost" aria-label="Settings">
+    <Icon24Adjust />
+  </IconButton>
+  <Button variant="primary">Share</Button>
+  <Button variant="destructive">Delete</Button>
+</div>`,
+      },
+      {
+        label: 'Footer action strip',
+        render: () => <FooterActionsDemo />,
+        code: `import { Button } from '@figma/fpl-components';
+import { Icon24Link } from '@figma/fpl-icons';
 
-<Form manager={manager} onSubmit={handleSubmit}>
-  <Form.Row name="firstName" label={<Form.Label>First name</Form.Label>}>
-    <TextInput type="text" placeholder="Jane" autoComplete="given-name" />
-  </Form.Row>
-  ...
-  <Label>Bio</Label>
-  <Textarea size="lg" value={bio} onChange={setBio} rows={3} />
+{/* Link left, Cancel + Save right */}
+<div className="flex items-center justify-between border-t border-border pt-3">
+  <Button variant="link" iconPrefix={<Icon24Link />}>Copy link</Button>
+  <div className="flex items-center gap-2">
+    <Button>Cancel</Button>
+    <Button variant="primary">Save changes</Button>
+  </div>
+</div>
 
-  <Select.Root value={role} onChange={setRole}>
-    <Select.Trigger label={<Label>Role</Label>} width="fill" size="lg" />
-    <Select.Container>
-      <Select.Option value="viewer">Viewer</Select.Option>
-      <Select.Option value="editor">Editor</Select.Option>
-      <Select.Option value="admin">Admin</Select.Option>
-    </Select.Container>
-  </Select.Root>
+{/* Full-width primary */}
+<div className="border-t border-border pt-3">
+  <Button variant="primary" width="fill">Publish</Button>
+</div>`,
+      },
+      {
+        label: 'Header with large buttons',
+        render: () => <HeaderButtonsDemo />,
+        code: `import { Button, IconButton } from '@figma/fpl-components';
+import { Icon24Plus, Icon24Import, Icon24Collapse } from '@figma/fpl-icons';
 
-  <RadioInput.Root value={visibility} onChange={setVisibility}
-    legend={<Legend>Profile visibility</Legend>}>
-    <RadioInput.Option value="public" label={<Label>Public</Label>} />
-    <RadioInput.Option value="team" label={<Label>Team only</Label>} />
-    <RadioInput.Option value="private" label={<Label>Private</Label>} />
-  </RadioInput.Root>
-
-  <Checkbox label={<Label>I agree to the terms of service</Label>}
-    checked={agreeToTerms} onChange={setAgreeToTerms} />
-
-  <Button variant="secondary" size="lg">Cancel</Button>
-  <Button variant="primary" size="lg" type="submit">Save changes</Button>
-</Form>`,
+<div className="flex items-center justify-between w-full">
+  <div className="flex items-center gap-2">
+    <Button variant="primary" size="lg" iconPrefix={<Icon24Plus />}>Create</Button>
+    <Button size="lg" iconPrefix={<Icon24Import />}>Import</Button>
+  </div>
+  <div className="flex items-center gap-2">
+    <IconButton aria-label="Collapse"><Icon24Collapse /></IconButton>
+    <Button variant="primary" size="lg">Share</Button>
+  </div>
+</div>`,
       },
     ],
-    tags: ['form', 'account', 'user', 'input', 'textarea', 'select', 'radio', 'checkbox', 'validation', 'zod', 'settings'],
+    tags: ['button', 'link', 'action', 'variant', 'ghost', 'icon', 'toolbar', 'header', 'footer'],
   },
 
-  // ── Navigation ──────────────────────────────────────────────────────────
+  {
+    id: 'card-preview',
+    name: 'Card',
+    category: 'layout',
+    description: 'Clickable card with preview image, label, and optional trailing actions. Used for asset libraries, templates, and media grids.',
+    components: [
+      { name: 'Card', source: 'shared' },
+      { name: 'CardPrimitive', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'IconButton', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Basic preview card',
+        render: () => <CardBasicDemo />,
+        code: `import { Card } from '@prototype/shared';
+
+<Card
+  label="Library name"
+  subtext="100 components"
+  onClick={() => {}}
+>
+  <div className="overflow-hidden border border-border rounded-md aspect-[16/9] bg-bg-secondary" />
+</Card>`,
+      },
+      {
+        label: 'Card grid (large)',
+        render: () => <CardGridDemo />,
+        code: `import { Card } from '@prototype/shared';
+
+const ITEMS = [
+  { id: '1', title: 'Wireframe kit', subtitle: 'UI Design' },
+  { id: '2', title: 'Brand guidelines', subtitle: 'Branding' },
+  { id: '3', title: 'App prototype', subtitle: 'Mobile' },
+];
+
+<div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 400px))' }}>
+  {ITEMS.map(item => (
+    <Card key={item.id} size="lg" label={item.title} subtext={item.subtitle} onClick={() => {}}>
+      <div className="overflow-hidden border border-border rounded-lg aspect-[16/9] bg-bg-secondary" />
+    </Card>
+  ))}
+</div>`,
+      },
+      {
+        label: 'Card with trailing action',
+        render: () => <CardTrailingDemo />,
+        code: `import { Card } from '@prototype/shared';
+import { IconButton } from '@figma/fpl-components';
+import { Icon24PlayLarge } from '@figma/fpl-icons';
+
+const SECTIONS = [
+  { id: 'timer', name: 'Timer', description: '5 minute countdown' },
+  { id: 'music', name: 'Music', description: 'Acoustic ambient' },
+];
+
+<div className="flex flex-col gap-1" style={{ margin: '0 -8px' }}>
+  {SECTIONS.map(section => (
+    <Card
+      key={section.id}
+      label={section.name}
+      subtext={section.description}
+      onClick={() => {}}
+      trailing={
+        <IconButton aria-label="Play" variant="primaryCircle" size="lg">
+          <Icon24PlayLarge />
+        </IconButton>
+      }
+    >
+      <div className="overflow-hidden border border-border rounded-md aspect-[16/9] bg-bg-secondary" />
+    </Card>
+  ))}
+</div>`,
+      },
+    ],
+    tags: ['card', 'preview', 'thumbnail', 'grid', 'asset'],
+  },
+
+  {
+    id: 'typography',
+    name: 'Typography',
+    category: 'layout',
+    description: 'Text, Heading, Code, Pre, UnorderedList, OrderedList, and ListItem components for rich typography. Demonstrated as a mock AI agent response with headings, body copy, inline code, syntax-highlighted code blocks, bulleted lists, and links.',
+    components: [
+      { name: 'Text', source: 'shared' },
+      { name: 'Heading', source: 'shared' },
+      { name: 'Code', source: 'shared' },
+      { name: 'Pre', source: 'shared' },
+      { name: 'UnorderedList', source: 'shared' },
+      { name: 'OrderedList', source: 'shared' },
+      { name: 'ListItem', source: 'shared' },
+    ],
+    examples: [
+      {
+        label: 'AI agent response — headings, code, list & links',
+        render: () => <TypographyDemo />,
+        code: `import { Text, Heading, Code, Pre, UnorderedList, ListItem } from '@prototype/shared';
+import { Link } from '@figma/fpl-components';
+
+{/* Title */}
+<Heading size="lg">Created a confirmation modal</Heading>
+
+{/* Body with inline code and links */}
+<Text>
+  I added a new <Code>ConfirmDeleteModal</Code> component
+  using the <Link href="...">FPL Modal</Link> compound
+  component, controlled via <Code>useModal</Code>.
+</Text>
+
+{/* Section heading */}
+<Heading size="md">What changed</Heading>
+<Text>
+  The modal uses a <Text strong>type-to-confirm</Text> input.
+</Text>
+
+{/* Syntax-highlighted code block */}
+<Pre syntax="jsx">{\`function ConfirmDeleteModal({ onConfirm }) {
+  const [typed, setTyped] = useState('');
+  // ...
+}\`}</Pre>
+
+{/* Bulleted list */}
+<Heading size="md">Key decisions</Heading>
+<UnorderedList>
+  <ListItem>Used <Code>width="sm"</Code> for a compact layout</ListItem>
+  <ListItem>The <Code>destructive</Code> variant signals danger</ListItem>
+</UnorderedList>
+
+{/* Secondary closing text */}
+<Text size="sm" color="secondary">
+  Let me know if you want me to add unit tests.
+</Text>`,
+      },
+      {
+        label: 'Section headings with descriptions',
+        render: () => <TypographyWithHeadingDemo />,
+        code: `import { Text } from '@prototype/shared';
+
+<div className="flex flex-col">
+  <div className="p-3">
+    <Text strong as="p">Project settings</Text>
+    <Text color="secondary">
+      Configure your project preferences and team access.
+    </Text>
+  </div>
+  <div className="border-t border-border p-3">
+    <Text strong as="p">Notifications</Text>
+    <Text color="secondary">
+      Choose which updates you want to receive.
+    </Text>
+  </div>
+</div>`,
+      },
+    ],
+    tags: ['text', 'heading', 'typography', 'font', 'label', 'title', 'paragraph', 'code', 'pre', 'syntax', 'link', 'list', 'ai', 'agent'],
+  },
+
+  // ── Navigation ─────────────────────────────────────────────────────────
+  {
+    id: 'left-sidebar-navigation',
+    name: 'Left sidebar with rail + panel',
+    category: 'navigation',
+    description: 'A vertical navigation rail with icon buttons and a resizable side panel. Uses LeftSidebar compound components with Provider context.',
+    components: [
+      { name: 'LeftSidebar.Provider', source: 'shared' },
+      { name: 'LeftSidebar.Rail', source: 'shared' },
+      { name: 'LeftSidebar.NavGroup', source: 'shared' },
+      { name: 'LeftSidebar.NavItem', source: 'shared' },
+      { name: 'LeftSidebar.Divider', source: 'shared' },
+      { name: 'LeftSidebar.Footer', source: 'shared' },
+      { name: 'LeftSidebar.Panel', source: 'shared' },
+    ],
+    examples: [
+      {
+        label: 'Sidebar with rail and panels',
+        render: () => <LeftSidebarDemo />,
+        code: `import { LeftSidebar } from '@figma/ppg-shared';
+import { Icon24Page, Icon24Add, Icon24Search, Icon24Variable } from '@figma/fpl-icons';
+
+const [activeItem, setActiveItem] = useState('file');
+
+<LeftSidebar.Provider activeItem={activeItem} onItemChange={setActiveItem}>
+  <LeftSidebar.Rail>
+    <LeftSidebar.NavGroup>
+      <LeftSidebar.NavItem id="file" icon={Icon24Page} label="File" />
+      <LeftSidebar.NavItem id="assets" icon={Icon24Add} label="Assets" />
+      <LeftSidebar.NavItem id="search" icon={Icon24Search} label="Find" />
+    </LeftSidebar.NavGroup>
+    <LeftSidebar.Divider />
+    <LeftSidebar.NavGroup>
+      <LeftSidebar.NavItem id="variables" icon={Icon24Variable} label="Variables" />
+    </LeftSidebar.NavGroup>
+  </LeftSidebar.Rail>
+  <LeftSidebar.Panel
+    panels={{
+      file: FilePanel,
+      assets: AssetsPanel,
+      search: SearchPanel,
+      variables: VariablesPanel,
+    }}
+    fallback={FilePanel}
+  />
+</LeftSidebar.Provider>`,
+      },
+    ],
+    tags: ['sidebar', 'rail', 'panel', 'navigation', 'left-sidebar', 'icon'],
+  },
+
+  {
+    id: 'navlist-compound',
+    name: 'NavList with icons and badges',
+    category: 'navigation',
+    description: 'NavList using the compound API (Root + Item) with icons, trailing badges, and hover-only actions. Shows both default and highlighted selection variants.',
+    components: [
+      { name: 'NavList.Root', source: 'shared' },
+      { name: 'NavList.Item', source: 'shared' },
+      { name: 'Badge', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'IconButton', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Default vs highlighted variants',
+        render: () => <NavListCompoundDemo />,
+        code: `import { NavList } from '@figma/ppg-shared';
+import { Badge, IconButton } from '@figma/fpl-components';
+import { Icon24ExpandLayers, Icon24Component, Icon24Styles, Icon24More } from '@figma/fpl-icons';
+
+const [selected, setSelected] = useState('layers');
+
+<NavList.Root aria-label="Pages" value={selected} onChange={setSelected} selectedVariant="highlighted">
+  <NavList.Item value="layers" icon={Icon24ExpandLayers} label="Layers" trailing={<Badge>12</Badge>} />
+  <NavList.Item value="components" icon={Icon24Component} label="Components" trailing={<Badge>4</Badge>} />
+  <NavList.Item
+    value="styles"
+    icon={Icon24Styles}
+    label="Styles"
+    trailingOnInteraction={<IconButton size="md" aria-label="More" variant="ghost"><Icon24More /></IconButton>}
+  />
+</NavList.Root>`,
+      },
+    ],
+    tags: ['navlist', 'list', 'navigation', 'badge', 'icon', 'compound'],
+  },
+
   {
     id: 'search-filtered-list',
     name: 'Search + filtered list',
@@ -1428,6 +3288,8 @@ const [agreeToTerms, setAgreeToTerms] = useState(false);
     description: 'SearchInput filtering a list of items. Common pattern for sidebar panels with search.',
     components: [
       { name: 'SearchInput', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'NavList', source: 'shared' },
+      { name: 'Text', source: 'shared' },
     ],
     examples: [
       {
@@ -1504,7 +3366,7 @@ const [tabPropsMap, tabPanelPropsMap, tabManager] =
     tags: ['tabs', 'panel', 'navigation', 'switching'],
   },
 
-  // ── Overlays ────────────────────────────────────────────────────────────
+  // ── Overlays ───────────────────────────────────────────────────────────
   {
     id: 'floating-window',
     name: 'Floating resizable window',
@@ -1596,439 +3458,17 @@ const [open, setOpen] = useState(false);
     tags: ['window', 'sidebar', 'panel', 'library'],
   },
 
-  // ── Data Display ────────────────────────────────────────────────────────
-  {
-    id: 'badge-status-list',
-    name: 'Badge status list',
-    category: 'data-display',
-    description: 'List items with trailing Badge indicators showing status. Uses Badge variants for semantic colors.',
-    components: [
-      { name: 'Badge', source: 'fpl', docsUrl: FPL_DOCS },
-    ],
-    examples: [
-      {
-        label: 'Service status list',
-        render: () => <BadgeStatusListDemo />,
-        code: `import { Badge } from '@figma/fpl-components';
-
-const items = [
-  { name: 'API Server', status: 'Active', variant: 'successFilled' },
-  { name: 'Database', status: 'Warning', variant: 'warningFilled' },
-  { name: 'CDN', status: 'Down', variant: 'dangerFilled' },
-];
-
-{items.map(item => (
-  <div className="flex items-center justify-between px-3 py-2">
-    <Text size="sm">{item.name}</Text>
-    <Badge variant={item.variant}>{item.status}</Badge>
-  </div>
-))}`,
-      },
-    ],
-    tags: ['badge', 'status', 'list', 'indicator'],
-  },
-
-  {
-    id: 'avatar-name-row',
-    name: 'Avatar + name rows',
-    category: 'data-display',
-    description: 'User rows with Avatar and name text. Uses shared Avatar component with multiplayer color support.',
-    components: [
-      { name: 'Avatar', source: 'shared' },
-    ],
-    examples: [
-      {
-        label: 'User list',
-        render: () => <AvatarNameRowDemo />,
-        code: `import { Avatar } from '@prototype/shared';
-
-const users = [
-  { name: 'Alice Chen', initial: 'A', color: 'blue' },
-  { name: 'Bob Kim', initial: 'B', color: 'green' },
-];
-
-{users.map(user => (
-  <div className="flex items-center gap-2">
-    <Avatar initial={user.initial} color={user.color} size="md" />
-    <Text size="sm">{user.name}</Text>
-  </div>
-))}`,
-      },
-    ],
-    tags: ['avatar', 'user', 'list', 'name'],
-  },
-
-  // ── Layout ──────────────────────────────────────────────────────────────
-  {
-    id: 'button-variants',
-    name: 'Button & link variants',
-    category: 'layout',
-    description: 'All Button variants and Link component for actions and navigation.',
-    components: [
-      { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'IconButton', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Link', source: 'fpl', docsUrl: FPL_DOCS },
-    ],
-    examples: [
-      {
-        label: 'Button variants + links',
-        render: () => <LinkButtonDemo />,
-        code: `import { Button, Link } from '@figma/fpl-components';
-
-<div className="flex items-center gap-2">
-  <Button variant="primary">Primary</Button>
-  <Button variant="secondary">Secondary</Button>
-  <Button variant="ghost">Ghost</Button>
-  <Button variant="destructive">Destructive</Button>
-</div>
-<Link href="https://fpl.figma.design" target="_blank">
-  FPL docs
-</Link>`,
-      },
-      {
-        label: 'Ghost + contained combo',
-        render: () => <GhostContainedDemo />,
-        code: `import { Button, IconButton } from '@figma/fpl-components';
-import { Icon24Collapse, Icon24Adjust } from '@figma/fpl-icons';
-
-<div className="flex items-center gap-2">
-  <IconButton variant="ghost" aria-label="Collapse">
-    <Icon24Collapse />
-  </IconButton>
-  <IconButton variant="ghost" aria-label="Settings">
-    <Icon24Adjust />
-  </IconButton>
-  <Button variant="primary">Share</Button>
-  <Button variant="destructive">Delete</Button>
-</div>`,
-      },
-      {
-        label: 'Footer action strip',
-        render: () => <FooterActionsDemo />,
-        code: `import { Button } from '@figma/fpl-components';
-import { Icon24Link } from '@figma/fpl-icons';
-
-{/* Link left, Cancel + Save right */}
-<div className="flex items-center justify-between border-t border-border pt-3">
-  <Button variant="link" iconPrefix={<Icon24Link />}>Copy link</Button>
-  <div className="flex items-center gap-2">
-    <Button>Cancel</Button>
-    <Button variant="primary">Save changes</Button>
-  </div>
-</div>
-
-{/* Full-width primary */}
-<div className="border-t border-border pt-3">
-  <Button variant="primary" width="fill">Publish</Button>
-</div>`,
-      },
-      {
-        label: 'Header with large buttons',
-        render: () => <HeaderButtonsDemo />,
-        code: `import { Button, IconButton } from '@figma/fpl-components';
-import { Icon24Plus, Icon24Import, Icon24Collapse } from '@figma/fpl-icons';
-
-<div className="flex items-center justify-between w-full">
-  <div className="flex items-center gap-2">
-    <Button variant="primary" size="lg" iconPrefix={<Icon24Plus />}>Create</Button>
-    <Button size="lg" iconPrefix={<Icon24Import />}>Import</Button>
-  </div>
-  <div className="flex items-center gap-2">
-    <IconButton aria-label="Collapse"><Icon24Collapse /></IconButton>
-    <Button variant="primary" size="lg">Share</Button>
-  </div>
-</div>`,
-      },
-    ],
-    tags: ['button', 'link', 'action', 'variant', 'ghost', 'icon', 'toolbar', 'header', 'footer'],
-  },
-
-  {
-    id: 'typography',
-    name: 'Typography',
-    category: 'layout',
-    description: 'Text and Heading components for consistent typography. Supports size variants, semantic colors, strong emphasis, monospace, and truncation.',
-    components: [
-      { name: 'Text', source: 'shared' },
-      { name: 'Heading', source: 'shared' },
-    ],
-    examples: [
-      {
-        label: 'Sizes, colors & truncation',
-        render: () => <TypographyDemo />,
-        code: `import { Text, Heading } from '@prototype/shared';
-
-{/* Headings */}
-<Heading size="lg">Heading large</Heading>
-<Heading size="md">Heading medium</Heading>
-<Heading size="sm">Heading small</Heading>
-
-{/* Body text sizes */}
-<Text size="lg">Text large</Text>
-<Text size="md">Text medium (default)</Text>
-<Text size="sm">Text small</Text>
-
-{/* Color variants */}
-<Text color="secondary">Secondary text</Text>
-<Text color="tertiary">Tertiary text</Text>
-<Text color="brand">Brand text</Text>
-<Text color="danger">Danger text</Text>
-<Text color="success">Success text</Text>
-
-{/* Emphasis */}
-<Text strong>Strong text</Text>
-
-{/* Monospace */}
-<Text mono>Monospace text — code snippets and values</Text>
-<Text mono color="secondary">fontSize: 14px</Text>
-<Text mono color="brand">--color-bg-brand</Text>
-
-{/* Truncation */}
-<Text truncate>Long text that will be truncated...</Text>
-<Text truncate={2}>Multi-line clamp to 2 lines...</Text>
-
-{/* Custom element */}
-<Text as="p" size="sm">Paragraph text</Text>
-<Heading as="h4" size="sm">Custom heading level</Heading>`,
-      },
-      {
-        label: 'Section headings with descriptions',
-        render: () => <TypographyWithHeadingDemo />,
-        code: `import { Text, Heading } from '@prototype/shared';
-
-<div className="flex flex-col gap-3">
-  <div>
-    <Heading size="sm">Project settings</Heading>
-    <Text size="sm" color="secondary">
-      Configure your project preferences and team access.
-    </Text>
-  </div>
-  <div className="border-t border-border pt-3">
-    <Heading size="sm" color="danger">Danger zone</Heading>
-    <Text size="sm" color="danger-secondary">
-      Irreversible actions that affect your entire project.
-    </Text>
-  </div>
-</div>`,
-      },
-    ],
-    tags: ['text', 'heading', 'typography', 'font', 'label', 'title', 'paragraph', 'mono', 'code'],
-  },
-
-  // ── Tables ──────────────────────────────────────────────────────────────
-  {
-    id: 'informational-table',
-    name: 'Informational table',
-    category: 'data-display',
-    description: 'Read-only data table with custom cell renderers (Badge for status, formatted numbers). Ideal for dashboards and monitoring views.',
-    components: [
-      { name: 'Table', source: 'shared' },
-      { name: 'Badge', source: 'fpl', docsUrl: FPL_DOCS },
-    ],
-    examples: [
-      {
-        label: 'API monitoring dashboard',
-        render: () => <InformationalTableDemo />,
-        code: `import { Table, TableColumnDef } from '@prototype/shared';
-import { Badge } from '@figma/fpl-components';
-
-interface ApiEndpoint {
-  id: string; method: string; path: string;
-  avgLatency: number; requests24h: number;
-  errorRate: number; status: string;
-}
-
-const columns: TableColumnDef<ApiEndpoint>[] = [
-  {
-    field: 'method', headerName: 'Method', width: 100,
-    cellRenderer: ({ value }) => <Badge variant={methodVariant[value]}>{value}</Badge>,
-  },
-  { field: 'path', headerName: 'Endpoint', flex: 1 },
-  { field: 'avgLatency', headerName: 'Avg Latency', width: 120,
-    valueFormatter: ({ value }) => \`\${value} ms\` },
-  { field: 'requests24h', headerName: 'Requests (24h)', width: 140,
-    valueFormatter: ({ value }) => value.toLocaleString() },
-  { field: 'status', headerName: 'Status', width: 110,
-    cellRenderer: ({ value }) => <Badge variant={statusVariant[value]}>{value}</Badge>,
-  },
-];
-
-<Table columns={columns} data={data} sorting columnResizing columnMenu gridLines={{ vertical: true }} />`,
-      },
-      {
-        label: 'Compact density',
-        render: () => <InformationalTableCompactDemo />,
-        code: `<Table
-  columns={columns}
-  data={data}
-  sorting
-  columnResizing
-  columnMenu
-  density="compact"
-  gridLines={{ vertical: true }}
-/>`,
-      },
-    ],
-    tags: ['table', 'grid', 'data', 'sort', 'resize', 'column-menu', 'badge', 'dashboard', 'density', 'compact'],
-  },
-
-  {
-    id: 'action-table',
-    name: 'Action table',
-    category: 'data-display',
-    description: 'Table with bulk actions via checkbox selection and dynamic column management. Useful for admin panels and settings pages.',
-    components: [
-      { name: 'Table', source: 'shared' },
-      { name: 'Badge', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Chip', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
-    ],
-    examples: [
-      {
-        label: 'Seat management with bulk actions',
-        render: () => <ActionTableBulkDemo />,
-        code: `const [selectedCount, setSelectedCount] = useState(0);
-
-{selectedCount > 0 && (
-  <div>
-    <Text>{selectedCount} selected</Text>
-    <Button size="sm">Change role</Button>
-    <Button size="sm" variant="danger">Remove</Button>
-  </div>
-)}
-<Table
-  columns={columns}
-  data={data}
-  checkboxSelection
-  sorting
-  columnResizing
-  columnMenu
-  gridLines={{ vertical: true }}
-  onSelectionChanged={(event) => {
-    setSelectedCount(event.api.getSelectedRows().length);
-  }}
-/>`,
-      },
-      {
-        label: 'Column add/delete',
-        render: () => <ActionTableColumnDemo />,
-        code: `const [columns, setColumns] = useState(defaultColumns);
-
-<Table
-  columns={columns}
-  data={data}
-  sorting
-  columnResizing
-  columnMenu
-  gridLines={{ vertical: true }}
-  onDeleteColumn={(colId) => {
-    setColumns(prev => prev.filter(c => c.field !== colId));
-  }}
-  onAddColumn={(colId, position) => {
-    setColumns(prev => {
-      const idx = prev.findIndex(c => c.field === colId);
-      const newCol = { field: \`new_\${Date.now()}\`, headerName: 'New Column', flex: 1 };
-      const next = [...prev];
-      next.splice(position === 'left' ? idx : idx + 1, 0, newCol);
-      return next;
-    });
-  }}
-/>`,
-      },
-    ],
-    tags: ['table', 'checkbox', 'selection', 'bulk-actions', 'column-menu', 'add-column', 'delete-column', 'admin'],
-  },
-
-  {
-    id: 'complex-table',
-    name: 'Complex table',
-    category: 'data-display',
-    description: 'Advanced table combining sections, cell editing, drag reorder, and custom renderers. Shows how to compose multiple table features together.',
-    components: [
-      { name: 'Table', source: 'shared' },
-      { name: 'Badge', source: 'fpl', docsUrl: FPL_DOCS },
-    ],
-    examples: [
-      {
-        label: 'Variables editor with sections',
-        render: () => <ComplexTableVariablesDemo />,
-        code: `const [data, setData] = useState(variablesData);
-
-// Columns are modes: Light, Dark, Light EC, Dark EC
-const columns = [
-  { field: 'name', headerName: 'Name', flex: 1, editable: true },
-  { field: 'light', headerName: 'Light', flex: 1, editable: true, cellRenderer: ColorSwatchRenderer },
-  { field: 'dark', headerName: 'Dark', flex: 1, editable: true, cellRenderer: ColorSwatchRenderer },
-  { field: 'lightEc', headerName: 'Light EC', flex: 1, editable: true, cellRenderer: ColorSwatchRenderer },
-  { field: 'darkEc', headerName: 'Dark EC', flex: 1, editable: true, cellRenderer: ColorSwatchRenderer },
-];
-
-<Table
-  columns={columns}
-  data={data}
-  sectionField="group"
-  sections={[
-    { field: 'Color', label: 'Color' },
-    { field: 'Spacing', label: 'Spacing' },
-    { field: 'Radius', label: 'Radius' },
-  ]}
-  cellEditing
-  rowDrag
-  columnResizing
-  density="comfortable"
-  gridLines={{ vertical: true }}
-  onCellValueChanged={(event) => {
-    setData(prev => prev.map(row =>
-      row.id === event.data.id ? { ...event.data } : row
-    ));
-  }}
-/>`,
-      },
-      {
-        label: 'CMS content table',
-        render: () => <ComplexTableCmsDemo />,
-        code: `<Table
-  columns={cmsColumns}
-  data={data}
-  cellEditing
-  checkboxSelection
-  sorting
-  columnResizing
-  columnMenu
-  gridLines={{ vertical: true }}
-  onCellValueChanged={(event) => {
-    setData(prev => prev.map(row =>
-      row.id === event.data.id ? { ...event.data } : row
-    ));
-  }}
-/>`,
-      },
-      {
-        label: 'Row-click selection',
-        render: () => <ComplexTableRowClickDemo />,
-        code: `<Table
-  columns={variableColumns}
-  data={variablesData}
-  selectionMode="singleRow"
-  sorting
-  columnResizing
-  density="compact"
-  gridLines={{ vertical: true }}
-/>`,
-      },
-    ],
-    tags: ['table', 'sections', 'editable', 'drag', 'reorder', 'inline-edit', 'grouping', 'cms', 'variables', 'selection'],
-  },
-
-  // ── Feedback ────────────────────────────────────────────────────────────
+  // ── Progress ───────────────────────────────────────────────────────────
   {
     id: 'loading-states',
     name: 'Loading states',
-    category: 'feedback',
-    description: 'LoadingSpinner in different contexts: inside a Button, inside a container, and standalone.',
+    category: 'progress',
+    description: 'Spinners for indeterminate waits and skeleton loaders for placeholder content. Skeleton bones use a viewport-synced shimmer so all elements animate together.',
     components: [
       { name: 'LoadingSpinner', source: 'fpl', docsUrl: FPL_DOCS },
       { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Skeleton', source: 'shared' },
+      { name: 'Skeleton.Bone', source: 'shared' },
     ],
     examples: [
       {
@@ -2049,11 +3489,217 @@ const columns = [
 {/* Standalone */}
 <LoadingSpinner />`,
       },
+      {
+        label: 'Skeleton list',
+        render: () => <SkeletonListDemo />,
+        code: `import { Skeleton } from '@prototype/shared';
+
+<Skeleton>
+  <div className="flex flex-col">
+    {Array.from({ length: 6 }, (_, i) => (
+      <div key={i} className="flex items-center gap-3 px-2 py-6px">
+        <Skeleton.Bone variant="icon" size="md" />
+        <Skeleton.Bone variant="text" size="md" width={\`\${60 + ((i * 17) % 30)}%\`} />
+      </div>
+    ))}
+  </div>
+</Skeleton>`,
+      },
+      {
+        label: 'Skeleton card',
+        render: () => <SkeletonCardDemo />,
+        code: `import { Skeleton } from '@prototype/shared';
+
+<Skeleton>
+  <div className="border border-border rounded-lg overflow-hidden" style={{ width: 240 }}>
+    <Skeleton.Bone variant="thumbnail" width="100%" height={120} className="rounded-none" />
+    <div className="flex flex-col gap-2 p-3">
+      <Skeleton.Bone variant="heading" size="md" width="70%" />
+      <Skeleton.Bone variant="text" size="sm" />
+      <Skeleton.Bone variant="text" size="sm" width="85%" />
+    </div>
+  </div>
+</Skeleton>`,
+      },
     ],
-    tags: ['loading', 'spinner', 'async', 'progress'],
+    tags: ['loading', 'spinner', 'async', 'progress', 'skeleton', 'placeholder', 'shimmer'],
   },
 
-  // ── Property Panels ─────────────────────────────────────────────────────
+  // ── Property Panels ────────────────────────────────────────────────────
+  {
+    id: 'component-properties-panel',
+    name: 'Component properties panel',
+    category: 'property-panels',
+    description: 'Chip-based property bindings showing component properties as icon + name + Chip value. Uses PropertyRow columns="auto 1fr" for icon+label layouts without the trailing 24px icon slot. Chip variant="component" represents bound variables.',
+    components: [
+      { name: 'PropertySection', source: 'shared' },
+      { name: 'PropertyRow', source: 'shared' },
+      { name: 'Chip', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Component property bindings',
+        render: () => <ComponentPropertiesDemo />,
+        code: `import { Chip } from '@figma/fpl-components';
+import { Icon24Component, Icon24Text, Icon24Instance } from '@figma/fpl-icons';
+import { PropertySection, PropertyRow } from '@prototype/shared';
+
+<PropertySection title="Properties">
+  {/* Each row: icon + label on left, Chip on right — columns="auto 1fr" */}
+  <PropertyRow columns="auto 1fr">
+    <div className="flex items-center gap-1">
+      <Icon24Component />
+      <Text size="sm" color="secondary">State</Text>
+    </div>
+    <Chip variant="component" size="fill" onClick={() => cycleVariant()}>
+      Default
+    </Chip>
+  </PropertyRow>
+  <PropertyRow columns="auto 1fr">
+    <div className="flex items-center gap-1">
+      <Icon24Text />
+      <Text size="sm" color="secondary">Action</Text>
+    </div>
+    <Chip variant="component" size="fill" onClick={() => cycleLabel()}>
+      Log in
+    </Chip>
+  </PropertyRow>
+  <PropertyRow columns="auto 1fr">
+    <div className="flex items-center gap-1">
+      <Icon24Instance />
+      <Text size="sm" color="secondary">Instance</Text>
+    </div>
+    <Chip variant="component" size="fill">
+      icon.24.plus, ico...
+    </Chip>
+  </PropertyRow>
+</PropertySection>`,
+      },
+    ],
+    tags: ['property', 'component', 'chip', 'binding', 'panel', 'instance'],
+  },
+
+  {
+    id: 'fill-layout-panel',
+    name: 'Fill & Layout panel',
+    category: 'property-panels',
+    description: 'Multi-section composition combining Fill color rows, empty placeholder sections (Stroke, Effects), and Layout controls. Shows different column grids within the same panel: 1fr auto auto for color rows, 1fr 24px for SegmentedControl, 1fr 1fr 24px for numeric fields, auto 1fr 24px for checkboxes.',
+    components: [
+      { name: 'PropertySection', source: 'shared' },
+      { name: 'PropertyRow', source: 'shared' },
+      { name: 'PlaceholderSection', source: 'shared' },
+      { name: 'Input.Group', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Input', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'ScrubbableInput', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'SegmentedControl', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Checkbox', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'IconButton', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Fill + Stroke/Effects placeholders + Layout',
+        render: () => <FillLayoutDemo />,
+        code: `import { Input, ScrubbableInput, NumberFormatter, SegmentedControl, HiddenLegend, Checkbox, Label, IconButton } from '@figma/fpl-components';
+import { Icon24Eye, Icon24Hidden, Icon24Minus, Icon24Styles, Icon24AspectRatio, Icon24AlLayoutGridNone, /* ... */ } from '@figma/fpl-icons';
+import { PropertySection, PropertyRow, PlaceholderSection } from '@prototype/shared';
+
+{/* Fill section — columns="1fr auto auto" for color + trailing icons */}
+<PropertySection
+  title="Fill"
+  headerActions={<IconButton aria-label="Add fill"><Icon24Styles /></IconButton>}
+>
+  <PropertyRow columns="1fr auto auto" style={{ opacity: visible ? 1 : 0.4 }}>
+    <Input.Group columns="1fr 52px">
+      <Input aria-label="Hex color" value={hex} onChange={setHex} />
+      <Input aria-label="Opacity" value={opacity} onChange={setOpacity} />
+    </Input.Group>
+    <IconButton aria-label="Toggle visibility" onClick={() => setVisible(!visible)}>
+      {visible ? <Icon24Eye /> : <Icon24Hidden />}
+    </IconButton>
+    <IconButton aria-label="Remove fill"><Icon24Minus /></IconButton>
+  </PropertyRow>
+</PropertySection>
+
+{/* Empty sections */}
+<PlaceholderSection title="Stroke" actions />
+<PlaceholderSection title="Effects" actions />
+
+{/* Layout section — mixes three different column grids */}
+<PropertySection title="Layout">
+  {/* Direction — columns="1fr 24px" */}
+  <PropertyRow columns="1fr 24px">
+    <SegmentedControl.Root value={direction} onChange={setDirection} legend={<HiddenLegend>Layout direction</HiddenLegend>}>
+      <SegmentedControl.Option value="NONE" icon={<Icon24AlLayoutGridNone />} aria-label="None" />
+      {/* ... */}
+    </SegmentedControl.Root>
+    <div />
+  </PropertyRow>
+
+  {/* W/H fields — columns="1fr 1fr 24px" (default) */}
+  <PropertyRow>
+    <ScrubbableInput.Root>{/* W */}</ScrubbableInput.Root>
+    <ScrubbableInput.Root>{/* H */}</ScrubbableInput.Root>
+    <IconButton aria-label="Constrain proportions"><Icon24AspectRatio /></IconButton>
+  </PropertyRow>
+
+  {/* Clip content — columns="auto 1fr 24px" */}
+  <PropertyRow columns="auto 1fr 24px">
+    <Checkbox checked={clip} onChange={setClip} label={<Label>Clip content</Label>} variant="muted" />
+    <div />
+    <div />
+  </PropertyRow>
+</PropertySection>`,
+      },
+    ],
+    tags: ['property', 'fill', 'color', 'layout', 'segmented', 'checkbox', 'placeholder', 'panel', 'multi-row'],
+  },
+
+  {
+    id: 'instance-properties-panel',
+    name: 'Instance properties panel',
+    category: 'property-panels',
+    description: 'Label-left / control-right layout using PropertyRow columns="auto 1fr". Each row has a text label on the left and a control (Select, Input, Switch) on the right. No trailing 24px icon column — contrasts with the 1fr 1fr 24px default used in Design-mode recipes.',
+    components: [
+      { name: 'PropertySection', source: 'shared' },
+      { name: 'PropertyRow', source: 'shared' },
+      { name: 'Select', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Input', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Switch', source: 'fpl', docsUrl: FPL_DOCS },
+    ],
+    examples: [
+      {
+        label: 'Instance property controls',
+        render: () => <InstancePropertiesDemo />,
+        code: `import { Select, HiddenLabel, Input, Switch } from '@figma/fpl-components';
+import { PropertySection, PropertyRow } from '@prototype/shared';
+
+<PropertySection title="Instance properties">
+  {/* Each row: label on left, control on right — columns="auto 1fr" */}
+  <PropertyRow columns="auto 1fr">
+    <Text size="sm" color="secondary">Variant</Text>
+    <Select.Root value={variant} onChange={(v) => v && setVariant(v)}>
+      <Select.Trigger label={<HiddenLabel>Variant</HiddenLabel>} width="fill" />
+      <Select.Container>
+        <Select.Option value="Primary">Primary</Select.Option>
+        <Select.Option value="Hover">Hover</Select.Option>
+        <Select.Option value="Pressed">Pressed</Select.Option>
+      </Select.Container>
+    </Select.Root>
+  </PropertyRow>
+  <PropertyRow columns="auto 1fr">
+    <Text size="sm" color="secondary">Label</Text>
+    <Input aria-label="Label" value={label} onChange={setLabel} />
+  </PropertyRow>
+  <PropertyRow columns="auto 1fr">
+    <Text size="sm" color="secondary">Show icon</Text>
+    <Switch label={<HiddenLabel>Show icon</HiddenLabel>} checked={showIcon} onChange={setShowIcon} />
+  </PropertyRow>
+</PropertySection>`,
+      },
+    ],
+    tags: ['property', 'instance', 'select', 'input', 'switch', 'panel', 'label-control'],
+  },
+
   {
     id: 'position-size-panel',
     name: 'Position & Size panel',
@@ -2201,177 +3847,628 @@ const formatter = new NumberFormatter({ min: 0, maximumFractionDigits: 2 });
     tags: ['property', 'typography', 'select', 'segmented', 'scrubbable', 'alignment', 'font', 'panel', 'multi-row'],
   },
 
+  // ── Toolbars ───────────────────────────────────────────────────────────
   {
-    id: 'fill-layout-panel',
-    name: 'Fill & Layout panel',
-    category: 'property-panels',
-    description: 'Multi-section composition combining Fill color rows, empty placeholder sections (Stroke, Effects), and Layout controls. Shows different column grids within the same panel: 1fr auto auto for color rows, 1fr 24px for SegmentedControl, 1fr 1fr 24px for numeric fields, auto 1fr 24px for checkboxes.',
+    id: 'floating-object-toolbar',
+    name: 'Floating object toolbar (dark)',
+    category: 'toolbars',
+    description: 'A dark-themed floating toolbar that appears above a selected object, like the FigJam/Buzz selection toolbars. Uses data-preferred-theme="dark" with IconButton and Swatch color popovers. Shows two variants: shape styling and frame presets.',
     components: [
-      { name: 'PropertySection', source: 'shared' },
-      { name: 'PropertyRow', source: 'shared' },
-      { name: 'PlaceholderSection', source: 'shared' },
-      { name: 'Input.Group', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Input', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'ScrubbableInput', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'SegmentedControl', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Checkbox', source: 'fpl', docsUrl: FPL_DOCS },
       { name: 'IconButton', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Swatch', source: 'shared' },
     ],
     examples: [
       {
-        label: 'Fill + Stroke/Effects placeholders + Layout',
-        render: () => <FillLayoutDemo />,
-        code: `import { Input, ScrubbableInput, NumberFormatter, SegmentedControl, HiddenLegend, Checkbox, Label, IconButton } from '@figma/fpl-components';
-import { Icon24Eye, Icon24Hidden, Icon24Minus, Icon24Styles, Icon24AspectRatio, Icon24AlLayoutGridNone, /* ... */ } from '@figma/fpl-icons';
-import { PropertySection, PropertyRow, PlaceholderSection } from '@prototype/shared';
+        label: 'Shape styling toolbar',
+        render: () => <FloatingShapeToolbarDemo />,
+        code: `import { IconButton } from '@figma/fpl-components';
+import { Swatch } from '@figma/ppg-shared';
+import { Icon24Bold, Icon24StrikeThrough, Icon24TextAlignLeft, Icon24TextAlignCenter,
+  Icon24TextAlignRight, Icon24Duplicate, Icon24Lock } from '@figma/fpl-icons';
 
-{/* Fill section — columns="1fr auto auto" for color + trailing icons */}
-<PropertySection
-  title="Fill"
-  headerActions={<IconButton aria-label="Add fill"><Icon24Styles /></IconButton>}
->
-  <PropertyRow columns="1fr auto auto" style={{ opacity: visible ? 1 : 0.4 }}>
-    <Input.Group columns="1fr 52px">
-      <Input aria-label="Hex color" value={hex} onChange={setHex} />
-      <Input aria-label="Opacity" value={opacity} onChange={setOpacity} />
-    </Input.Group>
-    <IconButton aria-label="Toggle visibility" onClick={() => setVisible(!visible)}>
-      {visible ? <Icon24Eye /> : <Icon24Hidden />}
+// Wrap in data-preferred-theme="dark" for dark mode
+<div data-preferred-theme="dark">
+  <div className="flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1">
+    {/* Color swatch with popover */}
+    <IconButton size="lg" aria-label="Fill color" variant="ghost" onClick={toggleColors}>
+      <Swatch type="circle" colors={[fillColor]} size="sm" padding={false} />
     </IconButton>
-    <IconButton aria-label="Remove fill"><Icon24Minus /></IconButton>
-  </PropertyRow>
-</PropertySection>
-
-{/* Empty sections */}
-<PlaceholderSection title="Stroke" actions />
-<PlaceholderSection title="Effects" actions />
-
-{/* Layout section — mixes three different column grids */}
-<PropertySection title="Layout">
-  {/* Direction — columns="1fr 24px" */}
-  <PropertyRow columns="1fr 24px">
-    <SegmentedControl.Root value={direction} onChange={setDirection} legend={<HiddenLegend>Layout direction</HiddenLegend>}>
-      <SegmentedControl.Option value="NONE" icon={<Icon24AlLayoutGridNone />} aria-label="None" />
-      {/* ... */}
-    </SegmentedControl.Root>
-    <div />
-  </PropertyRow>
-
-  {/* W/H fields — columns="1fr 1fr 24px" (default) */}
-  <PropertyRow>
-    <ScrubbableInput.Root>{/* W */}</ScrubbableInput.Root>
-    <ScrubbableInput.Root>{/* H */}</ScrubbableInput.Root>
-    <IconButton aria-label="Constrain proportions"><Icon24AspectRatio /></IconButton>
-  </PropertyRow>
-
-  {/* Clip content — columns="auto 1fr 24px" */}
-  <PropertyRow columns="auto 1fr 24px">
-    <Checkbox checked={clip} onChange={setClip} label={<Label>Clip content</Label>} variant="muted" />
-    <div />
-    <div />
-  </PropertyRow>
-</PropertySection>`,
+    <div className="border-l border-border h-5" />
+    {/* Formatting */}
+    <IconButton size="lg" aria-label="Bold" variant="ghost"><Icon24Bold /></IconButton>
+    <IconButton size="lg" aria-label="Strikethrough" variant="ghost"><Icon24StrikeThrough /></IconButton>
+    <div className="border-l border-border h-5" />
+    {/* Alignment */}
+    <IconButton size="lg" aria-label="Align left" variant={align === 'left' ? 'secondary' : 'ghost'}
+      onClick={() => setAlign('left')}><Icon24TextAlignLeft /></IconButton>
+    <div className="border-l border-border h-5" />
+    {/* Actions */}
+    <IconButton size="lg" aria-label="Duplicate" variant="ghost"><Icon24Duplicate /></IconButton>
+    <IconButton size="lg" aria-label="Lock" variant="ghost"><Icon24Lock /></IconButton>
+  </div>
+</div>`,
       },
     ],
-    tags: ['property', 'fill', 'color', 'layout', 'segmented', 'checkbox', 'placeholder', 'panel', 'multi-row'],
+    tags: ['toolbar', 'floating', 'dark', 'popover', 'selection', 'object', 'figjam', 'buzz', 'color'],
   },
 
   {
-    id: 'component-properties-panel',
-    name: 'Component properties panel',
-    category: 'property-panels',
-    description: 'Chip-based property bindings showing component properties as icon + name + Chip value. Uses PropertyRow columns="auto 1fr" for icon+label layouts without the trailing 24px icon slot. Chip variant="component" represents bound variables.',
+    id: 'primary-toolbar',
+    name: 'Primary toolbar',
+    category: 'toolbars',
+    description: 'The main canvas toolbar with tool buttons and sub-tool dropdown menus. Uses Toolbar.Shell, ToolButton (with sub-tools and LargeIcon variants), and FlatToolButton.',
     components: [
-      { name: 'PropertySection', source: 'shared' },
-      { name: 'PropertyRow', source: 'shared' },
-      { name: 'Chip', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Toolbar.Shell', source: 'shared' },
+      { name: 'Toolbar.ToolButton', source: 'shared' },
+      { name: 'Toolbar.FlatToolButton', source: 'shared' },
     ],
     examples: [
       {
-        label: 'Component property bindings',
-        render: () => <ComponentPropertiesDemo />,
-        code: `import { Chip } from '@figma/fpl-components';
-import { Icon24Component, Icon24Text, Icon24Instance } from '@figma/fpl-icons';
-import { PropertySection, PropertyRow } from '@prototype/shared';
+        label: 'Primary toolbar with large icons',
+        render: () => <PrimaryToolbarDemo />,
+        code: `import { Toolbar } from '@figma/ppg-shared';
+import type { SubTool } from '@figma/ppg-shared';
+import { Icon24MoveLarge, Icon24RectangleLarge, Icon24PenLarge, Icon24TextLarge, Icon24HandLarge,
+  Icon24Rectangle, Icon24Line, Icon24LineLarge, Icon24Arrow, Icon24ArrowLarge,
+  Icon24Ellipse, Icon24EllipseLarge } from '@figma/fpl-icons';
 
-<PropertySection title="Properties">
-  {/* Each row: icon + label on left, Chip on right — columns="auto 1fr" */}
-  <PropertyRow columns="auto 1fr">
-    <div className="flex items-center gap-1">
-      <Icon24Component />
-      <Text size="sm" color="secondary">State</Text>
-    </div>
-    <Chip variant="component" size="fill" onClick={() => cycleVariant()}>
-      Default
-    </Chip>
-  </PropertyRow>
-  <PropertyRow columns="auto 1fr">
-    <div className="flex items-center gap-1">
-      <Icon24Text />
-      <Text size="sm" color="secondary">Action</Text>
-    </div>
-    <Chip variant="component" size="fill" onClick={() => cycleLabel()}>
-      Log in
-    </Chip>
-  </PropertyRow>
-  <PropertyRow columns="auto 1fr">
-    <div className="flex items-center gap-1">
-      <Icon24Instance />
-      <Text size="sm" color="secondary">Instance</Text>
-    </div>
-    <Chip variant="component" size="fill">
-      icon.24.plus, ico...
-    </Chip>
-  </PropertyRow>
-</PropertySection>`,
+const SHAPE_SUB_TOOLS: SubTool[] = [
+  { id: 'rectangle', label: 'Rectangle', Icon: Icon24Rectangle, LargeIcon: Icon24RectangleLarge, shortcut: 'R' },
+  { id: 'line', label: 'Line', Icon: Icon24Line, LargeIcon: Icon24LineLarge, shortcut: 'L' },
+  { id: 'arrow', label: 'Arrow', Icon: Icon24Arrow, LargeIcon: Icon24ArrowLarge, shortcut: '⇧L' },
+  { id: 'ellipse', label: 'Ellipse', Icon: Icon24Ellipse, LargeIcon: Icon24EllipseLarge, shortcut: 'O' },
+];
+
+const [activeTool, setActiveTool] = useState('move');
+const [selectedSubToolId, setSelectedSubToolId] = useState('rectangle');
+
+<Toolbar.Shell>
+  <div className="flex items-center gap-1 p-2">
+    <Toolbar.FlatToolButton icon={Icon24MoveLarge} label="Move"
+      isActive={activeTool === 'move'} onClick={() => setActiveTool('move')} />
+    <Toolbar.ToolButton
+      id="shapes" Icon={Icon24RectangleLarge} label="Shape tools"
+      activeTool={activeTool} selectedSubToolId={selectedSubToolId}
+      subTools={SHAPE_SUB_TOOLS} onSelectTool={setActiveTool} />
+    <Toolbar.FlatToolButton icon={Icon24PenLarge} label="Pen"
+      isActive={activeTool === 'pen'} onClick={() => setActiveTool('pen')} />
+    <Toolbar.FlatToolButton icon={Icon24TextLarge} label="Text"
+      isActive={activeTool === 'text'} onClick={() => setActiveTool('text')} />
+    <Toolbar.FlatToolButton icon={Icon24HandLarge} label="Hand"
+      isActive={activeTool === 'hand'} onClick={() => setActiveTool('hand')} />
+  </div>
+</Toolbar.Shell>`,
       },
     ],
-    tags: ['property', 'component', 'chip', 'binding', 'panel', 'instance'],
+    tags: ['toolbar', 'tool', 'button', 'sub-tool', 'dropdown', 'primary'],
   },
 
   {
-    id: 'instance-properties-panel',
-    name: 'Instance properties panel',
-    category: 'property-panels',
-    description: 'Label-left / control-right layout using PropertyRow columns="auto 1fr". Each row has a text label on the left and a control (Select, Input, Switch) on the right. No trailing 24px icon column — contrasts with the 1fr 1fr 24px default used in Design-mode recipes.',
+    id: 'secondary-toolbar',
+    name: 'Secondary toolbar',
+    category: 'toolbars',
+    description: 'A contextual toolbar that appears above the primary toolbar when a tool is active. Shows color palettes with active ring indicators and shape/option pickers. Based on FigJam secondary toolbars (marker colors, shape options).',
     components: [
-      { name: 'PropertySection', source: 'shared' },
-      { name: 'PropertyRow', source: 'shared' },
-      { name: 'Select', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Toolbar.Shell', source: 'shared' },
+      { name: 'Toolbar.FlatToolButton', source: 'shared' },
+      { name: 'IconButton', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Swatch', source: 'shared' },
+    ],
+    examples: [
+      {
+        label: 'Color palette + shape options',
+        render: () => <SecondaryToolbarDemo />,
+        code: `import { IconButton } from '@figma/fpl-components';
+import { Toolbar, Swatch } from '@figma/ppg-shared';
+import { Icon24RectangleLarge, Icon24GridView } from '@figma/fpl-icons';
+
+const COLORS = [
+  { id: 'black', label: 'Black', css: '#1B1B1B' },
+  { id: 'red', label: 'Red', css: '#F24822' },
+  { id: 'blue', label: 'Blue', css: '#0D99FF' },
+  // ...
+];
+
+const [activeColor, setActiveColor] = useState('#0D99FF');
+const [activeOption, setActiveOption] = useState('shape-rect');
+
+{/* Secondary toolbar — stacks above primary */}
+<div className="flex items-center bg-bg rounded-lg shadow-300 px-1 gap-1">
+  {/* Color palette with active ring */}
+  <div className="flex items-center gap-1 p-1">
+    {COLORS.map((c) => (
+      <IconButton key={c.id} size="lg" aria-label={c.label}
+        variant="ghost" onClick={() => setActiveColor(c.css)}>
+        <Swatch type="circle" colors={[c.css]} size="sm"
+          padding={false} selected={activeColor === c.css} />
+      </IconButton>
+    ))}
+  </div>
+  <div className="border-l border-border self-stretch" />
+  {/* Shape option buttons */}
+  <div className="flex items-center gap-1 py-1 px-2">
+    <IconButton size="lg" aria-label="Rectangle"
+      variant={activeOption === 'rect' ? 'highlighted' : 'ghost'}
+      onClick={() => setActiveOption('rect')}>
+      <Icon24RectangleLarge />
+    </IconButton>
+  </div>
+</div>
+
+{/* Primary toolbar below */}
+<Toolbar.Shell>...</Toolbar.Shell>`,
+      },
+    ],
+    tags: ['toolbar', 'secondary', 'color', 'palette', 'shapes', 'figjam', 'contextual'],
+  },
+
+  // ── AI ────────────────────────────────────────────────────────────────
+
+  {
+    id: 'prompt-panel',
+    name: 'Prompt panel',
+    category: 'ai',
+    description: 'Chat input with model selector dropdown. Supports an isWorking state that swaps the submit button for a stop button. Attachments (images, files) and inspected elements appear as thumbnails and chips above the textarea.',
+    components: [
+      { name: 'PromptPanel', source: 'shared' },
+      { name: 'AttachmentThumbnail', source: 'shared' },
+    ],
+    examples: [
+      {
+        label: 'Idle prompt',
+        render: () => <PromptPanelDemo />,
+        code: `import { PromptPanel } from '@figma/ppg-shared';
+
+const [value, setValue] = useState('');
+const [model, setModel] = useState('claude-4-sonnet');
+
+<PromptPanel
+  value={value}
+  onChange={setValue}
+  selectedModel={model}
+  onModelChange={setModel}
+  onSubmit={() => {}}
+  placeholder="Ask for changes"
+/>`,
+      },
+      {
+        label: 'Working state (stop button)',
+        render: () => <PromptPanelDemo isWorking />,
+        code: `<PromptPanel
+  value="Make the sidebar collapsible"
+  onChange={setValue}
+  selectedModel={model}
+  onModelChange={setModel}
+  onSubmit={() => {}}
+  isWorking
+  onStop={() => {}}
+  placeholder="Ask for changes"
+/>`,
+      },
+      {
+        label: 'With inspected elements',
+        render: () => <PromptPanelWithAttachmentsDemo />,
+        code: `<PromptPanel
+  value="Fix the layout on these elements"
+  onChange={setValue}
+  selectedModel={model}
+  onModelChange={setModel}
+  onSubmit={() => {}}
+  inspectedElements={[
+    { id: 'el-1', type: 'div', label: 'Container' },
+    { id: 'el-2', type: 'button', label: 'Submit button' },
+  ]}
+  onRemoveElement={(id) => {}}
+  placeholder="Ask for changes"
+/>`,
+      },
+      {
+        label: 'With attached image',
+        render: () => <PromptPanelWithImageDemo />,
+        code: `import { PromptPanel, AttachmentThumbnail } from '@figma/ppg-shared';
+
+{/* PromptPanel manages attachments internally via AttachMenu.
+    Users click the attach button to select files, which appear
+    as thumbnails above the textarea. */}
+<PromptPanel
+  value="Update the hero section to match this design"
+  onChange={setValue}
+  selectedModel={model}
+  onModelChange={setModel}
+  onSubmit={handleSubmit}
+  placeholder="Ask for changes"
+/>`,
+      },
+    ],
+    tags: ['prompt', 'chat', 'input', 'model', 'ai', 'stop', 'submit', 'attachment', 'inspect', 'image'],
+  },
+
+  {
+    id: 'streaming-content',
+    name: 'Streaming content',
+    category: 'ai',
+    description: 'Progressively reveals text word-by-word or line-by-line. Useful for AI response streaming, step-by-step output, and code generation previews.',
+    components: [
+      { name: 'StreamingContent', source: 'shared' },
+      { name: 'FileCard', source: 'shared' },
+    ],
+    examples: [
+      {
+        label: 'Word-by-word streaming',
+        render: () => <StreamingWordDemo />,
+        code: `import { StreamingContent } from '@figma/ppg-shared';
+
+<StreamingContent
+  content="The quick brown fox jumps over the lazy dog."
+  status="active"
+  chunkBy="words"
+  speed={8}
+  fade={false}
+>
+  {(visible) => <span className="text-text">{visible}</span>}
+</StreamingContent>`,
+      },
+      {
+        label: 'Line-by-line streaming',
+        render: () => <StreamingLineDemo />,
+        code: `<StreamingContent
+  content={\`Step 1: Analyze the component structure
+Step 2: Identify the collapsible regions
+Step 3: Add state management\`}
+  status="active"
+  chunkBy="lines"
+  speed={2}
+  fade={false}
+>
+  {(visible) => <span className="text-text-secondary whitespace-pre-line">{visible}</span>}
+</StreamingContent>`,
+      },
+      {
+        label: 'Code streaming with syntax highlighting',
+        render: () => <StreamingCodeDemo />,
+        code: `import { StreamingContent, FileCard } from '@figma/ppg-shared';
+
+<FileCard variant="writing" fileName="Layout.tsx" loading>
+  <StreamingContent
+    content={codeString}
+    status="active"
+    chunkBy="lines"
+    speed={2}
+    maxHeight={200}
+  >
+    {(visible) => (
+      <pre className="font-mono text-bodyMd">{visible}</pre>
+    )}
+  </StreamingContent>
+</FileCard>`,
+      },
+    ],
+    tags: ['streaming', 'text', 'animation', 'ai', 'code', 'progressive', 'reveal'],
+  },
+
+  {
+    id: 'chat-message',
+    name: 'Chat message',
+    category: 'ai',
+    description:
+      'Chat bubble for user and AI messages. User messages render right-aligned with avatar; AI messages render as left-aligned plain text.',
+    components: [{ name: 'ChatMessage', source: 'shared' }],
+    examples: [
+      {
+        label: 'User message',
+        render: () => (
+          <ExampleContainer width={400} bare>
+            <div className="p-4">
+              <ChatMessage sender="user">
+                Can you make the sidebar collapsible?
+              </ChatMessage>
+            </div>
+          </ExampleContainer>
+        ),
+        code: `import { ChatMessage } from '@figma/ppg-shared';
+
+<ChatMessage sender="user">
+  Can you make the sidebar collapsible?
+</ChatMessage>`,
+      },
+      {
+        label: 'AI message',
+        render: () => (
+          <ExampleContainer width={400} bare>
+            <div className="p-4">
+              <ChatMessage sender="ai">
+                Sure! I'll add a collapse toggle to the sidebar header and manage
+                the expanded/collapsed state with useState.
+              </ChatMessage>
+            </div>
+          </ExampleContainer>
+        ),
+        code: `<ChatMessage sender="ai">
+  Sure! I'll add a collapse toggle to the sidebar header and manage
+  the expanded/collapsed state with useState.
+</ChatMessage>`,
+      },
+      {
+        label: 'With attachments',
+        render: () => (
+          <ExampleContainer width={400} bare>
+            <div className="p-4">
+              <ChatMessage
+                sender="user"
+                attachments={MOCK_ATTACHMENTS}
+                inspectedElements={MOCK_INSPECTED_ELEMENTS}
+              >
+                Fix the layout on these elements
+              </ChatMessage>
+            </div>
+          </ExampleContainer>
+        ),
+        code: `<ChatMessage
+  sender="user"
+  attachments={[
+    { id: '1', url: 'screenshot.png', fileName: 'screenshot.png', loading: false },
+  ]}
+  inspectedElements={[
+    { id: 'el-1', type: 'div', label: 'Container' },
+    { id: 'el-2', type: 'button', label: 'Submit button' },
+  ]}
+>
+  Fix the layout on these elements
+</ChatMessage>`,
+      },
+    ],
+    tags: ['chat', 'message', 'bubble', 'user', 'ai', 'avatar', 'attachment'],
+  },
+
+  {
+    id: 'thinking-and-reasoning',
+    name: 'Thinking & reasoning',
+    category: 'ai',
+    description:
+      'Expandable sections for AI reasoning with streaming animation, paired with inline progress indicators.',
+    components: [
+      { name: 'CollapsibleSection', source: 'shared' },
+      { name: 'ProgressIndicator', source: 'shared' },
+    ],
+    examples: [
+      {
+        label: 'Active (streaming)',
+        render: () => (
+          <ExampleContainer width={400} bare>
+            <div className="p-4">
+              <CollapsibleSection label="Thinking..." status="active">
+                I need to analyze the component hierarchy to find where the sidebar
+                state is managed. The LeftSidebar component uses a context provider,
+                so I should add a collapsed state there and pass it down to child
+                components.
+              </CollapsibleSection>
+            </div>
+          </ExampleContainer>
+        ),
+        code: `import { CollapsibleSection } from '@figma/ppg-shared';
+
+<CollapsibleSection label="Thinking..." status="active">
+  I need to analyze the component hierarchy to find where the sidebar
+  state is managed...
+</CollapsibleSection>`,
+      },
+      {
+        label: 'Complete (collapsed)',
+        render: () => (
+          <ExampleContainer width={400} bare>
+            <div className="p-4">
+              <CollapsibleSection label="Thought for 12 seconds" status="complete">
+                I analyzed the component tree and found that the sidebar state lives
+                in the LeftSidebar provider. Adding a collapsed boolean to the context
+                will let all children respond to the toggle.
+              </CollapsibleSection>
+            </div>
+          </ExampleContainer>
+        ),
+        code: `<CollapsibleSection label="Thought for 12 seconds" status="complete">
+  I analyzed the component tree and found that the sidebar state lives
+  in the LeftSidebar provider...
+</CollapsibleSection>`,
+      },
+      {
+        label: 'Progress indicators',
+        render: () => (
+          <ExampleContainer width={400} bare>
+            <div className="p-4 flex flex-col gap-2">
+              <ProgressIndicator label="Analyzing component structure..." spinner />
+              <ProgressIndicator label="Reading sidebar implementation..." spinner />
+              <ProgressIndicator label="Updated 3 files" />
+            </div>
+          </ExampleContainer>
+        ),
+        code: `import { ProgressIndicator } from '@figma/ppg-shared';
+
+<ProgressIndicator label="Analyzing component structure..." spinner />
+<ProgressIndicator label="Reading sidebar implementation..." spinner />
+<ProgressIndicator label="Updated 3 files" />`,
+      },
+    ],
+    tags: ['thinking', 'reasoning', 'collapsible', 'streaming', 'progress', 'ai', 'spinner'],
+  },
+
+  {
+    id: 'artifacts',
+    name: 'Artifacts',
+    category: 'ai',
+    description:
+      'Cards and containers for AI-generated output: system messages with action buttons, task lists with status tracking, and version history with restore.',
+    components: [
+      { name: 'SystemMessage', source: 'shared' },
+      { name: 'TodoList', source: 'shared' },
+      { name: 'VersionCard', source: 'shared' },
+      { name: 'Text', source: 'shared' },
       { name: 'Input', source: 'fpl', docsUrl: FPL_DOCS },
-      { name: 'Switch', source: 'fpl', docsUrl: FPL_DOCS },
+      { name: 'Button', source: 'fpl', docsUrl: FPL_DOCS },
     ],
     examples: [
       {
-        label: 'Instance property controls',
-        render: () => <InstancePropertiesDemo />,
-        code: `import { Select, HiddenLabel, Input, Switch } from '@figma/fpl-components';
-import { PropertySection, PropertyRow } from '@prototype/shared';
+        label: 'System message with form content',
+        render: () => (
+          <ExampleContainer width={400} bare>
+            <div className="p-4">
+              <SystemMessage icon={<Icon24Key />} label="Create a secret">
+                <div className="flex flex-col gap-3 px-12px pb-3">
+                  <Text size="lg" color="secondary">
+                    Please add your secret name and value. You can manage your secret in Supabase.
+                  </Text>
+                  <Input size="lg" aria-label="Secret name" value="STELLAR_NEXUS_API_KEY"/>
+                  <Input size="lg" aria-label="Secret value" value="sn_7f9e2b4d1c8a6e3p5q0r9t2u5v8w1z4y7x"/>
+                  <div>
+                    <Button variant="primary">Save secret</Button>
+                  </div>
+                </div>
+              </SystemMessage>
+            </div>
+          </ExampleContainer>
+        ),
+        code: `import { SystemMessage } from '@figma/ppg-shared';
+import { Icon24Key } from '@figma/fpl-icons';
+import { Input, Button } from '@figma/fpl-components';
 
-<PropertySection title="Instance properties">
-  {/* Each row: label on left, control on right — columns="auto 1fr" */}
-  <PropertyRow columns="auto 1fr">
-    <Text size="sm" color="secondary">Variant</Text>
-    <Select.Root value={variant} onChange={(v) => v && setVariant(v)}>
-      <Select.Trigger label={<HiddenLabel>Variant</HiddenLabel>} width="fill" />
-      <Select.Container>
-        <Select.Option value="Primary">Primary</Select.Option>
-        <Select.Option value="Hover">Hover</Select.Option>
-        <Select.Option value="Pressed">Pressed</Select.Option>
-      </Select.Container>
-    </Select.Root>
-  </PropertyRow>
-  <PropertyRow columns="auto 1fr">
-    <Text size="sm" color="secondary">Label</Text>
-    <Input aria-label="Label" value={label} onChange={setLabel} />
-  </PropertyRow>
-  <PropertyRow columns="auto 1fr">
-    <Text size="sm" color="secondary">Show icon</Text>
-    <Switch label={<HiddenLabel>Show icon</HiddenLabel>} checked={showIcon} onChange={setShowIcon} />
-  </PropertyRow>
-</PropertySection>`,
+<SystemMessage icon={<Icon24Key />} label="Create a secret">
+  <div className="flex flex-col gap-3 px-12px pb-3">
+    <span className="text-text-secondary">
+      Please add your secret name and value. You can manage your secret in Supabase.
+    </span>
+    <Input aria-label="Secret name" value={name} readOnly />
+    <Input aria-label="Secret value" value={value} readOnly />
+    <div>
+      <Button variant="primary">Save secret</Button>
+    </div>
+  </div>
+</SystemMessage>`,
+      },
+      {
+        label: 'Todo list with confirmation',
+        render: () => <TodoListWithConfirmDemo />,
+        code: `import { SystemMessage, TodoList } from '@figma/ppg-shared';
+import { Icon24ListView } from '@figma/fpl-icons';
+import { Button } from '@figma/fpl-components';
+import type { Task } from '@figma/ppg-shared';
+
+const tasks: Task[] = [
+  { label: 'Analyze component structure', status: 'pending' },
+  { label: 'Update imports', status: 'pending' },
+  { label: 'Refactor state management', status: 'pending' },
+  { label: 'Add tests', status: 'pending' },
+  { label: 'Update documentation', status: 'pending' },
+];
+
+<SystemMessage icon={<Icon24ListView />} label="To do list">
+  <TodoList tasks={tasks} />
+  {awaitingUserAction && (
+    <div className="px-3 pb-3">
+      <Button variant="primary" size="lg" onClick={onStartTasks}>
+        Start tasks
+      </Button>
+    </div>
+  )}
+</SystemMessage>`,
+      },
+      {
+        label: 'Todo list (in progress)',
+        render: () => (
+          <ExampleContainer width={400} bare>
+            <div className="p-4">
+              <SystemMessage icon={<Icon24ListView />} label="Implementation plan">
+                <TodoList tasks={MOCK_TASKS} />
+              </SystemMessage>
+            </div>
+          </ExampleContainer>
+        ),
+        code: `const tasks: Task[] = [
+  { label: 'Analyze component structure', status: 'complete' },
+  { label: 'Update imports', status: 'complete' },
+  { label: 'Refactor state management', status: 'in_progress' },
+  { label: 'Add tests', status: 'pending' },
+  { label: 'Update documentation', status: 'pending' },
+];
+
+<SystemMessage icon={<Icon24ListView />} label="Implementation plan">
+  <TodoList tasks={tasks} />
+</SystemMessage>`,
+      },
+      {
+        label: 'Version cards',
+        render: () => (
+          <ExampleContainer width={400} bare>
+            <div className="p-4 flex flex-col gap-2">
+              <VersionCard
+                label="Added collapsible sidebar"
+                variant="current"
+              />
+              <VersionCard
+                label="Initial layout"
+                variant="previous"
+                versionNumber={1}
+                onRestore={() => {}}
+              />
+            </div>
+          </ExampleContainer>
+        ),
+        code: `import { VersionCard } from '@figma/ppg-shared';
+
+<VersionCard
+  label="Added collapsible sidebar"
+  variant="current"
+/>
+<VersionCard
+  label="Initial layout"
+  variant="previous"
+  versionNumber={1}
+  onRestore={() => {}}
+/>`,
       },
     ],
-    tags: ['property', 'instance', 'select', 'input', 'switch', 'panel', 'label-control'],
+    tags: ['system', 'message', 'todo', 'task', 'version', 'artifact', 'ai', 'card'],
+  },
+
+  // ── Interactions ─────────────────────────────────────────────────────
+
+  {
+    id: 'right-click-context-menu',
+    name: 'Right-click context menu',
+    category: 'interactions',
+    description: 'Custom context menu triggered by right-click. Supports items with keyboard shortcuts, separators, and nested submenus.',
+    components: [
+      { name: 'useContextMenu', source: 'shared' },
+      { name: 'ContextMenuRenderer', source: 'shared' },
+      { name: 'Text', source: 'shared' },
+    ],
+    examples: [
+      {
+        label: 'Canvas context menu with submenus',
+        render: () => <RightClickContextMenuDemo />,
+        code: `import { useContextMenu, ContextMenuRenderer } from '@figma/ppg-shared';
+import type { MenuItemDef } from '@figma/ppg-shared';
+
+const { handleOpen, manager } = useContextMenu();
+
+const menuItems: MenuItemDef[] = [
+  { type: 'item', id: 'copy', label: 'Copy', shortcut: '⌘C', onClick: () => {} },
+  { type: 'item', id: 'paste', label: 'Paste here', shortcut: '⌘V', onClick: () => {} },
+  { type: 'separator' },
+  { type: 'item', id: 'delete', label: 'Delete', shortcut: '⌫', onClick: () => {} },
+  { type: 'submenu', id: 'more', label: 'More options', children: [
+    { type: 'item', id: 'export', label: 'Export…', onClick: () => {} },
+  ]},
+];
+
+<div onContextMenu={(e) => {
+  e.preventDefault();
+  handleOpen('canvas', e.clientX, e.clientY);
+}}>
+  Right-click anywhere
+</div>
+<ContextMenuRenderer manager={manager} items={menuItems} />`,
+      },
+    ],
+    tags: ['context-menu', 'right-click', 'menu', 'submenu', 'shortcut', 'interaction'],
   },
 ];
+

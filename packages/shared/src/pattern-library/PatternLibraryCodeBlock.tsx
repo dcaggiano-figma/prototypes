@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button} from '@figma/fpl-components';
 import { Icon24Code, Icon24Clipboard, Icon24Check } from '@figma/fpl-icons';
+import { Pre } from '../typography/Pre';
 
 interface PatternLibraryCodeBlockProps {
   code: string;
@@ -29,9 +30,9 @@ export function PatternLibraryCodeBlock({ code }: PatternLibraryCodeBlockProps) 
         )}
       </div>
       {isVisible && (
-        <pre className="bg-bg-secondary rounded-md p-3 overflow-x-auto text-text text-codeSm">
-          <code>{code}</code>
-        </pre>
+        <Pre syntax="jsx" lineNumbers className="rounded-t-none border-t-0">
+          {code}
+        </Pre>
       )}
     </div>
   );

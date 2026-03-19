@@ -1,4 +1,4 @@
-import { Avatar, type MultiplayerColor } from '../Avatar';
+import { Avatar, type MultiplayerColor } from '../avatar/Avatar';
 import { useUserConfig } from './provider';
 
 interface UserAvatarProps {

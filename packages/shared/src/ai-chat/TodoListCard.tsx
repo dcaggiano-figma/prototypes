@@ -8,7 +8,7 @@ import type { Task, TaskStatus } from './types';
 /* ------------------------------------------------------------------ */
 
 function getTaskIcon(status: TaskStatus) {
-  if (status === 'complete') return <Icon24CheckLarge className="fill-icon-success" />;
+  if (status === 'complete') return <Icon24CheckLarge className="icon-success" />;
   if (status === 'in_progress') return <LoadingSpinner size="md" />;
   return <Icon24Ellipse className="fill-icon-secondary" />;
 }

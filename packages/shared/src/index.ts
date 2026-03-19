@@ -3,20 +3,29 @@
 // Theme
 export { type ThemeSetting, useAppTheme } from './theme';
 
-export { useResizablePanel } from './useResizablePanel';
-export { ResizeHandle } from './ResizeHandle';
-export { Avatar, type MultiplayerColor } from './Avatar';
-export { Card } from './Card';
+// Layout
+export { useResizablePanel } from './layout';
+export { ResizeHandle } from './layout';
+export { PropertySection, PropertyRow, PlaceholderSection } from './layout';
+export type { PropertySectionProps, PropertyRowProps, PlaceholderSectionProps } from './layout';
+
+// Avatar
+export { Avatar, type MultiplayerColor } from './avatar';
+
+// Card
+export { Card } from './card';
 
 // Typography
-export { Text } from './Text';
-export type { TextProps, TextSize, TextColor, Truncate } from './Text';
-export { Heading } from './Heading';
-export type { HeadingProps, HeadingSize } from './Heading';
-
-// Property Layout
-export { PropertySection, PropertyRow, PlaceholderSection } from './PropertyLayout';
-export type { PropertySectionProps, PropertyRowProps, PlaceholderSectionProps } from './PropertyLayout';
+export { Text } from './typography';
+export type { TextProps, TextSize, TextColor, Truncate } from './typography';
+export { Heading } from './typography';
+export type { HeadingProps, HeadingSize } from './typography';
+export { Code } from './typography';
+export type { CodeProps } from './typography';
+export { Pre } from './typography';
+export type { PreProps, SyntaxLanguage } from './typography';
+export { UnorderedList, OrderedList, ListItem } from './typography';
+export type { UnorderedListProps, OrderedListProps, ListItemProps } from './typography';
 
 // Comments
 export type {
@@ -90,20 +99,18 @@ export { ModelSelector } from './ai-chat/ModelSelector';
 export { AttachMenu } from './ai-chat/AttachMenu';
 export { PromptPanel } from './ai-chat/PromptPanel';
 
-// Mode Switcher
-export { ModeSwitcher } from './ModeSwitcher';
-export type { ModeSwitcherOption } from './ModeSwitcher';
-
-// Nav List
-export { NavList } from './NavList';
-export type { NavListItemDef } from './NavList';
+// Navigation
+export { ModeSwitcher } from './navigation';
+export type { ModeSwitcherOption } from './navigation';
+export { NavList } from './navigation';
+export type { NavListItemDef } from './navigation';
 
 // User Config
 export type { UserConfig } from './user-config';
 export { UserConfigProvider, useUserConfig, UserAvatar } from './user-config';
 
 // Thumbnail
-export { NavListThumbnail, ThumbnailPreview } from './Thumbnail';
+export { NavListThumbnail, ThumbnailPreview } from './thumbnail';
 
 // Cursors
 export { CURSORS } from './cursors';
@@ -119,6 +126,14 @@ export type {
   TableSection,
   HeaderAction,
 } from './table';
+
+// Skeleton
+export { Skeleton } from './progress';
+export type { SkeletonProps, BoneProps, SkeletonVariant, SkeletonSize } from './progress';
+
+// Swatch
+export { Swatch } from './swatch';
+export type { SwatchProps, SwatchType, SwatchSize } from './swatch';
 
 // Pattern Library
 export { PatternLibraryWindow } from './pattern-library';

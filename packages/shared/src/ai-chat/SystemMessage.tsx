@@ -22,9 +22,9 @@ export function SystemMessage({
   children,
 }: SystemMessageProps) {
   return (
-    <div className="flex flex-col border-border border rounded-lg overflow-hidden">
+    <div className="text-bodyLg flex flex-col border-border border rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 py-2 px-12px">
+      <div className="flex items-center gap-2 p-12px">
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 w-full">
           {icon}
           <span className="text-text text-bodyLgStrong">{label}</span>

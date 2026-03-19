@@ -8,6 +8,7 @@ import {
   type GetRowIdParams,
   type IsFullWidthRowParams,
   type RowDragEvent,
+  type CellClickedEvent,
 } from 'ag-grid-community';
 import clsx from 'clsx';
 import type { TableProps, SectionMarkerRow } from './types';
@@ -64,6 +65,8 @@ export function Table<TData = unknown>({
   onGridReady,
   onAddColumn,
   onDeleteColumn,
+  onRenameColumn,
+  rowSelectColumns,
   gridOptions,
 }: TableProps<TData>) {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
@@ -95,13 +98,24 @@ export function Table<TData = unknown>({
     [],
   );
 
-  // Build row data — inject section markers if needed
+  // Build row data — inject section markers if needed.
+  // When sectionField is set and no getRowId is provided, stamp each data row
+  // with a stable __rowId so AG Grid doesn't re-mount on every render.
   const rowData = useMemo((): AnyRowData[] => {
     if (sectionField) {
-      return injectSectionRows(data, sectionField, sections, collapsedSections);
+      const rows = injectSectionRows(data, sectionField, sections, collapsedSections);
+      if (!getRowId) {
+        let dataIdx = 0;
+        for (const row of rows) {
+          if (!isSectionMarker(row)) {
+            (row as Record<string, unknown>).__rowId = `__row_${dataIdx++}`;
+          }
+        }
+      }
+      return rows;
     }
     return data;
-  }, [data, sectionField, sections, collapsedSections]);
+  }, [data, sectionField, sections, collapsedSections, getRowId]);
 
   // Build column defs
   const columnDefs = useMemo(() => {
@@ -160,7 +174,7 @@ export function Table<TData = unknown>({
 
     // User-defined columns
     for (const col of columns) {
-      const { headerActions, columnMenu: colColumnMenu, ...colDef } = col;
+      const { headerActions, columnMenu: colColumnMenu, headerComponent: customHeaderComponent, ...colDef } = col;
       const processedCol: ColDef = {
         ...colDef,
         sortable: col.sortable ?? sorting,
@@ -168,19 +182,25 @@ export function Table<TData = unknown>({
         editable: col.editable ?? cellEditing,
       };
 
-      // Resolve column menu: per-column overrides table-level
-      const resolvedColumnMenu = colColumnMenu ?? columnMenu;
+      // Custom header component takes precedence
+      if (customHeaderComponent) {
+        processedCol.headerComponent = customHeaderComponent;
+      } else {
+        // Resolve column menu: per-column overrides table-level
+        const resolvedColumnMenu = colColumnMenu ?? columnMenu;
 
-      if (sorting || (headerActions && headerActions.length > 0) || resolvedColumnMenu) {
-        processedCol.headerComponent = SortableHeaderRenderer;
-        processedCol.headerComponentParams = {
-          headerActions,
-          columnMenu: resolvedColumnMenu,
-          sorting,
-          columnResizing,
-          onAddColumn,
-          onDeleteColumn,
-        };
+        if (sorting || (headerActions && headerActions.length > 0) || resolvedColumnMenu || onRenameColumn) {
+          processedCol.headerComponent = SortableHeaderRenderer;
+          processedCol.headerComponentParams = {
+            headerActions,
+            columnMenu: resolvedColumnMenu,
+            sorting,
+            columnResizing,
+            onAddColumn,
+            onDeleteColumn,
+            onRenameColumn,
+          };
+        }
       }
 
       cols.push(processedCol);
@@ -198,6 +218,7 @@ export function Table<TData = unknown>({
     columnMenu,
     onAddColumn,
     onDeleteColumn,
+    onRenameColumn,
   ]);
 
   // Row ID getter
@@ -208,7 +229,7 @@ export function Table<TData = unknown>({
         if (isSectionMarker(row)) {
           return `__section_${row.__sectionField}`;
         }
-        return getRowId ? getRowId(row as TData) : params.data.__autoId ?? String(Math.random());
+        return getRowId ? getRowId(row as TData) : (row as Record<string, unknown>).__rowId as string;
       };
     }
     if (getRowId) {
@@ -237,6 +258,61 @@ export function Table<TData = unknown>({
       onRowDragEnd?.(event as RowDragEvent<TData>);
     },
     [onRowDragEnd],
+  );
+
+  // Build the set of columns that trigger row selection on click.
+  // Always includes __drag when rowDrag is enabled.
+  const rowSelectColIds = useMemo(() => {
+    if (!rowSelectColumns) return null;
+    const ids = new Set(rowSelectColumns);
+    if (rowDrag) ids.add('__drag');
+    return ids;
+  }, [rowSelectColumns, rowDrag]);
+
+  // Track last-clicked row index for shift+click range selection
+  const lastSelectedRowIndex = useRef<number | null>(null);
+
+  const handleCellClicked = useCallback(
+    (event: CellClickedEvent) => {
+      if (!rowSelectColIds) return;
+      const colId = event.column.getColId();
+      const api = event.api;
+
+      // Clicking a non-row-select column clears row selection
+      if (!rowSelectColIds.has(colId)) {
+        api.deselectAll();
+        lastSelectedRowIndex.current = null;
+        return;
+      }
+      const rowNode = event.node;
+      const nativeEvent = event.event as MouseEvent | null;
+      const isMetaKey = nativeEvent?.metaKey || nativeEvent?.ctrlKey;
+      const isShiftKey = nativeEvent?.shiftKey;
+
+      if (isShiftKey && lastSelectedRowIndex.current != null) {
+        // Range selection: select all rows between last clicked and current
+        const start = Math.min(lastSelectedRowIndex.current, event.rowIndex ?? 0);
+        const end = Math.max(lastSelectedRowIndex.current, event.rowIndex ?? 0);
+        if (!isMetaKey) {
+          api.deselectAll();
+        }
+        api.forEachNode((node) => {
+          if (node.rowIndex != null && node.rowIndex >= start && node.rowIndex <= end) {
+            node.setSelected(true);
+          }
+        });
+      } else if (isMetaKey) {
+        // Toggle selection on this row
+        rowNode.setSelected(!rowNode.isSelected());
+      } else {
+        // Single select: deselect all others, select this row
+        api.deselectAll();
+        rowNode.setSelected(true);
+      }
+
+      lastSelectedRowIndex.current = event.rowIndex ?? null;
+    },
+    [rowSelectColIds],
   );
 
   // Stop pointer events on headers and drag handles from propagating to parent drag handlers (e.g. Window.ResizableRoot)
@@ -268,7 +344,7 @@ export function Table<TData = unknown>({
     columnDefs,
     defaultColDef,
     getRowId: getRowIdFn,
-    rowSelection: checkboxSelection
+    rowSelection: checkboxSelection || rowSelectColIds
       ? { mode: selectionMode, checkboxes: false, headerCheckbox: false }
       : undefined,
     rowDragManaged: rowDrag,
@@ -284,6 +360,7 @@ export function Table<TData = unknown>({
     animateRows: false,
     domLayout: 'autoHeight',
     suppressRowClickSelection: true,
+    onCellClicked: rowSelectColIds ? handleCellClicked : undefined,
     onRowDragEnd: handleRowDragEnd,
     onCellValueChanged: onCellValueChanged,
     onSortChanged: onSortChanged,

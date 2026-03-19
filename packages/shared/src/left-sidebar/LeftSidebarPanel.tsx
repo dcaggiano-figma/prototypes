@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
-import { useResizablePanel } from '../useResizablePanel';
-import { ResizeHandle } from '../ResizeHandle';
+import { useResizablePanel } from '../layout/useResizablePanel';
+import { ResizeHandle } from '../layout/ResizeHandle';
 import { useLeftSidebar } from './LeftSidebarContext';
 
 interface LeftSidebarPanelProps {

@@ -1,6 +1,6 @@
 import clsx from 'clsx';
-import { Avatar } from '../Avatar';
-import type { MultiplayerColor } from '../Avatar';
+import { Avatar } from '../avatar/Avatar';
+import type { MultiplayerColor } from '../avatar/Avatar';
 import styles from './comments.module.css';
 
 interface CommentPinProps {

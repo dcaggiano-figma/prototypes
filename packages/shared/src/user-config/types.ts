@@ -1,4 +1,4 @@
-import type { MultiplayerColor } from '../Avatar';
+import type { MultiplayerColor } from '../avatar/Avatar';
 
 export interface UserConfig {
   name: string;

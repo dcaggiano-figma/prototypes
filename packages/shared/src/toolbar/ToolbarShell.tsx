@@ -1,5 +1,6 @@
 import { forwardRef, type ReactNode } from 'react';
 import clsx from 'clsx';
+import { ToolbarPrimitive } from '@figma/fpl-components';
 
 interface ToolbarShellProps {
   children: ReactNode;
@@ -9,9 +10,9 @@ interface ToolbarShellProps {
 export const ToolbarShell = forwardRef<HTMLDivElement, ToolbarShellProps>(
   function ToolbarShell({ children, className }, ref) {
     return (
-      <div ref={ref} className={clsx('bg-bg rounded-lg shadow-300', className)}>
+      <ToolbarPrimitive aria-label='Toolbar' ref={ref} className={clsx('bg-bg rounded-lg shadow-300', className)}>
         {children}
-      </div>
+      </ToolbarPrimitive>
     );
   },
 );

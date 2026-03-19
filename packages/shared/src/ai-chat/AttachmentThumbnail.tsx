@@ -22,7 +22,7 @@ export function AttachmentThumbnail({ attachment, onRemove }: AttachmentThumbnai
             className="bg-bg-inverse rounded-full"
             onClick={onRemove}
           >
-            <Icon16Close className="fill-icon-oninverse" />
+            <Icon16Close className="icon-oninverse" />
           </ButtonPrimitive>
         </div>
       )}

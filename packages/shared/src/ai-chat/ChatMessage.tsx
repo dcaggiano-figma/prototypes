@@ -32,7 +32,7 @@ export function ChatMessage({
 }: ChatMessageProps) {
   if (sender === 'user') {
     return (
-      <div className="flex items-end gap-2 justify-end">
+      <div className="flex items-end gap-2 justify-end text-bodyLg">
         <div className="flex flex-col gap-2 justify-end max-w-[85%] items-end">
           {/* Image / Design Attachments */}
           {attachments && attachments.length > 0 && (
@@ -64,7 +64,7 @@ export function ChatMessage({
 
   // AI message
   return (
-    <div className="flex flex-col gap-4px py-1">
+    <div className="flex flex-col gap-4px py-1 text-bodyLg">
       <span className="leading-[1.5] block">{children}</span>
     </div>
   );
@@ -163,7 +163,7 @@ export function CollapsibleSection({
   const chevronOpen = showActive || expanded;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col text-bodyLg">
       {/* Summary row */}
       <ButtonPrimitive
         onClick={toggleExpanded}
@@ -221,7 +221,7 @@ export interface ProgressIndicatorProps {
 
 export function ProgressIndicator({ label, spinner = false }: ProgressIndicatorProps) {
   return (
-    <div className="items-center gap-8px inline-flex truncate overflow-hidden">
+    <div className="text-bodyLg items-center gap-8px inline-flex truncate overflow-hidden">
       {spinner && <LoadingSpinner size="sm" />}
       <span className={clsx('text-text truncate', shimmerStyles.shimmer)}>{label}</span>
     </div>

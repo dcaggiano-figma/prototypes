@@ -21,5 +21,7 @@ declare const styles: {
   readonly sortIconActive: string;
   readonly cellContentWrapper: string;
   readonly verticalGridLines: string;
+  readonly headerEditing: string;
+  readonly headerEditingInput: string;
 };
 export default styles;
