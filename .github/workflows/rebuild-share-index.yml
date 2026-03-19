@@ -54,23 +54,83 @@ jobs:
           NEW_COUNT=$(wc -l < /tmp/keys.txt | tr -d ' ')
           echo "Found $NEW_COUNT metadata files"
 
-          # Build the new index
+          # Build the new index, validating each entry before inclusion
           echo "[" > /tmp/index.json
           FIRST=true
+          INCLUDED=0
+          SKIPPED=0
           while IFS= read -r key; do
             if [ -z "$key" ]; then continue; fi
 
-            echo "  Fetching $key..."
-            if aws s3 cp "s3://figma-protov2/$key" /tmp/entry.json 2>/dev/null; then
-              if [ "$FIRST" = true ]; then
-                FIRST=false
-              else
-                echo "," >> /tmp/index.json
-              fi
-              cat /tmp/entry.json >> /tmp/index.json
+            # Derive the branch prefix from the key (e.g. share/{branch}/latest/metadata.json)
+            BRANCH_PREFIX="${key%/latest/metadata.json}"
+
+            echo "  Checking $key..."
+
+            # --- Validation 1: Deploy must exist (latest/index.html) ---
+            if ! aws s3api head-object --bucket figma-protov2 --key "${BRANCH_PREFIX}/latest/index.html" 2>/dev/null; then
+              echo "    SKIP: no index.html at ${BRANCH_PREFIX}/latest/ (metadata-only ghost)"
+              SKIPPED=$((SKIPPED + 1))
+              continue
             fi
+
+            # --- Validation 2: metadata.json must be valid JSON with required fields ---
+            if ! aws s3 cp "s3://figma-protov2/$key" /tmp/entry.json 2>/dev/null; then
+              echo "    SKIP: could not download metadata"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+
+            if ! jq empty /tmp/entry.json 2>/dev/null; then
+              echo "    SKIP: invalid JSON"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+
+            # Check required fields: description, author, base.branch
+            MISSING_FIELDS=""
+            for field in description author; do
+              if ! jq -e "has(\"$field\")" /tmp/entry.json > /dev/null 2>&1; then
+                MISSING_FIELDS="$MISSING_FIELDS $field"
+              fi
+            done
+            if ! jq -e '.base.branch // empty' /tmp/entry.json > /dev/null 2>&1; then
+              MISSING_FIELDS="$MISSING_FIELDS base.branch"
+            fi
+
+            if [ -n "$MISSING_FIELDS" ]; then
+              echo "    SKIP: missing required fields:$MISSING_FIELDS"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+
+            # --- Validation 3: Real prototype (at least one .js or .css asset) ---
+            ASSET_COUNT=$(aws s3api list-objects-v2 \
+              --bucket figma-protov2 \
+              --prefix "${BRANCH_PREFIX}/latest/" \
+              --query "length(Contents[?ends_with(Key, '.js') || ends_with(Key, '.css')])" \
+              --output text 2>/dev/null || echo "0")
+
+            if [ "$ASSET_COUNT" = "0" ] || [ "$ASSET_COUNT" = "None" ]; then
+              echo "    SKIP: no .js or .css assets (not a real prototype)"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+
+            # --- Entry passed all checks — include it ---
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              echo "," >> /tmp/index.json
+            fi
+            cat /tmp/entry.json >> /tmp/index.json
+            INCLUDED=$((INCLUDED + 1))
           done < /tmp/keys.txt
           echo "]" >> /tmp/index.json
+
+          echo ""
+          echo "Validation complete: $INCLUDED included, $SKIPPED skipped out of $NEW_COUNT total"
+          NEW_COUNT=$INCLUDED
 
           # Size guard: refuse to upload if the new index is smaller than the existing one
           OLD_COUNT=0
