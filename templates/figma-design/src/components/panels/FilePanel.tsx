@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
-import { Button, ButtonGroup, ButtonPrimitive, Collapse, IconButton, Input, InputPrimitive } from '@figma/fpl-components';
+import { Button, ButtonGroup, ButtonPrimitive, Collapse, IconButton, Input, InputPrimitive, ScrollContainer } from '@figma/fpl-components';
 import { MenuV2 } from '@figma/fpl-components/beta';
 import { NavList } from '@prototype/shared';
 
@@ -195,7 +195,7 @@ export function FilePanel() {
         </div>
 
         {/* Layers section */}
-        <div className='border-t border-border flex-1 min-h-0 flex flex-col'>
+        <div className='border-t border-border flex-1 min-h-0 flex flex-col overflow-hidden'>
           <Collapse.Root defaultOpen={true}>
             <Collapse.Header variant='leftPanel' size="lg">
               <Collapse.Label size="md">Layers</Collapse.Label>
@@ -205,10 +205,10 @@ export function FilePanel() {
                 </IconButton>
               </Collapse.Trail>
             </Collapse.Header>
-            <Collapse.Content>
-              <LayersTree />
-            </Collapse.Content>
           </Collapse.Root>
+          <ScrollContainer scroll="y" fill>
+            <LayersTree />
+          </ScrollContainer>
         </div>
 
     </>
@@ -232,7 +232,7 @@ function LayersTree() {
   useEffect(() => sg.addListener(refreshLayers), [sg, refreshLayers]);
 
   return (
-    <div className="overflow-y-auto flex-1 min-h-0">
+    <div>
       <div className="px-1 pb-2">
         {layers.map(({ node, depth }) => (
           <LayerRow

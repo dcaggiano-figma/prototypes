@@ -13,7 +13,8 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:file": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm build && pnpm lint && pnpm typecheck"
+    "verify": "pnpm build && pnpm lint && pnpm typecheck",
+    "decode-clipboard": "tsx scripts/decode-figma-clipboard.ts"
   },
   "dependencies": {
     "@figma/fpl-components": "catalog:",

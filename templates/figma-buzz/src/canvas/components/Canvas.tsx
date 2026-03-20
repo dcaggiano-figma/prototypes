@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { addListener } from '@figma/fpl-components';
 
 import { useAction } from '../../actions/provider';
 import type { NodeId, SceneNode } from '@prototype/shared/canvas';
@@ -26,7 +27,7 @@ import { useBehaviorChain } from '../behaviors';
 import { CURSORS } from '../cursors';
 import { CanvasRenderer } from './canvas-renderer';
 import { CommentPinLayer, useComments } from '@prototype/shared';
-import { copyNodes, cutNodes, pasteNodes, duplicateNodes } from '../clipboard/clipboard';
+import { copyNodes, cutNodes, pasteNodes, pasteExternalNodes, duplicateNodes, hasFigmaClipboardData, decodeFigmaClipboard } from '@prototype/shared/canvas';
 import { useViewMode } from '../../components/ViewModeContext';
 import { type DropTarget, getDropIndicatorX, recomputeGridLayout } from '../scene-graph/grid';
 
@@ -243,19 +244,42 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     }, [store, selection, um]),
   );
 
-  useAction(
-    'paste',
-    useCallback(() => {
+  // Handle all paste via the native event — Figma clipboard or internal
+  useEffect(
+    () => addListener(document, 'paste', (e: ClipboardEvent) => {
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
       const center = screenToWorld(rect.width / 2, rect.height / 2);
+
+      const html = e.clipboardData?.getData('text/html');
+      if (html && hasFigmaClipboardData(html)) {
+        e.preventDefault();
+        decodeFigmaClipboard(html).then((result) => {
+          if (!result) return;
+          const newIds = pasteExternalNodes(
+            store,
+            canvasId,
+            result.nodes,
+            selection.selectedIds,
+            center,
+          );
+          if (newIds.length > 0) {
+            selection.selectMany(newIds);
+          }
+          um.commit();
+        });
+        return;
+      }
+
+      // Internal clipboard paste
       const newIds = pasteNodes(store, canvasId, selection.selectedIds, center);
       if (newIds.length > 0) {
         selection.selectMany(newIds);
       }
       um.commit();
-    }, [store, selection, containerRef, screenToWorld, um, canvasId]),
+    }),
+    [store, canvasId, selection, containerRef, screenToWorld, um],
   );
 
   useAction(

@@ -40,9 +40,8 @@ export const SHORTCUT_MAP: Record<string, string> = {
   Backspace: 'delete',
   Delete: 'delete',
 
-  // Clipboard
+  // Clipboard (paste is handled via native paste event)
   'Mod+c': 'copy',
-  'Mod+v': 'paste',
   'Mod+x': 'cut',
   'Mod+d': 'duplicate',
 

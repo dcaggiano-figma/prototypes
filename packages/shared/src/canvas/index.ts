@@ -77,3 +77,8 @@ export * from './actions/use-nudge-actions'
 
 // Connectors (path computation, point definitions, resolution, rendering)
 export * from './connectors'
+
+// Clipboard (copy, cut, paste, duplicate, Figma clipboard decode)
+export * from './clipboard/clipboard'
+export * from './clipboard/figma-clipboard'
+export { decodeVectorNetwork, convertNetworkToPaths, vectorBlobToPaths } from './clipboard/vector-network'

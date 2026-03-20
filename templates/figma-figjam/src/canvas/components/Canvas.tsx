@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { addListener } from '@figma/fpl-components';
 
 import { useAction } from '../../actions/provider';
 import type { NodeId } from '@prototype/shared/canvas';
@@ -30,7 +31,7 @@ import { useActiveTool } from '../tools/provider';
 import { useBehaviorChain } from '../behaviors';
 import { CURSORS } from '../cursors';
 import { CanvasRenderer } from './canvas-renderer';
-import { copyNodes, cutNodes, pasteNodes, duplicateNodes } from '../clipboard/clipboard';
+import { copyNodes, cutNodes, pasteNodes, pasteExternalNodes, duplicateNodes, hasFigmaClipboardData, decodeFigmaClipboard } from '@prototype/shared/canvas';
 
 /** Shape tools that show a ghost preview following the cursor */
 const GHOST_SHAPE_TOOLS = new Set(['RECTANGLE', 'ELLIPSE', 'POLYGON']);
@@ -277,19 +278,42 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
     }, [sg, selection, um]),
   );
 
-  useAction(
-    'paste',
-    useCallback(() => {
+  // Handle all paste via the native event — Figma clipboard or internal
+  useEffect(
+    () => addListener(document, 'paste', (e: ClipboardEvent) => {
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
       const center = screenToWorld(rect.width / 2, rect.height / 2);
+
+      const html = e.clipboardData?.getData('text/html');
+      if (html && hasFigmaClipboardData(html)) {
+        e.preventDefault();
+        decodeFigmaClipboard(html).then((result) => {
+          if (!result) return;
+          const newIds = pasteExternalNodes(
+            sg,
+            canvasId,
+            result.nodes,
+            selection.selectedIds,
+            center,
+          );
+          if (newIds.length > 0) {
+            selection.selectMany(newIds);
+          }
+          um.commit();
+        });
+        return;
+      }
+
+      // Internal clipboard paste
       const newIds = pasteNodes(sg, canvasId, selection.selectedIds, center);
       if (newIds.length > 0) {
         selection.selectMany(newIds);
       }
       um.commit();
-    }, [sg, canvasId, selection, containerRef, screenToWorld, um]),
+    }),
+    [sg, canvasId, selection, containerRef, screenToWorld, um],
   );
 
   useAction(
