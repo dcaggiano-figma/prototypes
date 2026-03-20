@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { ButtonPrimitive, SearchInput } from '@figma/fpl-components';
 import { Icon16ChevronDown, Icon24StrokeWeight } from '@figma/fpl-icons';
-import { useSelection, useSceneGraph, useViewport } from '../canvas';
-import { isGeometryNode, getWorldPosition } from '../canvas/scene-graph/world-position';
+import { useSelection, useSceneGraph, useViewport, useViewportState, isGeometryNode, getWorldPosition, createPaint } from '../canvas';
 import { useViewMode } from './ViewModeContext';
-import type { AppearanceNode } from '../canvas';
+import type { AppearanceNode, NodeId } from '../canvas';
 
 /** Fill color presets for the color popover */
 const FRAME_COLORS = [
@@ -108,7 +107,8 @@ export function FloatingFrameToolbar() {
   const selection = useSelection();
   const store = useSceneGraph();
   const viewport = useViewport();
-  const { viewMode } = useViewMode();
+  const { viewMode, isAnimatingViewMode, focusedFrameId } = useViewMode();
+  useViewportState(); // re-render on pan/zoom so toolbar tracks the frame
   const [showSizes, setShowSizes] = useState(false);
   const [sizeSearch, setSizeSearch] = useState('');
   const sizePopoverRef = useRef<HTMLDivElement>(null);
@@ -116,10 +116,27 @@ export function FloatingFrameToolbar() {
   const [showColors, setShowColors] = useState(false);
   const colorPopoverRef = useRef<HTMLDivElement>(null);
   const colorTriggerRef = useRef<HTMLButtonElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarWidth, setToolbarWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return undefined;
+
+    const updateToolbarWidth = () => {
+      const nextWidth = toolbar.offsetWidth;
+      setToolbarWidth((prev) => (prev === nextWidth ? prev : nextWidth));
+    };
+
+    updateToolbarWidth();
+    const observer = new ResizeObserver(updateToolbarWidth);
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, []);
 
   // Subscribe to store changes so toolbar updates when node properties change
   const [, bump] = useState(0);
-  useEffect(() => store.subscribe(() => bump((n) => n + 1)), [store]);
+  useEffect(() => store.addListener(() => bump((n) => n + 1)), [store]);
 
   // Filter size presets by search query
   const filteredSections = useMemo(
@@ -157,19 +174,54 @@ export function FloatingFrameToolbar() {
     return () => document.removeEventListener('pointerdown', handler);
   }, [showColors]);
 
-  // Only show in asset view when a frame is selected
+  // Only show in asset view when a frame is selected and not animating
   if (viewMode !== 'asset') return null;
+  if (isAnimatingViewMode) return null;
   if (selection.selectedIds.size === 0) return null;
+
+  // In asset mode, only consider nodes that are the focused frame or its descendants.
+  // Stale selections (e.g. sections from grid view) should not trigger the toolbar.
+  const relevantIds = new Set<NodeId>();
+  if (focusedFrameId != null) {
+    for (const id of selection.selectedIds) {
+      if (id === focusedFrameId) {
+        relevantIds.add(id);
+        continue;
+      }
+      let cur = store.getNode(id);
+      while (cur && cur.parentId != null) {
+        if (cur.parentId === focusedFrameId) {
+          relevantIds.add(id);
+          break;
+        }
+        cur = store.getNode(cur.parentId);
+      }
+    }
+  }
+  if (relevantIds.size === 0) return null;
 
   // Compute bounding box of selected nodes in screen space (same as FigJam)
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
 
-  for (const id of selection.selectedIds) {
+  for (const id of relevantIds) {
     const n = store.getNode(id);
     if (!n || !isGeometryNode(n)) continue;
     const worldPos = getWorldPosition(store, n);
+
+    if (n.type === 'LINE') {
+      const rad = (n.rotation ?? 0) * Math.PI / 180;
+      const endWX = worldPos.x + n.width * Math.cos(rad);
+      const endWY = worldPos.y + n.width * Math.sin(rad);
+      const sx1 = viewport.worldToScreen(worldPos.x, worldPos.y);
+      const sx2 = viewport.worldToScreen(endWX, endWY);
+      minX = Math.min(minX, sx1.x, sx2.x);
+      minY = Math.min(minY, sx1.y, sx2.y);
+      maxX = Math.max(maxX, sx1.x, sx2.x);
+      continue;
+    }
+
     const topLeft = viewport.worldToScreen(worldPos.x, worldPos.y);
     const topRight = viewport.worldToScreen(worldPos.x + n.width, worldPos.y);
 
@@ -180,13 +232,54 @@ export function FloatingFrameToolbar() {
 
   if (!isFinite(minX)) return null;
 
-  const centerX = (minX + maxX) / 2;
-  const topY = minY - 48;
+  // Compute visible canvas bounds for clamping
+  const container = viewport.containerRef.current;
+  let canvasBounds: { left: number; top: number; right: number; bottom: number } | null = null;
+  if (container) {
+    const full = container.getBoundingClientRect();
+    const main = container.parentElement?.querySelector('main');
+    if (main) {
+      const mainRect = main.getBoundingClientRect();
+      canvasBounds = { left: mainRect.left, top: full.top, right: mainRect.right, bottom: full.top + full.height };
+    } else {
+      canvasBounds = { left: full.left, top: full.top, right: full.left + full.width, bottom: full.top + full.height };
+    }
+  }
 
-  // Get first selected node for name + fill
-  const firstId = selection.selectedIds.values().next().value;
+  const TOOLBAR_GAP = 32;     // gap between toolbar bottom and frame top
+  const EDGE_PADDING = 24;    // minimum distance from canvas edges
+  const TOOLBAR_HEIGHT = 40;  // approximate height of toolbar
+
+  const rawCenterX = (minX + maxX) / 2;
+  const frameTopY = minY;
+
+  // Vertical: above frame if visible, otherwise anchor to canvas top
+  let top: number;
+  if (canvasBounds && frameTopY - TOOLBAR_GAP - TOOLBAR_HEIGHT < canvasBounds.top + EDGE_PADDING) {
+    top = canvasBounds.top + EDGE_PADDING;
+  } else {
+    top = frameTopY - TOOLBAR_GAP - TOOLBAR_HEIGHT;
+  }
+
+  // Horizontal: centered on frame, clamped to canvas edges
+  const halfWidth = toolbarWidth / 2;
+  let left: number;
+  if (canvasBounds && toolbarWidth > 0) {
+    left = Math.max(
+      canvasBounds.left + EDGE_PADDING,
+      Math.min(rawCenterX - halfWidth, canvasBounds.right - EDGE_PADDING - toolbarWidth),
+    );
+  } else {
+    left = rawCenterX - halfWidth;
+  }
+
+  // Get first relevant selected node for name + fill
+  const firstId = relevantIds.values().next().value;
   const firstNode = firstId ? store.getNode(firstId) : undefined;
   if (!firstNode || !isGeometryNode(firstNode)) return null;
+
+  // Show size picker only when the asset frame itself is selected, not a child
+  const isFrameSelected = focusedFrameId != null && selection.selectedIds.has(focusedFrameId);
 
   // Determine size label: match against presets, otherwise show "Custom"
   const frameW = firstNode.width;
@@ -222,7 +315,7 @@ export function FloatingFrameToolbar() {
       const node = store.getNode(id);
       if (node && 'fills' in node) {
         store.updateNode(id, {
-          fills: [{ type: 'SOLID', color: entry.rgb, opacity: 1, visible: true }],
+          fills: [createPaint({ type: 'SOLID', color: entry.rgb, opacity: 1, visible: true })],
         });
       }
     }
@@ -230,99 +323,98 @@ export function FloatingFrameToolbar() {
 
   return (
     <div
+      ref={toolbarRef}
       className="fixed z-nav pointer-events-auto"
-      style={{
-        left: centerX,
-        top: topY,
-        transform: 'translateX(-50%)',
-      }}
+      style={{ left, top }}
     >
       <div
         data-preferred-theme="dark"
         className="flex items-center bg-bg rounded-lg shadow-300"
       >
-        {/* Size preset dropdown */}
-        <div className="relative flex items-center p-1">
-          <ButtonPrimitive
-            ref={sizeTriggerRef}
-            className={clsx(
-              'flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyMd whitespace-nowrap',
-              showSizes && 'bg-bg-secondary',
-            )}
-            onClick={() => {
-              setSizeSearch('');
-              setShowSizes((v) => !v);
-            }}
-          >
-            {sizeLabel}
-            <Icon16ChevronDown />
-          </ButtonPrimitive>
-
-          {showSizes && (
-            <div
-              ref={sizePopoverRef}
-              className="absolute top-full mt-2 left-0 w-[280px] bg-bg rounded-lg shadow-300 py-1 text-bodyMd text-text"
+        {/* Size preset dropdown — only when the asset frame itself is selected */}
+        {isFrameSelected && (
+          <div className="relative flex items-center p-1">
+            <ButtonPrimitive
+              ref={sizeTriggerRef}
+              className={clsx(
+                'flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyMd whitespace-nowrap',
+                showSizes && 'bg-bg-secondary',
+              )}
+              onClick={() => {
+                setSizeSearch('');
+                setShowSizes((v) => !v);
+              }}
             >
-              {/* Search */}
-              <div className="px-2 py-1">
-                <SearchInput
-                  id="size-search"
-                  value={sizeSearch}
-                  onChange={setSizeSearch}
-                  placeholder="Search"
-                />
-              </div>
+              {sizeLabel}
+              <Icon16ChevronDown />
+            </ButtonPrimitive>
 
-              <div className="max-h-[360px] overflow-y-auto">
-                {/* Custom size */}
-                <ButtonPrimitive
-                  className="flex items-center w-full px-3 h-5 hover:bg-bg-hover active:bg-bg-pressed"
-                  onClick={() => setShowSizes(false)}
-                >
-                  Custom size
-                </ButtonPrimitive>
+            {showSizes && (
+              <div
+                ref={sizePopoverRef}
+                className="absolute top-full mt-2 left-0 w-[280px] bg-bg rounded-lg shadow-300 py-1 text-bodyMd text-text"
+              >
+                {/* Search */}
+                <div className="px-2 py-1">
+                  <SearchInput
+                    id="size-search"
+                    value={sizeSearch}
+                    onChange={setSizeSearch}
+                    placeholder="Search"
+                  />
+                </div>
 
-                {/* Grouped presets */}
-                {filteredSections.length === 0 ? (
-                  <div className="px-3 py-2 text-bodyMd text-text-secondary">
-                    No results
-                  </div>
-                ) : (
-                  filteredSections.map((section) => (
-                    <div key={section.title} className="border-t border-border pb-2">
-                      <div className="px-3 pt-2.5 pb-1 text-bodyMd text-text-secondary">
-                        {section.title}
-                      </div>
-                      {section.items.map((preset) => (
-                        <ButtonPrimitive
-                          key={preset.name}
-                          className="flex items-center justify-between w-full px-3 h-4 hover:bg-bg-hover active:bg-bg-pressed"
-                          onClick={() => {
-                            for (const id of selection.selectedIds) {
-                              store.updateNode(id, {
-                                width: preset.width,
-                                height: preset.height,
-                              });
-                            }
-                            setShowSizes(false);
-                          }}
-                        >
-                          <span>{preset.name}</span>
-                          <span className="text-text-secondary text-bodyMd">
-                            {preset.width} &times; {preset.height}
-                          </span>
-                        </ButtonPrimitive>
-                      ))}
+                <div className="max-h-[360px] overflow-y-auto">
+                  {/* Custom size */}
+                  <ButtonPrimitive
+                    className="flex items-center w-full px-3 h-5 hover:bg-bg-hover active:bg-bg-pressed"
+                    onClick={() => setShowSizes(false)}
+                  >
+                    Custom size
+                  </ButtonPrimitive>
+
+                  {/* Grouped presets */}
+                  {filteredSections.length === 0 ? (
+                    <div className="px-3 py-2 text-bodyMd text-text-secondary">
+                      No results
                     </div>
-                  ))
-                )}
+                  ) : (
+                    filteredSections.map((section) => (
+                      <div key={section.title} className="border-t border-border pb-2">
+                        <div className="px-3 pt-2.5 pb-1 text-bodyMd text-text-secondary">
+                          {section.title}
+                        </div>
+                        {section.items.map((preset) => (
+                          <ButtonPrimitive
+                            key={preset.name}
+                            className="flex items-center justify-between w-full px-3 h-4 hover:bg-bg-hover active:bg-bg-pressed"
+                            onClick={() => {
+                              for (const id of selection.selectedIds) {
+                                store.updateNode(id, {
+                                  width: preset.width,
+                                  height: preset.height,
+                                });
+                              }
+                              setShowSizes(false);
+                            }}
+                          >
+                            <span>{preset.name}</span>
+                            <span className="text-text-secondary text-bodyMd">
+                              {preset.width} &times; {preset.height}
+                            </span>
+                          </ButtonPrimitive>
+                        ))}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Color swatch — toggles color popover */}
-        <div className="relative p-1 flex items-center border-l border-border">
+        <div className={clsx("relative p-1 flex items-center", isFrameSelected && "border-l border-border")}>
           <ButtonPrimitive
             ref={colorTriggerRef}
             className={clsx(

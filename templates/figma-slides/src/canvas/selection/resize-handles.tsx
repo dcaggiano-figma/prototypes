@@ -1,19 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAction } from '../../actions/provider';
-import { useNodeBehaviorConfig } from '../node-behavior';
-import { useSceneGraph } from '../scene-graph/provider';
-import { computeGroupScreenBBox } from '../scene-graph/selection-utils';
-import type { GeometryNode } from '../types';
-import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
+import {
+  useSceneGraph,
+  useCanvasId,
+  useNodeBehaviorConfig,
+  useSelection,
+  useTextEditing,
+  useViewportState,
+  computeGroupScreenBBox,
+  getWorldPosition,
+  isGeometryNode,
+  applyNodeReparenting,
+  applyContainerReparenting,
+  isContainer,
+  getLineEndpoints,
+  lineParamsFromEndpoints,
+} from '@prototype/shared/canvas';
+import type { GeometryNode, NodeId, SceneNode } from '@prototype/shared/canvas';
 import { useActiveTool } from '../tools/provider';
-import { useViewport } from '../viewport/provider';
 
 import { CURSORS } from '../cursors';
-import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
-import { isManagedSlide } from '../scene-graph/grid-manager';
-import { recomputeGridLayout } from '../scene-graph/grid-layout';
-import { useSelection } from './provider';
+import { isManagedSlide, recomputeGridLayout } from '../scene-graph/grid';
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
@@ -52,33 +60,6 @@ const EDGE_CURSORS: Record<string, string> = {
   w: CURSORS.resizeH,
 };
 
-/** Compute the line's start and end points in parent coordinate space */
-function getLineEndpoints(node: GeometryNode) {
-  const rad = node.rotation * Math.PI / 180;
-  const dx = node.width * Math.cos(rad);
-  const dy = node.width * Math.sin(rad);
-  return {
-    start: { x: node.x, y: node.y },
-    end: { x: node.x + dx, y: node.y + dy },
-  };
-}
-
-/** Derive line node params (x, y, width, rotation) from two endpoints */
-function lineParamsFromEndpoints(
-  startX: number, startY: number,
-  endX: number, endY: number,
-) {
-  const dx = endX - startX;
-  const dy = endY - startY;
-  return {
-    x: startX,
-    y: startY,
-    width: Math.sqrt(dx * dx + dy * dy),
-    height: 0,
-    rotation: Math.atan2(dy, dx) * 180 / Math.PI,
-  };
-}
-
 /**
  * DOM-based resize handles rendered over the selected node.
  * These replace the old canvas-drawn handles and support drag-to-resize.
@@ -86,21 +67,23 @@ function lineParamsFromEndpoints(
 export function ResizeHandles() {
   const { selectedIds } = useSelection();
   const store = useSceneGraph();
-  const { state: viewport } = useViewport();
+  const canvasId = useCanvasId();
+  const { state: viewport } = useViewportState();
   const { effectiveTool } = useActiveTool();
   const getBehavior = useNodeBehaviorConfig();
+  const { startEditing } = useTextEditing();
 
   // Subscribe to store changes so handles reposition when nodes move
   const [, bumpStoreVersion] = useState(0);
-  useEffect(() => store.subscribe(() => bumpStoreVersion((n) => n + 1)), [store]);
+  useEffect(() => store.addListener(() => bumpStoreVersion((n) => n + 1)), [store]);
 
   // Point editing mode for lines (Enter to activate, Escape to exit)
-  const [pointEditingId, setPointEditingId] = useState<string | null>(null);
+  const [pointEditingId, setPointEditingId] = useState<NodeId | null>(null);
 
   // Track original geometry during drag
   const dragState = useRef<{
     handle: HandlePosition | 'point-start' | 'point-end' | 'rotate'
-    nodeId: string
+    nodeId: NodeId
     original: OriginalGeometry
     /** For line AABB resize: which diagonal the line follows */
     startIsLeft: boolean
@@ -129,29 +112,33 @@ export function ResizeHandles() {
     angle: number; clientX: number; clientY: number
   } | null>(null);
 
-  // Enter key: enter point editing mode for selected lines
+  // Enter key: enter point editing mode for selected lines, or text editing for text nodes
   useAction(
     'enter-point-edit',
     useCallback(() => {
       if (selectedIds.size !== 1) return;
       const id = selectedIds.values().next().value;
-      if (!id) return;
+      if (id == null) return;
       const n = store.getNode(id);
-      if (!n || n.type !== 'LINE') return;
-      setPointEditingId(id);
-    }, [selectedIds, store]),
+      if (!n) return;
+      if (n.type === 'LINE') {
+        setPointEditingId(id);
+      } else if (n.type === 'TEXT') {
+        startEditing(id);
+      }
+    }, [selectedIds, store, startEditing]),
   );
 
   // Clear point editing when selection changes
   useEffect(() => {
-    if (pointEditingId && !selectedIds.has(pointEditingId)) {
+    if (pointEditingId != null && !selectedIds.has(pointEditingId)) {
       setPointEditingId(null);
     }
   }, [selectedIds, pointEditingId]);
 
   // Escape exits point editing mode (handled before deselect in the action)
   useEffect(() => {
-    if (!pointEditingId) return;
+    if (pointEditingId == null) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -205,7 +192,7 @@ export function ResizeHandles() {
   }
 
   const nodeId = selectedIds.values().next().value;
-  if (!nodeId) return null;
+  if (nodeId == null) return null;
 
   const node = store.getNode(nodeId);
   if (!node || !isGeometryNode(node) || node.locked) return null;
@@ -321,7 +308,19 @@ export function ResizeHandles() {
         newRotation = Math.round(newRotation / 15) * 15;
       }
 
-      store.updateNode(drag.nodeId, { rotation: newRotation });
+      if (isLine) {
+        // Rotate around line midpoint: adjust x,y to keep midpoint fixed
+        const origRad = drag.original.rotation * Math.PI / 180;
+        const newRad = newRotation * Math.PI / 180;
+        const halfW = drag.original.width / 2;
+        store.updateNode(drag.nodeId, {
+          rotation: newRotation,
+          x: drag.original.x + halfW * (Math.cos(origRad) - Math.cos(newRad)),
+          y: drag.original.y + halfW * (Math.sin(origRad) - Math.sin(newRad)),
+        });
+      } else {
+        store.updateNode(drag.nodeId, { rotation: newRotation });
+      }
       setRotationDisplay({ angle: newRotation, clientX: e.clientX, clientY: e.clientY });
       forceUpdate((n) => n + 1);
       return;
@@ -437,12 +436,19 @@ export function ResizeHandles() {
       newH = 1;
     }
 
-    store.updateNode(drag.nodeId, {
+    const updates: Partial<GeometryNode> & Record<string, unknown> = {
       x: newX,
       y: newY,
       width: newW,
       height: newH,
-    });
+    };
+
+    // When a TEXT node is manually resized, switch to fixed width + auto height
+    if (node?.type === 'TEXT') {
+      updates.textAutoResize = 'HEIGHT';
+    }
+
+    store.updateNode(drag.nodeId, updates);
 
     forceUpdate((n) => n + 1);
   }
@@ -458,15 +464,18 @@ export function ResizeHandles() {
     if (drag.handle !== 'rotate') {
       // If a managed grid slide was resized, recompute the grid layout
       if (isManagedSlide(store, drag.nodeId)) {
-        const roots = store.getRootNodes();
-        const sectionIds = roots.filter((n) => n.type === 'SECTION').map((n) => n.id);
+        const canvas = store.getNode(canvasId);
+        const roots = canvas
+          ? canvas.children.map((id) => store.getNode(id)).filter((n): n is SceneNode => n != null)
+          : [];
+        const sectionIds = roots.filter((n) => n.type === 'SECTION' || n.type === 'GRID_SECTION').map((n) => n.id);
         recomputeGridLayout(store, sectionIds);
       } else {
         const resizedNode = store.getNode(drag.nodeId);
         if (resizedNode && isContainer(resizedNode)) {
-          applyContainerReparenting(store, drag.nodeId);
+          applyContainerReparenting(store, drag.nodeId, canvasId);
         } else {
-          applyNodeReparenting(store, [drag.nodeId]);
+          applyNodeReparenting(store, [drag.nodeId], canvasId);
         }
       }
     }
@@ -494,7 +503,7 @@ export function ResizeHandles() {
     ];
 
     return (
-      <>
+      <div className="pointer-events-auto">
         {points.map(({ handle, cx, cy }) => (
           <div
             key={handle}
@@ -514,17 +523,16 @@ export function ResizeHandles() {
             {...sharedProps}
           />
         ))}
-      </>
+      </div>
     );
   }
 
   // --- Standard corner + edge handles (used for both regular shapes and line AABB) ---
   const rotation = node.rotation ?? 0;
-  const isRotated = !isLine && rotation !== 0;
 
-  // For rotated nodes, compute handle positions relative to (0,0) of a rotated container
-  const hx = isRotated ? 0 : sx;
-  const hy = isRotated ? 0 : sy;
+  // Handle positions are relative to (0,0) of the wrapper container
+  const hx = 0;
+  const hy = 0;
 
   const corners: { pos: HandlePosition; cx: number; cy: number }[] = [
     { pos: 'nw', cx: hx, cy: hy },
@@ -573,16 +581,15 @@ export function ResizeHandles() {
   ];
 
   // Rotation zone positions: just outside each corner diagonally
-  const rotationZones = !isLine ? [
+  const rotationZones = node.type !== 'SECTION' ? [
     { key: 'rot-nw', cx: hx - ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNW },
     { key: 'rot-ne', cx: hx + sw + ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNE },
     { key: 'rot-sw', cx: hx - ROTATION_ZONE_OFFSET, cy: hy + sh + ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateSW },
     { key: 'rot-se', cx: hx + sw + ROTATION_ZONE_OFFSET, cy: hy + sh + ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateSE },
   ] : [];
 
-  // For lines, compute AABB dimensions for the dimension label
-  const aabbW = isLine ? Math.round(Math.abs(node.width * Math.cos((node.rotation ?? 0) * Math.PI / 180))) : 0;
-  const aabbH = isLine ? Math.round(Math.abs(node.width * Math.sin((node.rotation ?? 0) * Math.PI / 180))) : 0;
+  // For lines, show the line length
+  const lineLength = isLine ? Math.round(node.width) : 0;
 
   const handleElements = (
     <>
@@ -674,33 +681,28 @@ export function ResizeHandles() {
               zIndex: 10,
             }}
           >
-            {aabbW} &times; {aabbH}
+            {lineLength}
           </div>
         </>
       )}
-      {/* Wrap handles in rotated container for rotated non-LINE nodes */}
-      {isRotated ? (
-        <div
-          style={{
-            position: 'absolute',
-            left: sx,
-            top: sy,
-            width: sw,
-            height: sh,
-            transform: `rotate(${rotation}deg)`,
-            transformOrigin: '50% 50%',
-            pointerEvents: 'none',
-            zIndex: 11,
-          }}
-        >
-          {/* Re-enable pointer events on child handles */}
-          <div className="pointer-events-auto">
-            {handleElements}
-          </div>
+      {/* Always use a positioned wrapper — stable DOM tree preserves pointer capture during rotation drag */}
+      <div
+        style={{
+          position: 'absolute',
+          left: sx,
+          top: sy,
+          width: sw,
+          height: sh,
+          transform: !isLine && rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+          transformOrigin: '50% 50%',
+          pointerEvents: 'none',
+          zIndex: 11,
+        }}
+      >
+        <div className="pointer-events-auto">
+          {handleElements}
         </div>
-      ) : (
-        handleElements
-      )}
+      </div>
       {/* Rotation angle tooltip */}
       {rotationDisplay && (
         <div

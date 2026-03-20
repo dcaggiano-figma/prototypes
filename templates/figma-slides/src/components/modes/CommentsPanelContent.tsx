@@ -7,10 +7,10 @@ import {
 } from '@figma/fpl-icons';
 import { CommentListItem, useComments } from '@prototype/shared';
 
-import { useViewport } from '../../canvas';
+import { useViewportState } from '../../canvas';
 
 export function CommentsPanelContent() {
-  const { state: { scale } } = useViewport();
+  const { state: { scale } } = useViewportState();
   const { threads, setSelectedThreadId, setInteraction } = useComments();
 
   const handleThreadClick = (threadId: string) => {

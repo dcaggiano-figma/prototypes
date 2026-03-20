@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAction } from '../../actions/provider';
-import { useSceneGraph } from '../scene-graph/provider';
-import { computeGroupScreenBBox } from '../scene-graph/selection-utils';
-import type { GeometryNode } from '../types';
-import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
-import { useActiveTool } from '../tools/provider';
-import { useViewport } from '../viewport/provider';
+import type { GeometryNode, NodeId } from '@prototype/shared/canvas';
+import {
+  useCanvasId,
+  useSceneGraph,
+  useSelection,
+  useViewportState,
+  computeGroupScreenBBox,
+  getWorldPosition,
+  isGeometryNode,
+  applyNodeReparenting,
+  applyContainerReparenting,
+  isContainer,
+  getLineEndpoints,
+  lineParamsFromEndpoints,
+} from '@prototype/shared/canvas';
 
 import { CURSORS } from '../cursors';
-import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
-import { useSelection } from './provider';
+import { useActiveTool } from '../tools/provider';
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
@@ -49,54 +57,28 @@ const EDGE_CURSORS: Record<string, string> = {
   w: CURSORS.resizeH,
 };
 
-/** Compute the line's start and end points in parent coordinate space */
-function getLineEndpoints(node: GeometryNode) {
-  const rad = node.rotation * Math.PI / 180;
-  const dx = node.width * Math.cos(rad);
-  const dy = node.width * Math.sin(rad);
-  return {
-    start: { x: node.x, y: node.y },
-    end: { x: node.x + dx, y: node.y + dy },
-  };
-}
-
-/** Derive line node params (x, y, width, rotation) from two endpoints */
-function lineParamsFromEndpoints(
-  startX: number, startY: number,
-  endX: number, endY: number,
-) {
-  const dx = endX - startX;
-  const dy = endY - startY;
-  return {
-    x: startX,
-    y: startY,
-    width: Math.sqrt(dx * dx + dy * dy),
-    height: 0,
-    rotation: Math.atan2(dy, dx) * 180 / Math.PI,
-  };
-}
-
 /**
  * DOM-based resize handles rendered over the selected node.
  * These replace the old canvas-drawn handles and support drag-to-resize.
  */
 export function ResizeHandles() {
   const { selectedIds } = useSelection();
-  const store = useSceneGraph();
-  const { state: viewport } = useViewport();
+  const sg = useSceneGraph();
+  const canvasId = useCanvasId();
+  const { state: viewport } = useViewportState();
   const { effectiveTool } = useActiveTool();
 
-  // Subscribe to store changes so handles reposition when nodes move
+  // Subscribe to scene graph changes so handles reposition when nodes move
   const [, bumpStoreVersion] = useState(0);
-  useEffect(() => store.subscribe(() => bumpStoreVersion((n) => n + 1)), [store]);
+  useEffect(() => sg.addListener(() => bumpStoreVersion((n) => n + 1)), [sg]);
 
   // Point editing mode for lines (Enter to activate, Escape to exit)
-  const [pointEditingId, setPointEditingId] = useState<string | null>(null);
+  const [pointEditingId, setPointEditingId] = useState<NodeId | null>(null);
 
   // Track original geometry during drag
   const dragState = useRef<{
     handle: HandlePosition | 'point-start' | 'point-end' | 'rotate'
-    nodeId: string
+    nodeId: NodeId
     original: OriginalGeometry
     /** For line AABB resize: which diagonal the line follows */
     startIsLeft: boolean
@@ -132,10 +114,10 @@ export function ResizeHandles() {
       if (selectedIds.size !== 1) return;
       const id = selectedIds.values().next().value;
       if (!id) return;
-      const n = store.getNode(id);
+      const n = sg.getNode(id);
       if (!n || n.type !== 'LINE') return;
       setPointEditingId(id);
-    }, [selectedIds, store]),
+    }, [selectedIds, sg]),
   );
 
   // Clear point editing when selection changes
@@ -165,7 +147,7 @@ export function ResizeHandles() {
 
   // Multi-select: render visual-only corner indicators at group bbox
   if (selectedIds.size > 1) {
-    const groupBBox = computeGroupScreenBBox(store, selectedIds, viewport);
+    const groupBBox = computeGroupScreenBBox(sg, selectedIds, viewport);
     if (!groupBBox) return null;
 
     const { minX, minY, maxX, maxY } = groupBBox;
@@ -203,10 +185,10 @@ export function ResizeHandles() {
   const nodeId = selectedIds.values().next().value;
   if (!nodeId) return null;
 
-  const node = store.getNode(nodeId);
+  const node = sg.getNode(nodeId);
   if (!node || !isGeometryNode(node) || node.locked) return null;
 
-  const world = getWorldPosition(store, node);
+  const world = getWorldPosition(sg, node);
   const isLine = node.type === 'LINE';
   const half = HANDLE_SIZE / 2;
 
@@ -315,7 +297,7 @@ export function ResizeHandles() {
         newRotation = Math.round(newRotation / 15) * 15;
       }
 
-      store.updateNode(drag.nodeId, { rotation: newRotation });
+      sg.updateNode(drag.nodeId, { rotation: newRotation });
       setRotationDisplay({ angle: newRotation, clientX: e.clientX, clientY: e.clientY });
       forceUpdate((n) => n + 1);
       return;
@@ -341,7 +323,7 @@ export function ResizeHandles() {
       }
 
       const params = lineParamsFromEndpoints(newStart.x, newStart.y, newEnd.x, newEnd.y);
-      store.updateNode(drag.nodeId, params);
+      sg.updateNode(drag.nodeId, params);
       forceUpdate((n) => n + 1);
       return;
     }
@@ -373,7 +355,7 @@ export function ResizeHandles() {
       const newEndY = drag.startIsTop ? newBottom : newTop;
 
       const params = lineParamsFromEndpoints(newStartX, newStartY, newEndX, newEndY);
-      store.updateNode(drag.nodeId, params);
+      sg.updateNode(drag.nodeId, params);
       forceUpdate((n) => n + 1);
       return;
     }
@@ -431,7 +413,7 @@ export function ResizeHandles() {
       newH = 1;
     }
 
-    store.updateNode(drag.nodeId, {
+    sg.updateNode(drag.nodeId, {
       x: newX,
       y: newY,
       width: newW,
@@ -450,11 +432,11 @@ export function ResizeHandles() {
 
     // After resize, check for section reparenting (not for rotation)
     if (drag.handle !== 'rotate') {
-      const resizedNode = store.getNode(drag.nodeId);
+      const resizedNode = sg.getNode(drag.nodeId);
       if (resizedNode && isContainer(resizedNode)) {
-        applyContainerReparenting(store, drag.nodeId);
+        applyContainerReparenting(sg, drag.nodeId, canvasId);
       } else {
-        applyNodeReparenting(store, [drag.nodeId]);
+        applyNodeReparenting(sg, [drag.nodeId], canvasId);
       }
     }
   }
@@ -560,7 +542,7 @@ export function ResizeHandles() {
   ];
 
   // Rotation zone positions: just outside each corner diagonally
-  const rotationZones = !isLine ? [
+  const rotationZones = !isLine && node.type !== 'SECTION' ? [
     { key: 'rot-nw', cx: hx - ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNW },
     { key: 'rot-ne', cx: hx + sw + ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNE },
     { key: 'rot-sw', cx: hx - ROTATION_ZONE_OFFSET, cy: hy + sh + ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateSW },

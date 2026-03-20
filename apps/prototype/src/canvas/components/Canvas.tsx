@@ -1,41 +1,51 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { useAction } from '../../actions/provider';
-import type { NodeType } from '../types';
-import { usePageBackground, useSceneGraph } from '../scene-graph/provider';
-import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
-import { SelectionOverlay } from '../selection/overlay';
-import { useSelection } from '../selection/provider';
-import { useActiveTool } from '../tools/provider';
-import { useViewport } from '../viewport/provider';
+import type { NodeId, NodeType, Point } from '@prototype/shared/canvas';
+import {
+  useCanvasId,
+  usePageBackground,
+  useSceneGraph,
+  useSelection,
+  useTextEditing,
+  useViewport,
+  useViewportState,
+  useUndoActions,
+  useUndoManager,
+  getTypeDefaults,
+  getWorldPosition,
+  isGeometryNode,
+  computeBounds,
+  pointsToBezierPath,
+  pointsToPolyline,
+  simplifyRDP,
+  applyNodeReparenting,
+  applyContainerReparenting,
+  isContainer,
+  findNodeAtWorldPoint,
+  getSelectionBBox,
+  collectDraggableIds,
+  pointInRect,
+  CanvasLayers,
+  createPaint,
+} from '@prototype/shared/canvas';
+import { CommentPinLayer, useComments } from '@prototype/shared';
 
 import { CURSORS } from '../cursors';
-import { useTextEditing } from '../text-editing/provider';
-import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from '../tools/path-smoothing';
-import type { Point } from '../tools/path-smoothing';
-import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
-import { findNodeAtWorldPoint } from '../scene-graph/selection-utils';
+import { useActiveTool } from '../tools/provider';
+import { SelectionOverlay } from '../selection/overlay';
 import { CanvasRenderer } from './canvas-renderer';
-import { CommentPinLayer, useComments } from '@prototype/shared';
 
 /** Shape tools that support click-drag-to-create */
 const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
 
 /** Default fills for newly created shapes */
-const SHAPE_FILL = { type: 'SOLID' as const, color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true };
-const FRAME_FILL = { type: 'SOLID' as const, color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true };
-const SECTION_FILL = { type: 'SOLID' as const, color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true };
-const SECTION_STROKE = {
-  paint: { type: 'SOLID' as const, color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true },
-  weight: 1,
-  position: 'INSIDE' as const,
-};
-const TEXT_FILL = { type: 'SOLID' as const, color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true };
-const DEFAULT_STROKE = {
-  paint: { type: 'SOLID' as const, color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true },
-  weight: 1,
-  position: 'CENTER' as const,
-};
+const SHAPE_FILL = createPaint({ type: 'SOLID', color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true });
+const FRAME_FILL = createPaint({ type: 'SOLID', color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true });
+const SECTION_FILL = createPaint({ type: 'SOLID', color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true });
+const SECTION_STROKE = createPaint({ type: 'SOLID', color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true });
+const TEXT_FILL = createPaint({ type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true });
+const DEFAULT_STROKE = createPaint({ type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true });
 
 /** Minimum distance (world-space px) between recorded pencil points */
 const PENCIL_MIN_DISTANCE = 2;
@@ -49,22 +59,38 @@ interface CanvasProps {
 
 export function Canvas({ onOpenContextMenu }: CanvasProps) {
   const viewport = useViewport();
-  const { containerRef, transform, screenToWorld } = viewport;
+  const { state: viewportState } = useViewportState();
+  const { containerRef, screenToWorld, instance: vp } = viewport;
   const selection = useSelection();
-  const store = useSceneGraph();
-  const pageBg = usePageBackground();
+  const sg = useSceneGraph();
+  const canvasId = useCanvasId();
+  const pageBg = usePageBackground(canvasId);
   const { effectiveTool, setActiveTool, drawColor, drawStrokeWeight, drawOpacity } = useActiveTool();
   const textEditing = useTextEditing();
   const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
 
+  // Stable callbacks for CommentPinLayer's useSyncExternalStore.
+  // The subscribe function must be referentially stable, and the snapshot
+  // must return the same value (by Object.is) when nothing changed.
+  // A monotonic counter avoids creating a new array each call.
+  const nodeStoreVersionRef = useRef(0);
+  const nodeStoreSubscribe = useCallback(
+    (listener: () => void) => sg.addListener(() => { nodeStoreVersionRef.current++; listener(); }),
+    [sg],
+  );
+  const nodeStoreGetSnapshot = useCallback(
+    () => nodeStoreVersionRef.current,
+    [],
+  );
+
   /** Resolve the world position of a node by ID (for comment node-attachment) */
   const getNodePosition = useCallback(
     (nodeId: string): { x: number; y: number } | undefined => {
-      const node = store.getNode(nodeId);
+      const node = sg.getNode(Number(nodeId));
       if (!node || !isGeometryNode(node)) return undefined;
-      return getWorldPosition(store, node);
+      return getWorldPosition(sg, node);
     },
-    [store],
+    [sg],
   );
 
   /** Whether the hand tool is actively dragging (for cursor styling) */
@@ -86,7 +112,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     /** World-space position at last pointer event */
     lastWorld: { x: number; y: number }
     /** IDs being dragged */
-    nodeIds: string[]
+    nodeIds: NodeId[]
     /** Whether the hit node was already selected before this pointerdown */
     wasAlreadySelected?: boolean
   } | null>(null);
@@ -99,7 +125,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
   /** Tracks active shape creation drag */
   const creationRef = useRef<{
-    nodeId: string
+    nodeId: NodeId
     nodeType: NodeType
     startWorldX: number
     startWorldY: number
@@ -135,14 +161,22 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     }
   }, [effectiveTool]);
 
+  const um = useUndoManager();
+  const { undo, redo } = useUndoActions();
+  useAction('undo', undo);
+  useAction('redo', redo);
+
   // Register selection actions
   useAction(
     'select-all',
     useCallback(() => {
-      for (const node of store.getRootNodes()) {
-        selection.add(node.id);
+      const canvas = sg.getNode(canvasId);
+      if (!canvas) return;
+      for (const childId of canvas.children) {
+        const node = sg.getNode(childId);
+        if (node) selection.add(node.id);
       }
-    }, [store, selection]),
+    }, [sg, canvasId, selection]),
   );
 
   useAction(
@@ -161,10 +195,11 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     'delete',
     useCallback(() => {
       for (const id of selection.selectedIds) {
-        store.deleteNode(id);
+        sg.deleteNode(id);
       }
       selection.clear();
-    }, [store, selection]),
+      um.commit();
+    }, [sg, selection, um]),
   );
 
   useAction(
@@ -174,17 +209,18 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       if (!container) return;
 
       // Compute world-space bounding box of all nodes
-      const roots = store.getRootNodes();
-      if (roots.length === 0) return;
+      const canvas = sg.getNode(canvasId);
+      if (!canvas || canvas.children.length === 0) return;
 
       let minX = Infinity;
       let minY = Infinity;
       let maxX = -Infinity;
       let maxY = -Infinity;
 
-      for (const root of roots) {
-        if (!isGeometryNode(root)) continue;
-        const pos = getWorldPosition(store, root);
+      for (const childId of canvas.children) {
+        const root = sg.getNode(childId);
+        if (!root || !isGeometryNode(root)) continue;
+        const pos = getWorldPosition(sg, root);
         minX = Math.min(minX, pos.x);
         minY = Math.min(minY, pos.y);
         maxX = Math.max(maxX, pos.x + root.width);
@@ -194,9 +230,11 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       if (!isFinite(minX)) return;
 
       const padding = 48;
-      const rect = container.getBoundingClientRect();
-      const availW = rect.width - padding * 2;
-      const availH = rect.height - padding * 2;
+      // Use <main> to get visible canvas area between sidebars
+      const mainEl = document.querySelector('main');
+      const visible = mainEl ? mainEl.getBoundingClientRect() : container.getBoundingClientRect();
+      const availW = visible.width - padding * 2;
+      const availH = visible.height - padding * 2;
       const contentW = maxX - minX;
       const contentH = maxY - minY;
 
@@ -209,11 +247,11 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       viewport.setState({
         scale,
         origin: {
-          x: rect.width / 2 - cx * scale,
-          y: rect.height / 2 - cy * scale,
+          x: visible.left + visible.width / 2 - cx * scale,
+          y: visible.top + visible.height / 2 - cy * scale,
         },
       });
-    }, [store, containerRef, viewport]),
+    }, [sg, canvasId, containerRef, viewport]),
   );
 
   const MIN_SCALE = 0.02;
@@ -276,17 +314,18 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     const container = containerRef.current;
     if (!container) return;
 
-    const roots = store.getRootNodes();
-    if (roots.length === 0) return;
+    const canvas = sg.getNode(canvasId);
+    if (!canvas || canvas.children.length === 0) return;
 
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    for (const root of roots) {
-      if (!isGeometryNode(root)) continue;
-      const pos = getWorldPosition(store, root);
+    for (const childId of canvas.children) {
+      const root = sg.getNode(childId);
+      if (!root || !isGeometryNode(root)) continue;
+      const pos = getWorldPosition(sg, root);
       minX = Math.min(minX, pos.x);
       minY = Math.min(minY, pos.y);
       maxX = Math.max(maxX, pos.x + root.width);
@@ -307,7 +346,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         y: rect.height / 2 - cy,
       },
     });
-  }, [store, containerRef, viewport]);
+  }, [sg, canvasId, containerRef, viewport]);
 
   const onContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -354,15 +393,15 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       // Comment tool: click-to-place a comment pin
       if (effectiveTool === 'COMMENT') {
         const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
-        if (hitId) {
-          const node = store.getNode(hitId);
+        if (hitId !== null) {
+          const node = sg.getNode(hitId);
           if (node && isGeometryNode(node)) {
-            const nodeWorldPos = getWorldPosition(store, node);
+            const nodeWorldPos = getWorldPosition(sg, node);
             setInteraction({
               type: 'placing',
               worldX: world.x,
               worldY: world.y,
-              nodeId: hitId,
+              nodeId: String(hitId),
               nodeOffsetX: world.x - nodeWorldPos.x,
               nodeOffsetY: world.y - nodeWorldPos.y,
             });
@@ -404,7 +443,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
       // Text tool: click-to-place a text node and enter editing
       if (effectiveTool === 'TEXT') {
-        const node = store.createNode('TEXT', {
+        const node = sg.createNode('TEXT', canvasId, {
+          ...getTypeDefaults('TEXT'),
           x: world.x,
           y: world.y,
           width: 120,
@@ -415,6 +455,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         textEditing.startEditing(node.id);
         setActiveTool('MOVE');
         skipTextExitRef.current = true;
+        um.commit();
         return;
       }
 
@@ -426,9 +467,10 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         const fills = isLine ? [] : isSection ? [SECTION_FILL] : nodeType === 'FRAME' ? [FRAME_FILL] : [SHAPE_FILL];
         const extra: Record<string, unknown> = {};
         if (nodeType === 'FRAME') extra.clipsContent = true;
-        if (isSection) { extra.strokes = [SECTION_STROKE]; extra.cornerRadius = 8; }
-        if (isLine) extra.strokes = [DEFAULT_STROKE];
-        const node = store.createNode(nodeType, {
+        if (isSection) { extra.strokes = [SECTION_STROKE]; extra.strokeWeight = 1; extra.strokeAlign = 'INSIDE'; extra.cornerRadius = 8; }
+        if (isLine) { extra.strokes = [DEFAULT_STROKE]; extra.strokeWeight = 1; extra.strokeAlign = 'CENTER'; }
+        const node = sg.createNode(nodeType, canvasId, {
+          ...getTypeDefaults(nodeType),
           x: world.x,
           y: world.y,
           width: 0,
@@ -450,14 +492,14 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         // If we have a multi-selection, check if click is inside the combined
         // bounding box — if so, start dragging all selected nodes
         if (selection.selectedIds.size > 1) {
-          const bbox = getSelectionBBox(store, selection.selectedIds);
+          const bbox = getSelectionBBox(sg, selection.selectedIds);
           if (bbox && pointInRect(world.x, world.y, bbox)) {
             dragRef.current = {
               startX: e.clientX,
               startY: e.clientY,
               dragging: false,
               lastWorld: world,
-              nodeIds: collectDraggableIds(store, selection.selectedIds),
+              nodeIds: collectDraggableIds(sg, selection.selectedIds),
             };
             (e.target as HTMLElement).setPointerCapture(e.pointerId);
             return;
@@ -480,11 +522,11 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           }
 
           // Use hitId directly — React state from select() hasn't committed yet
-          const node = store.getNode(hitId);
+          const node = sg.getNode(hitId);
           const dragIds = node && isGeometryNode(node) ? [hitId] : [];
 
           const nodeIds = selection.isSelected(hitId)
-            ? collectDraggableIds(store, selection.selectedIds)
+            ? collectDraggableIds(sg, selection.selectedIds)
             : dragIds;
 
           dragRef.current = {
@@ -517,7 +559,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
       }
     },
-    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, interaction, setInteraction, drawColor, drawStrokeWeight, drawOpacity],
+    [containerRef, screenToWorld, sg, canvasId, selection, effectiveTool, textEditing, setActiveTool, setInteraction, drawColor, drawStrokeWeight, drawOpacity, um],
   );
 
   const onPointerMove = useCallback(
@@ -583,7 +625,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
             length = Math.abs(dx * Math.cos(rad) + dy * Math.sin(rad));
           }
 
-          store.updateNode(creation.nodeId, {
+          sg.updateNode(creation.nodeId, {
             x: creation.startWorldX,
             y: creation.startWorldY,
             width: length,
@@ -608,7 +650,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           if (world.y < creation.startWorldY) y = creation.startWorldY - size;
         }
 
-        store.updateNode(creation.nodeId, { x, y, width: w, height: h });
+        sg.updateNode(creation.nodeId, { x, y, width: w, height: h });
         return;
       }
 
@@ -664,15 +706,15 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
       // Update all dragged nodes
       for (const id of drag.nodeIds) {
-        const node = store.getNode(id);
+        const node = sg.getNode(id);
         if (!node || !isGeometryNode(node)) continue;
-        store.updateNode(id, {
+        sg.updateNode(id, {
           x: node.x + worldDx,
           y: node.y + worldDy,
         });
       }
     },
-    [containerRef, screenToWorld, store, dragBox, viewport],
+    [containerRef, screenToWorld, sg, dragBox, selection, viewport],
   );
 
   const onPointerUp = useCallback(
@@ -704,25 +746,27 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
         // Build stroke from draw tool state
         const rgb = parseHexColor(drawColor);
-        const stroke = {
-          paint: { type: 'SOLID' as const, color: rgb, opacity: drawOpacity / 100, visible: true },
-          weight: drawStrokeWeight,
-          position: 'CENTER' as const,
-        };
+        const strokePaint = createPaint({ type: 'SOLID', color: rgb, opacity: drawOpacity / 100, visible: true });
 
         // Create the VectorNode
-        const node = store.createNode('VECTOR', {
+        const node = sg.createNode('VECTOR', canvasId, {
+          ...getTypeDefaults('VECTOR'),
           x: bounds.x,
           y: bounds.y,
           width: w,
           height: h,
+          pathWidth: w,
+          pathHeight: h,
           fills: [],
-          strokes: [stroke],
+          strokes: [strokePaint],
+          strokeWeight: drawStrokeWeight,
+          strokeAlign: 'CENTER',
           paths: [{ d }],
         });
 
         selection.select(node.id);
-        applyNodeReparenting(store, [node.id]);
+        applyNodeReparenting(sg, [node.id], canvasId);
+        um.commit();
         // Pencil stays active for consecutive draws — do NOT switch to MOVE
         return;
       }
@@ -741,12 +785,12 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       const creation = creationRef.current;
       if (creation) {
         creationRef.current = null;
-        const node = store.getNode(creation.nodeId);
+        const node = sg.getNode(creation.nodeId);
         if (node && isGeometryNode(node)) {
           // If the shape is too small (click without meaningful drag), set a default size
           if (node.width < 2 && node.height < 2) {
             if (creation.nodeType === 'LINE') {
-              store.updateNode(creation.nodeId, {
+              sg.updateNode(creation.nodeId, {
                 x: creation.startWorldX,
                 y: creation.startWorldY,
                 width: 100,
@@ -756,7 +800,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
             } else {
               const defaultW = creation.nodeType === 'FRAME' ? 200 : creation.nodeType === 'SECTION' ? 300 : 100;
               const defaultH = creation.nodeType === 'FRAME' ? 150 : creation.nodeType === 'SECTION' ? 200 : 100;
-              store.updateNode(creation.nodeId, {
+              sg.updateNode(creation.nodeId, {
                 x: creation.startWorldX,
                 y: creation.startWorldY,
                 width: defaultW,
@@ -766,12 +810,13 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           }
         }
         selection.select(creation.nodeId);
-        const createdNode = store.getNode(creation.nodeId);
+        const createdNode = sg.getNode(creation.nodeId);
         if (createdNode && isContainer(createdNode)) {
-          applyContainerReparenting(store, creation.nodeId);
+          applyContainerReparenting(sg, creation.nodeId, canvasId);
         } else {
-          applyNodeReparenting(store, [creation.nodeId]);
+          applyNodeReparenting(sg, [creation.nodeId], canvasId);
         }
+        um.commit();
         setActiveTool('MOVE');
         return;
       }
@@ -796,17 +841,17 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           const boxMaxX = Math.max(dragBox.startX, dragBox.currentX);
           const boxMaxY = Math.max(dragBox.startY, dragBox.currentY);
 
-          const wMinX = (boxMinX - viewport.state.origin.x) / viewport.state.scale;
-          const wMinY = (boxMinY - viewport.state.origin.y) / viewport.state.scale;
-          const wMaxX = (boxMaxX - viewport.state.origin.x) / viewport.state.scale;
-          const wMaxY = (boxMaxY - viewport.state.origin.y) / viewport.state.scale;
+          const wMinX = (boxMinX - viewportState.origin.x) / viewportState.scale;
+          const wMinY = (boxMinY - viewportState.origin.y) / viewportState.scale;
+          const wMaxX = (boxMaxX - viewportState.origin.x) / viewportState.scale;
+          const wMaxY = (boxMaxY - viewportState.origin.y) / viewportState.scale;
 
           // Only finalize if the box has meaningful size
           if (boxMaxX - boxMinX > 2 || boxMaxY - boxMinY > 2) {
             // Get the candidate nodes: root-level, or children of entered frame
-            const candidates = selection.enteredFrameId
-              ? (store.getNode(selection.enteredFrameId)?.children ?? []).map((id) => store.getNode(id)).filter(Boolean)
-              : store.getRootNodes();
+            const parentId = selection.enteredFrameId ?? canvasId;
+            const parentNode = sg.getNode(parentId);
+            const candidates = (parentNode?.children ?? []).map((id) => sg.getNode(id)).filter(Boolean);
 
             if (!e.shiftKey) {
               selection.clear();
@@ -814,7 +859,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
             for (const candidate of candidates) {
               if (!candidate || !isGeometryNode(candidate)) continue;
-              const world = getWorldPosition(store, candidate);
+              const world = getWorldPosition(sg, candidate);
               const nodeMaxX = world.x + candidate.width;
               const nodeMaxY = world.y + candidate.height;
 
@@ -834,9 +879,10 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       // If we were dragging, apply reparenting and don't do click-to-select
       if (drag.dragging) {
         lastClickRef.current = null;
-        const containerIds = drag.nodeIds.filter((id) => { const n = store.getNode(id); return n && isContainer(n); });
-        for (const cid of containerIds) applyContainerReparenting(store, cid);
-        applyNodeReparenting(store, drag.nodeIds);
+        const containerIds = drag.nodeIds.filter((id) => { const n = sg.getNode(id); return n && isContainer(n); });
+        for (const cid of containerIds) applyContainerReparenting(sg, cid, canvasId);
+        applyNodeReparenting(sg, drag.nodeIds, canvasId);
+        um.commit();
         return;
       }
 
@@ -880,7 +926,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         lastClickRef.current = null;
         if (effectiveTool === 'MOVE' && hitId) {
           if (selection.isSelected(hitId)) {
-            const node = store.getNode(hitId);
+            const node = sg.getNode(hitId);
             if (node?.type === 'TEXT') {
               textEditing.startEditing(hitId);
             } else if (node?.type === 'FRAME' || node?.type === 'SECTION') {
@@ -894,7 +940,23 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         lastClickRef.current = { time: now, clientX: e.clientX, clientY: e.clientY };
       }
     },
-    [selection, effectiveTool, store, setActiveTool, textEditing, dragBox, containerRef, viewport, drawColor, drawStrokeWeight, drawOpacity],
+    [
+      selection,
+      effectiveTool,
+      sg,
+      canvasId,
+      setActiveTool,
+      textEditing,
+      dragBox,
+      containerRef,
+      viewportState.origin.x,
+      viewportState.origin.y,
+      viewportState.scale,
+      drawColor,
+      drawStrokeWeight,
+      drawOpacity,
+      um,
+    ],
   );
 
   // ── Comment pin drag handlers ──────────────────────────────────────────
@@ -916,15 +978,15 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
   const handleCommentDragEnd = useCallback(
     (threadId: string, worldX: number, worldY: number) => {
-      const hitNodeId = findNodeAtWorldPoint(store, worldX, worldY);
-      if (hitNodeId) {
-        const node = store.getNode(hitNodeId);
+      const hitNodeId = findNodeAtWorldPoint(sg, canvasId, worldX, worldY);
+      if (hitNodeId !== undefined) {
+        const node = sg.getNode(hitNodeId);
         if (node && isGeometryNode(node)) {
-          const nodeWorldPos = getWorldPosition(store, node);
+          const nodeWorldPos = getWorldPosition(sg, node);
           commentsStore.updateAnchor(threadId, {
             worldX,
             worldY,
-            nodeId: hitNodeId,
+            nodeId: String(hitNodeId),
             nodeOffsetX: worldX - nodeWorldPos.x,
             nodeOffsetY: worldY - nodeWorldPos.y,
           });
@@ -940,7 +1002,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       }
       setInteraction({ type: 'none' });
     },
-    [store, commentsStore, setInteraction],
+    [sg, canvasId, commentsStore, setInteraction],
   );
 
   // Cursor style based on active tool
@@ -963,7 +1025,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   })();
 
   // Pixel grid at 400%+ zoom
-  const { scale, origin } = viewport.state;
+  const { scale, origin } = viewportState;
   const showPixelGrid = scale >= 4;
   const pixelGridStyle: React.CSSProperties | undefined = showPixelGrid
     ? {
@@ -990,51 +1052,49 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       onPointerLeave={() => selection.setHovered(null)}
       onContextMenu={onContextMenu}
     >
-      <div
-        style={{
-          transformOrigin: '0 0',
-          transform,
-          position: 'absolute',
-          top: 0,
-          left: 0,
-        }}
-      >
-        <CanvasRenderer />
-        <svg
-          ref={pencilOverlayRef}
-          className="absolute top-0 left-0 overflow-visible pointer-events-none"
-        />
-        <CommentPinLayer
-          commentsStore={commentsStore}
-          interaction={interaction}
-          selectedThreadId={selectedThreadId}
-          zoom={scale}
-          getNodePosition={getNodePosition}
-          onPinClick={(threadId) => {
-            setSelectedThreadId(threadId);
-            setInteraction({ type: 'viewing', threadId });
-          }}
-          onPinHoverStart={(threadId) => {
-            if (interaction.type !== 'viewing' && interaction.type !== 'dragging') {
-              setInteraction({ type: 'hovering', threadId });
-            }
-          }}
-          onPinHoverEnd={() => {
-            if (interaction.type === 'hovering') {
-              setInteraction({ type: 'none' });
-            }
-          }}
-          onDragStart={handleCommentDragStart}
-          onDragMove={handleCommentDragMove}
-          onDragEnd={handleCommentDragEnd}
-          screenToWorld={screenToWorld}
-          containerRef={containerRef}
-          nodeStoreSubscribe={store.subscribe}
-          nodeStoreGetSnapshot={store.getSnapshot}
-        />
-      </div>
+      <CanvasLayers
+        sg={sg}
+        viewport={vp}
+        nodeLayer={
+          <>
+            <CanvasRenderer />
+            <svg
+              ref={pencilOverlayRef}
+              className="absolute top-0 left-0 overflow-visible pointer-events-none"
+            />
+            <CommentPinLayer
+              commentsStore={commentsStore}
+              interaction={interaction}
+              selectedThreadId={selectedThreadId}
+              zoom={scale}
+              getNodePosition={getNodePosition}
+              onPinClick={(threadId) => {
+                setSelectedThreadId(threadId);
+                setInteraction({ type: 'viewing', threadId });
+              }}
+              onPinHoverStart={(threadId) => {
+                if (interaction.type !== 'viewing' && interaction.type !== 'dragging') {
+                  setInteraction({ type: 'hovering', threadId });
+                }
+              }}
+              onPinHoverEnd={() => {
+                if (interaction.type === 'hovering') {
+                  setInteraction({ type: 'none' });
+                }
+              }}
+              onDragStart={handleCommentDragStart}
+              onDragMove={handleCommentDragMove}
+              onDragEnd={handleCommentDragEnd}
+              screenToWorld={screenToWorld}
+              containerRef={containerRef}
+              nodeStoreSubscribe={nodeStoreSubscribe}
+              nodeStoreGetSnapshot={nodeStoreGetSnapshot}
+            />
+          </>
+        }
+        reactOverlay={<SelectionOverlay />}
+      />
       {showPixelGrid && <div style={pixelGridStyle} />}
-      <SelectionOverlay dragBox={dragBox} />
     </div>
   );
 }
@@ -1051,14 +1111,17 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
  * - `enteredFrameId` is set  → return the direct child of the entered frame,
  *   or the entered frame itself if the click lands directly on it.
  */
-function resolveHitNode(el: HTMLElement, enteredFrameId: string | null): string | null {
+function resolveHitNode(el: HTMLElement, enteredFrameId: NodeId | null): NodeId | null {
   // Collect all node IDs from innermost to outermost
-  const chain: string[] = [];
+  const chain: NodeId[] = [];
   let cur: HTMLElement | null = el;
   while (cur) {
-    const id = cur.dataset?.nodeId;
-    if (id && !chain.includes(id)) {
-      chain.push(id);
+    const raw = cur.dataset?.nodeId;
+    if (raw != null) {
+      const id = Number(raw) as NodeId;
+      if (!chain.includes(id)) {
+        chain.push(id);
+      }
     }
     cur = cur.parentElement;
   }
@@ -1095,68 +1158,14 @@ function resolveHitNode(el: HTMLElement, enteredFrameId: string | null): string 
  * this returns the closest node to the pointer so children inside frames/sections
  * get hover outlines too.
  */
-function resolveHoverNode(el: HTMLElement): string | null {
+function resolveHoverNode(el: HTMLElement): NodeId | null {
   let cur: HTMLElement | null = el;
   while (cur) {
-    const id = cur.dataset?.nodeId;
-    if (id) return id;
+    const raw = cur.dataset?.nodeId;
+    if (raw != null) return Number(raw) as NodeId;
     cur = cur.parentElement;
   }
   return null;
-}
-
-interface Rect {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
-/** Compute the combined world-space bounding box of all selected nodes */
-function getSelectionBBox(
-  store: ReturnType<typeof useSceneGraph>,
-  selectedIds: Set<string>,
-): Rect | null {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  for (const id of selectedIds) {
-    const node = store.getNode(id);
-    if (!node || !isGeometryNode(node)) continue;
-    const pos = getWorldPosition(store, node);
-    minX = Math.min(minX, pos.x);
-    minY = Math.min(minY, pos.y);
-    maxX = Math.max(maxX, pos.x + node.width);
-    maxY = Math.max(maxY, pos.y + node.height);
-  }
-
-  if (!isFinite(minX)) return null;
-  return {
-    x: minX, y: minY, w: maxX - minX, h: maxY - minY,
-  };
-}
-
-function pointInRect(px: number, py: number, r: Rect): boolean {
-  return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
-}
-
-/** Collect IDs of all selected geometry nodes for dragging.
- *  Excludes nodes whose ancestor is also in the selection set
- *  (prevents double-moving children when parent+child are both selected). */
-function collectDraggableIds(
-  store: ReturnType<typeof useSceneGraph>,
-  selectedIds: Set<string>,
-): string[] {
-  const ids: string[] = [];
-  for (const id of selectedIds) {
-    const node = store.getNode(id);
-    if (!node || !isGeometryNode(node)) continue;
-    const hasSelectedAncestor = store.getAncestors(id).some((a) => selectedIds.has(a.id));
-    if (!hasSelectedAncestor) ids.push(id);
-  }
-  return ids;
 }
 
 /** Parse a CSS hex color (#RRGGBB or #RGB) to {r, g, b} (0–255) */

@@ -1,20 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAction } from '../../actions/provider';
-import { useSceneGraph } from '../scene-graph/provider';
-import type { ConnectorEndpoint, ConnectorNode, GeometryNode } from '../types';
-import { isConnectorNode } from '../types';
-import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
+import type { ConnectorEndpoint, ConnectorNode, GeometryNode, NodeId, CapType } from '@prototype/shared/canvas';
+import {
+  isConnectorNode,
+  useSceneGraph,
+  useCanvasId,
+  getWorldPosition,
+  isGeometryNode,
+  useViewportState,
+  useSelection,
+  useTextEditing,
+  useUndoManager,
+  applyNodeReparenting,
+  applyContainerReparenting,
+  isContainer,
+  getLineEndpoints,
+  lineParamsFromEndpoints,
+  findNodeNearWorldPoint,
+  resolveEndpointPosition,
+  snapToConnectionPoint,
+  updateConnectorBounds,
+  capInsetDistance,
+  computeElbowWaypoints,
+  computePathTangents,
+  useEndpointDrag,
+} from '@prototype/shared/canvas';
 import { useActiveTool } from '../tools/provider';
-import { useViewport } from '../viewport/provider';
-
 import { CURSORS } from '../cursors';
-import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
-import { useSelection } from './provider';
-import { resolveEndpointPosition, snapToConnectionPoint } from '../connectors/connector-resolve';
-import { updateConnectorBounds } from '../connectors/connector-utils';
-import { capInsetDistance, computeElbowWaypoints, computePathTangents } from '../connectors/connector-paths';
-import type { CapType } from '../connectors/connector-paths';
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
@@ -61,32 +74,6 @@ const EDGE_CURSORS: Record<string, string> = {
   w: CURSORS.resizeH,
 };
 
-/** Compute the line's start and end points in parent coordinate space */
-function getLineEndpoints(node: GeometryNode) {
-  const rad = node.rotation * Math.PI / 180;
-  const dx = node.width * Math.cos(rad);
-  const dy = node.width * Math.sin(rad);
-  return {
-    start: { x: node.x, y: node.y },
-    end: { x: node.x + dx, y: node.y + dy },
-  };
-}
-
-/** Derive line node params (x, y, width, rotation) from two endpoints */
-function lineParamsFromEndpoints(
-  startX: number, startY: number,
-  endX: number, endY: number,
-) {
-  const dx = endX - startX;
-  const dy = endY - startY;
-  return {
-    x: startX,
-    y: startY,
-    width: Math.sqrt(dx * dx + dy * dy),
-    height: 0,
-    rotation: Math.atan2(dy, dx) * 180 / Math.PI,
-  };
-}
 
 /**
  * DOM-based resize handles rendered over the selected node.
@@ -94,21 +81,23 @@ function lineParamsFromEndpoints(
  */
 export function ResizeHandles() {
   const { selectedIds } = useSelection();
-  const store = useSceneGraph();
-  const { state: viewport } = useViewport();
+  const sg = useSceneGraph();
+  const canvasId = useCanvasId();
+  const { state: viewport } = useViewportState();
   const { effectiveTool } = useActiveTool();
+  const { startEditing } = useTextEditing();
 
-  // Subscribe to store changes so handles reposition when nodes move
+  // Subscribe to scene graph changes so handles reposition when nodes move
   const [, bumpStoreVersion] = useState(0);
-  useEffect(() => store.subscribe(() => bumpStoreVersion((n) => n + 1)), [store]);
+  useEffect(() => sg.addListener(() => bumpStoreVersion((n) => n + 1)), [sg]);
 
   // Point editing mode for lines (Enter to activate, Escape to exit)
-  const [pointEditingId, setPointEditingId] = useState<string | null>(null);
+  const [pointEditingId, setPointEditingId] = useState<NodeId | null>(null);
 
   // Track original geometry during drag
   const dragState = useRef<{
     handle: HandlePosition | 'point-start' | 'point-end' | 'rotate'
-    nodeId: string
+    nodeId: NodeId
     original: OriginalGeometry
     /** For line AABB resize: which diagonal the line follows */
     startIsLeft: boolean
@@ -137,17 +126,21 @@ export function ResizeHandles() {
     angle: number; clientX: number; clientY: number
   } | null>(null);
 
-  // Enter key: enter point editing mode for selected lines
+  // Enter key: enter point editing mode for selected lines, or text editing for text nodes
   useAction(
     'enter-point-edit',
     useCallback(() => {
       if (selectedIds.size !== 1) return;
       const id = selectedIds.values().next().value;
       if (!id) return;
-      const n = store.getNode(id);
-      if (!n || n.type !== 'LINE') return;
-      setPointEditingId(id);
-    }, [selectedIds, store]),
+      const n = sg.getNode(id);
+      if (!n) return;
+      if (n.type === 'LINE') {
+        setPointEditingId(id);
+      } else if (n.type === 'TEXT') {
+        startEditing(id);
+      }
+    }, [selectedIds, sg, startEditing]),
   );
 
   // Clear point editing when selection changes
@@ -180,9 +173,9 @@ export function ResizeHandles() {
     let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
 
     for (const id of selectedIds) {
-      const n = store.getNode(id);
+      const n = sg.getNode(id);
       if (!n || !isGeometryNode(n)) continue;
-      const w = getWorldPosition(store, n);
+      const w = getWorldPosition(sg, n);
 
       if (n.type === 'LINE') {
         const rad = (n.rotation ?? 0) * Math.PI / 180;
@@ -250,7 +243,7 @@ export function ResizeHandles() {
   const nodeId = selectedIds.values().next().value;
   if (!nodeId) return null;
 
-  const node = store.getNode(nodeId);
+  const node = sg.getNode(nodeId);
   if (!node || !isGeometryNode(node) || node.locked) return null;
 
   // --- Connector endpoint handles ---
@@ -258,13 +251,13 @@ export function ResizeHandles() {
     return (
       <ConnectorEndpointHandles
         node={node}
-        store={store}
+        sg={sg}
         viewport={viewport}
       />
     );
   }
 
-  const world = getWorldPosition(store, node);
+  const world = getWorldPosition(sg, node);
   const isLine = node.type === 'LINE';
   const half = HANDLE_SIZE / 2;
 
@@ -373,7 +366,7 @@ export function ResizeHandles() {
         newRotation = Math.round(newRotation / 15) * 15;
       }
 
-      store.updateNode(drag.nodeId, { rotation: newRotation });
+      sg.updateNode(drag.nodeId, { rotation: newRotation });
       setRotationDisplay({ angle: newRotation, clientX: e.clientX, clientY: e.clientY });
       forceUpdate((n) => n + 1);
       return;
@@ -399,7 +392,7 @@ export function ResizeHandles() {
       }
 
       const params = lineParamsFromEndpoints(newStart.x, newStart.y, newEnd.x, newEnd.y);
-      store.updateNode(drag.nodeId, params);
+      sg.updateNode(drag.nodeId, params);
       forceUpdate((n) => n + 1);
       return;
     }
@@ -431,7 +424,7 @@ export function ResizeHandles() {
       const newEndY = drag.startIsTop ? newBottom : newTop;
 
       const params = lineParamsFromEndpoints(newStartX, newStartY, newEndX, newEndY);
-      store.updateNode(drag.nodeId, params);
+      sg.updateNode(drag.nodeId, params);
       forceUpdate((n) => n + 1);
       return;
     }
@@ -489,8 +482,13 @@ export function ResizeHandles() {
       newH = 1;
     }
 
-    // Sticky note: enforce minimum square during drag (snap happens on release)
+    // Sticky note: snap width to defined sizes during drag and enforce minimum square
     if (node?.type === 'STICKY_NOTE') {
+      const snapped = snapStickyWidth(newW);
+      if (movesLeft) {
+        newX = newX + (newW - snapped);
+      }
+      newW = snapped;
       newH = Math.max(newW, newH); // Minimum square
     }
 
@@ -507,7 +505,29 @@ export function ResizeHandles() {
       updates.textAutoResize = 'HEIGHT';
     }
 
-    store.updateNode(drag.nodeId, updates);
+    // Section resize: compensate children so they stay at the same world position.
+    // When the section's origin shifts (left/top drag), offset children by the inverse.
+    if (node?.type === 'SECTION') {
+      const currentNode = sg.getNode(drag.nodeId);
+      if (currentNode && isGeometryNode(currentNode)) {
+        const dxLocal = newX - currentNode.x;
+        const dyLocal = newY - currentNode.y;
+        if (dxLocal !== 0 || dyLocal !== 0) {
+          const sectionNode = sg.getNodeOrThrow(drag.nodeId);
+          for (const childId of sectionNode.children) {
+            const child = sg.getNode(childId);
+            if (child && isGeometryNode(child)) {
+              sg.updateNode(childId, {
+                x: child.x - dxLocal,
+                y: child.y - dyLocal,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    sg.updateNode(drag.nodeId, updates);
 
     forceUpdate((n) => n + 1);
   }
@@ -516,14 +536,14 @@ export function ResizeHandles() {
     if (!dragState.current) return;
     // Final snap for sticky notes on release
     if (node?.type === 'STICKY_NOTE') {
-      const current = store.getNode(dragState.current.nodeId);
+      const current = sg.getNode(dragState.current.nodeId);
       if (current && isGeometryNode(current)) {
         const snapped = snapStickyWidth(current.width);
         if (snapped !== current.width) {
           const dx = current.width - snapped;
           const handle = dragState.current.handle;
           const movesLeft = handle === 'nw' || handle === 'w' || handle === 'sw';
-          store.updateNode(current.id, {
+          sg.updateNode(current.id, {
             width: snapped,
             height: Math.max(snapped, current.height),
             ...(movesLeft ? { x: current.x + dx } : {}),
@@ -533,11 +553,11 @@ export function ResizeHandles() {
     }
     // Reparent after resize: sections adopt/release children, others check containment
     if (dragState.current.handle !== 'rotate') {
-      const resizedNode = store.getNode(dragState.current.nodeId);
+      const resizedNode = sg.getNode(dragState.current.nodeId);
       if (resizedNode && isContainer(resizedNode)) {
-        applyContainerReparenting(store, dragState.current.nodeId);
+        applyContainerReparenting(sg, dragState.current.nodeId, canvasId);
       } else {
-        applyNodeReparenting(store, [dragState.current.nodeId]);
+        applyNodeReparenting(sg, [dragState.current.nodeId], canvasId);
       }
     }
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -567,7 +587,7 @@ export function ResizeHandles() {
     ];
 
     return (
-      <>
+      <div className="pointer-events-auto">
         {points.map(({ handle, cx, cy }) => (
           <div
             key={handle}
@@ -587,17 +607,16 @@ export function ResizeHandles() {
             {...sharedProps}
           />
         ))}
-      </>
+      </div>
     );
   }
 
   // --- Standard corner + edge handles (used for both regular shapes and line AABB) ---
   const rotation = node.rotation ?? 0;
-  const isRotated = !isLine && rotation !== 0;
 
-  // For rotated nodes, compute handle positions relative to (0,0) of a rotated container
-  const hx = isRotated ? 0 : sx;
-  const hy = isRotated ? 0 : sy;
+  // Handle positions are relative to (0,0) of the wrapper container
+  const hx = 0;
+  const hy = 0;
 
   const corners: { pos: HandlePosition; cx: number; cy: number }[] = [
     { pos: 'nw', cx: hx, cy: hy },
@@ -652,7 +671,7 @@ export function ResizeHandles() {
     : edges;
 
   // Rotation zone positions: just outside each corner diagonally
-  const canRotate = node.type === 'FRAME' || node.type === 'SECTION';
+  const canRotate = !isLine && node.type !== 'SECTION' && node.type !== 'STICKY_NOTE';
   const rotationZones = canRotate ? [
     { key: 'rot-nw', cx: hx - ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNW },
     { key: 'rot-ne', cx: hx + sw + ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNE },
@@ -737,29 +756,24 @@ export function ResizeHandles() {
           {/* Dimension labels hidden for FigJam */}
         </>
       )}
-      {/* Wrap handles in rotated container for rotated non-LINE nodes */}
-      {isRotated ? (
-        <div
-          style={{
-            position: 'absolute',
-            left: sx,
-            top: sy,
-            width: sw,
-            height: sh,
-            transform: `rotate(${rotation}deg)`,
-            transformOrigin: '50% 50%',
-            pointerEvents: 'none',
-            zIndex: 11,
-          }}
-        >
-          {/* Re-enable pointer events on child handles */}
-          <div className="pointer-events-auto">
-            {handleElements}
-          </div>
+      {/* Always use a positioned wrapper — stable DOM tree preserves pointer capture during rotation drag */}
+      <div
+        style={{
+          position: 'absolute',
+          left: sx,
+          top: sy,
+          width: sw,
+          height: sh,
+          transform: !isLine && rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+          transformOrigin: '50% 50%',
+          pointerEvents: 'none',
+          zIndex: 11,
+        }}
+      >
+        <div className="pointer-events-auto">
+          {handleElements}
         </div>
-      ) : (
-        handleElements
-      )}
+      </div>
       {/* Rotation angle tooltip */}
       {rotationDisplay && (
         <div
@@ -789,13 +803,16 @@ export function ResizeHandles() {
 
 function ConnectorEndpointHandles({
   node,
-  store,
+  sg,
   viewport,
 }: {
   node: ConnectorNode
-  store: ReturnType<typeof useSceneGraph>
+  sg: ReturnType<typeof useSceneGraph>
   viewport: { scale: number; origin: { x: number; y: number } }
 }) {
+  const canvasId = useCanvasId();
+  const um = useUndoManager();
+  const endpointDrag = useEndpointDrag();
   const [, forceUpdate] = useState(0);
 
   const dragState = useRef<{
@@ -804,8 +821,8 @@ function ConnectorEndpointHandles({
     startClientY: number
   } | null>(null);
 
-  const startPt = resolveEndpointPosition(store, node.startEndpoint);
-  const endPt = resolveEndpointPosition(store, node.endEndpoint);
+  const startPt = resolveEndpointPosition(sg, node.startEndpoint);
+  const endPt = resolveEndpointPosition(sg, node.endEndpoint);
   if (!startPt || !endPt) return null;
 
   // Convert to screen space
@@ -824,6 +841,7 @@ function ConnectorEndpointHandles({
       startClientX: e.clientX,
       startClientY: e.clientY,
     };
+    endpointDrag?.setDragging(true);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
 
@@ -831,16 +849,39 @@ function ConnectorEndpointHandles({
     const drag = dragState.current;
     if (!drag) return;
 
-    // Convert screen delta to world delta
+    // Convert screen position to world coordinates
     const worldX = (e.clientX - viewport.origin.x) / viewport.scale;
     const worldY = (e.clientY - viewport.origin.y) / viewport.scale;
 
-    const newEndpoint: ConnectorEndpoint = { type: 'free', x: worldX, y: worldY };
+    // Hit-test nearby nodes for snap preview
+    const safeZoneWorld = 16 / viewport.scale;
+    const hoveredId = findNodeNearWorldPoint(sg, canvasId, worldX, worldY, safeZoneWorld);
+    endpointDrag?.setHoverNodeId(hoveredId ?? null);
+    endpointDrag?.setMouseWorld({ x: worldX, y: worldY });
+
+    // Try to snap to a connection point during drag for visual feedback
+    let newEndpoint: ConnectorEndpoint = { type: 'free', x: worldX, y: worldY };
+    if (hoveredId) {
+      const hoveredNode = sg.getNode(hoveredId);
+      if (hoveredNode && isGeometryNode(hoveredNode) && !isConnectorNode(hoveredNode)) {
+        const snapped = snapToConnectionPoint(sg, hoveredNode, worldX, worldY, 30);
+        if (snapped) {
+          if (snapped.pointIndex !== null) {
+            newEndpoint = { type: 'connected', nodeId: hoveredNode.id, pointIndex: snapped.pointIndex };
+          } else {
+            const nodeWorld = getWorldPosition(sg, hoveredNode);
+            const xFrac = hoveredNode.width > 0 ? (snapped.x - nodeWorld.x) / hoveredNode.width : 0.5;
+            const yFrac = hoveredNode.height > 0 ? (snapped.y - nodeWorld.y) / hoveredNode.height : 0.5;
+            newEndpoint = { type: 'edge', nodeId: hoveredNode.id, xFraction: xFrac, yFraction: yFrac };
+          }
+        }
+      }
+    }
 
     if (drag.endpoint === 'start') {
-      store.updateNode(node.id, { startEndpoint: newEndpoint });
+      sg.updateNode(node.id, { startEndpoint: newEndpoint });
     } else {
-      store.updateNode(node.id, { endEndpoint: newEndpoint });
+      sg.updateNode(node.id, { endEndpoint: newEndpoint });
     }
     forceUpdate((n) => n + 1);
   }
@@ -855,11 +896,11 @@ function ConnectorEndpointHandles({
     // Try to snap to a node's connection point
     let finalEndpoint: ConnectorEndpoint = { type: 'free', x: worldX, y: worldY };
 
-    const allNodes = store.getAllNodes();
+    const allNodes = sg.getDescendants(canvasId);
     let bestDist = Infinity;
     for (const n of allNodes) {
       if (!isGeometryNode(n) || isConnectorNode(n) || n.type === 'LINE' || n.type === 'VECTOR') continue;
-      const snapped = snapToConnectionPoint(store, n, worldX, worldY, 30);
+      const snapped = snapToConnectionPoint(sg, n, worldX, worldY, 30);
       if (snapped) {
         const dx = snapped.x - worldX;
         const dy = snapped.y - worldY;
@@ -869,7 +910,7 @@ function ConnectorEndpointHandles({
           if (snapped.pointIndex !== null) {
             finalEndpoint = { type: 'connected', nodeId: n.id, pointIndex: snapped.pointIndex };
           } else {
-            const nodeWorld = getWorldPosition(store, n);
+            const nodeWorld = getWorldPosition(sg, n);
             const xFrac = n.width > 0 ? (snapped.x - nodeWorld.x) / n.width : 0.5;
             const yFrac = n.height > 0 ? (snapped.y - nodeWorld.y) / n.height : 0.5;
             finalEndpoint = { type: 'edge', nodeId: n.id, xFraction: xFrac, yFraction: yFrac };
@@ -879,11 +920,17 @@ function ConnectorEndpointHandles({
     }
 
     if (drag.endpoint === 'start') {
-      store.updateNode(node.id, { startEndpoint: finalEndpoint });
+      sg.updateNode(node.id, { startEndpoint: finalEndpoint });
     } else {
-      store.updateNode(node.id, { endEndpoint: finalEndpoint });
+      sg.updateNode(node.id, { endEndpoint: finalEndpoint });
     }
-    updateConnectorBounds(store, node.id);
+    updateConnectorBounds(sg, node.id);
+    um.commit();
+
+    // Clear drag context
+    endpointDrag?.setDragging(false);
+    endpointDrag?.setHoverNodeId(null);
+    endpointDrag?.setMouseWorld(null);
 
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     dragState.current = null;
@@ -914,6 +961,7 @@ function ConnectorEndpointHandles({
             border: `2px solid ${SELECTION_COLOR}`,
             borderRadius: '50%',
             cursor: 'grab',
+            pointerEvents: 'auto',
             zIndex: 11,
           }}
           onPointerDown={(e) => onEndpointPointerDown(key, e)}
@@ -923,7 +971,7 @@ function ConnectorEndpointHandles({
       {node.lineShape === 'ELBOW' && startPt && endPt && (
         <ElbowMidpointHandles
           node={node}
-          store={store}
+          sg={sg}
           viewport={viewport}
           startPt={startPt}
           endPt={endPt}
@@ -937,13 +985,13 @@ function ConnectorEndpointHandles({
 
 function ElbowMidpointHandles({
   node,
-  store,
+  sg,
   viewport,
   startPt,
   endPt,
 }: {
   node: ConnectorNode
-  store: ReturnType<typeof useSceneGraph>
+  sg: ReturnType<typeof useSceneGraph>
   viewport: { scale: number; origin: { x: number; y: number } }
   startPt: { x: number; y: number; exitDirection: { dx: number; dy: number } }
   endPt: { x: number; y: number; exitDirection: { dx: number; dy: number } }
@@ -1032,7 +1080,7 @@ function ElbowMidpointHandles({
 
     const newOffset = (worldPos - drag.rangeMin) / range;
 
-    store.updateNode(node.id, { elbowMidpointOffset: newOffset });
+    sg.updateNode(node.id, { elbowMidpointOffset: newOffset });
     forceUpdate((n) => n + 1);
   }
 
@@ -1040,7 +1088,7 @@ function ElbowMidpointHandles({
     if (!dragRef.current) return;
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     dragRef.current = null;
-    updateConnectorBounds(store, node.id);
+    updateConnectorBounds(sg, node.id);
   }
 
   return (
@@ -1054,6 +1102,7 @@ function ElbowMidpointHandles({
         backgroundColor: SELECTION_COLOR,
         borderRadius: 3,
         cursor,
+        pointerEvents: 'auto',
         zIndex: 12,
       }}
       onPointerDown={onPointerDown}

@@ -2115,7 +2115,7 @@ function FloatingShapeToolbarDemo() {
 // ---------------------------------------------------------------------------
 
 function RightClickContextMenuDemo() {
-  const { handleOpen, manager } = useContextMenu();
+  const { handleOpen, manager, anchorRef } = useContextMenu();
 
   const menuItems: MenuItemDef[] = [
     { type: 'item', id: 'copy', label: 'Copy', shortcut: '⌘C', onClick: () => {} },
@@ -2141,7 +2141,7 @@ function RightClickContextMenuDemo() {
       >
         <Text color="secondary">Right-click anywhere in this area</Text>
       </div>
-      <ContextMenuRenderer manager={manager} items={menuItems} />
+      <ContextMenuRenderer manager={manager} items={menuItems} anchorRef={anchorRef} />
     </ExampleContainer>
   );
 }

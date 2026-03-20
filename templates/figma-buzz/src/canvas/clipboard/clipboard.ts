@@ -1,6 +1,6 @@
-import type { SceneGraphStore } from '../scene-graph/store';
-import type { SceneNode, NodeType } from '../types';
-import { isGeometryNode } from '../scene-graph/world-position';
+import type { SceneGraph } from '@prototype/shared/canvas';
+import type { SceneNode, NodeType, NodeId } from '@prototype/shared/canvas';
+import { isGeometryNode, getTypeDefaults } from '@prototype/shared/canvas';
 
 interface Rect {
   x: number;
@@ -12,16 +12,16 @@ interface Rect {
 interface ClipboardPayload {
   nodes: SceneNode[];
   bbox: Rect;
-  topLevelIds: string[];
+  topLevelIds: NodeId[];
 }
 
 let clipboard: ClipboardPayload | null = null;
 
 function collectTopLevelIds(
-  store: SceneGraphStore,
-  selectedIds: Set<string>,
-): string[] {
-  const ids: string[] = [];
+  store: SceneGraph,
+  selectedIds: ReadonlySet<NodeId>,
+): NodeId[] {
+  const ids: NodeId[] = [];
   for (const id of selectedIds) {
     const node = store.getNode(id);
     if (!node || !isGeometryNode(node)) continue;
@@ -35,7 +35,7 @@ function collectTopLevelIds(
 
 /** Compute world position by walking up parent chain within a node map */
 function computeWorldPos(
-  nodeMap: Map<string, SceneNode>,
+  nodeMap: Map<NodeId, SceneNode>,
   node: SceneNode,
 ): { x: number; y: number } {
   let x = isGeometryNode(node) ? node.x : 0;
@@ -54,8 +54,8 @@ function computeWorldPos(
 }
 
 function computeBBox(
-  nodeMap: Map<string, SceneNode>,
-  ids: string[],
+  nodeMap: Map<NodeId, SceneNode>,
+  ids: NodeId[],
 ): Rect | null {
   let minX = Infinity;
   let minY = Infinity;
@@ -76,7 +76,7 @@ function computeBBox(
 
 /** Compute world position using the live store */
 function computeWorldPosFromStore(
-  store: SceneGraphStore,
+  store: SceneGraph,
   node: SceneNode,
 ): { x: number; y: number } {
   let x = isGeometryNode(node) ? node.x : 0;
@@ -94,15 +94,15 @@ function computeWorldPosFromStore(
   return { x, y };
 }
 
-function collectNodeTree(store: SceneGraphStore, id: string): SceneNode[] {
+function collectNodeTree(store: SceneGraph, id: NodeId): SceneNode[] {
   const node = store.getNode(id);
   if (!node) return [];
   return [node, ...store.getDescendants(id)];
 }
 
 export function copyNodes(
-  store: SceneGraphStore,
-  selectedIds: Set<string>,
+  store: SceneGraph,
+  selectedIds: ReadonlySet<NodeId>,
 ): void {
   if (selectedIds.size === 0) return;
 
@@ -115,7 +115,7 @@ export function copyNodes(
   }
 
   // Build a map for bbox computation — include ancestors for world pos
-  const nodeMap = new Map<string, SceneNode>();
+  const nodeMap = new Map<NodeId, SceneNode>();
   for (const n of allNodes) nodeMap.set(n.id, n);
   for (const n of allNodes) {
     let current = n;
@@ -138,8 +138,8 @@ export function copyNodes(
 }
 
 export function cutNodes(
-  store: SceneGraphStore,
-  selectedIds: Set<string>,
+  store: SceneGraph,
+  selectedIds: ReadonlySet<NodeId>,
 ): void {
   copyNodes(store, selectedIds);
   const topLevelIds = collectTopLevelIds(store, selectedIds);
@@ -149,21 +149,22 @@ export function cutNodes(
 }
 
 export function pasteNodes(
-  store: SceneGraphStore,
-  selectedIds: Set<string>,
+  store: SceneGraph,
+  canvasId: NodeId,
+  selectedIds: ReadonlySet<NodeId>,
   viewportCenter: { x: number; y: number },
-): string[] {
+): NodeId[] {
   if (!clipboard) return [];
 
   const { nodes, bbox, topLevelIds: originalTopLevelIds } = clipboard;
-  const oldToNew = new Map<string, string>();
+  const oldToNew = new Map<NodeId, NodeId>();
 
   // Build lookup map for cloned nodes (for world pos computation)
-  const clonedMap = new Map<string, SceneNode>();
+  const clonedMap = new Map<NodeId, SceneNode>();
   for (const n of nodes) clonedMap.set(n.id, n);
 
   // Determine paste target
-  let pasteParentId: string | null = null;
+  let pasteParentId: NodeId | null = null;
   let offsetX = 0;
   let offsetY = 0;
 
@@ -172,7 +173,7 @@ export function pasteNodes(
     const target = store.getNode(targetId);
     if (
       target &&
-      (target.type === 'FRAME' || target.type === 'SECTION') &&
+      (target.type === 'FRAME' || target.type === 'SECTION' || target.type === 'GRID_SECTION') &&
       isGeometryNode(target)
     ) {
       pasteParentId = targetId;
@@ -198,12 +199,12 @@ export function pasteNodes(
   for (const cloned of nodes) {
     const isTopLevel = topLevelSet.has(cloned.id);
 
-    let parentId: string | null;
+    let parentId: NodeId;
     let x: number;
     let y: number;
 
     if (isTopLevel) {
-      parentId = pasteParentId;
+      parentId = pasteParentId ?? canvasId;
       const origWorld = computeWorldPos(clonedMap, cloned);
       if (pasteParentId) {
         const parentNode = store.getNode(pasteParentId);
@@ -218,20 +219,19 @@ export function pasteNodes(
         y = origWorld.y + offsetY;
       }
     } else {
-      parentId = oldToNew.get(cloned.parentId!) ?? null;
+      parentId = oldToNew.get(cloned.parentId!) ?? canvasId;
       x = isGeometryNode(cloned) ? cloned.x : 0;
       y = isGeometryNode(cloned) ? cloned.y : 0;
     }
 
-    const props: Partial<SceneNode> = {
-      ...cloned,
+    const { id: _id, parentId: _parentId, children: _children, type: _type, ...rest } = cloned as unknown as Record<string, unknown>;
+    const newNode = store.createNode(cloned.type as NodeType, parentId, {
+      ...getTypeDefaults(cloned.type as NodeType),
+      ...rest,
       children: [],
-      parentId,
       x,
       y,
-    } as Partial<SceneNode>;
-    delete (props as Record<string, unknown>).id;
-    const newNode = store.createNode(cloned.type as NodeType, props);
+    });
 
     oldToNew.set(cloned.id, newNode.id);
   }
@@ -240,9 +240,10 @@ export function pasteNodes(
 }
 
 export function duplicateNodes(
-  store: SceneGraphStore,
-  selectedIds: Set<string>,
-): string[] {
+  store: SceneGraph,
+  canvasId: NodeId,
+  selectedIds: ReadonlySet<NodeId>,
+): NodeId[] {
   if (selectedIds.size === 0) return [];
 
   const topLevelIds = collectTopLevelIds(store, selectedIds);
@@ -254,28 +255,30 @@ export function duplicateNodes(
   }
 
   const cloned = structuredClone(allNodes);
-  const oldToNew = new Map<string, string>();
+  const oldToNew = new Map<NodeId, NodeId>();
   const topLevelSet = new Set(topLevelIds);
 
   for (const node of cloned) {
     const isTopLevel = topLevelSet.has(node.id);
 
     const parentId = isTopLevel
-      ? node.parentId
-      : (oldToNew.get(node.parentId!) ?? null);
+      ? (node.parentId ?? canvasId)
+      : (oldToNew.get(node.parentId!) ?? canvasId);
 
-    const x = isGeometryNode(node) ? node.x + (isTopLevel ? node.width + 100 : 0) : 0;
+    // Root-level nodes (parent is the canvas) duplicate 40px to the right of the original.
+    // Nodes inside a parent frame duplicate at the same position.
+    const isRootLevel = isTopLevel && (node.parentId === canvasId || node.parentId == null);
+    const x = isGeometryNode(node) ? node.x + (isRootLevel ? node.width + 40 : 0) : 0;
     const y = isGeometryNode(node) ? node.y : 0;
 
-    const props: Partial<SceneNode> = {
-      ...node,
+    const { id: _id, parentId: _parentId, children: _children, type: _type, ...rest } = node as unknown as Record<string, unknown>;
+    const newNode = store.createNode(node.type as NodeType, parentId, {
+      ...getTypeDefaults(node.type as NodeType),
+      ...rest,
       children: [],
-      parentId,
       x,
       y,
-    } as Partial<SceneNode>;
-    delete (props as Record<string, unknown>).id;
-    const newNode = store.createNode(node.type as NodeType, props);
+    });
 
     oldToNew.set(node.id, newNode.id);
   }

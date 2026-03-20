@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import type { NodeId } from '../canvas';
 
 interface SpeakerNotesAPI {
-  getNotes: (slideId: string) => string;
-  setNotes: (slideId: string, text: string) => void;
+  getNotes: (slideId: NodeId) => string;
+  setNotes: (slideId: NodeId, text: string) => void;
 }
 
 const SpeakerNotesContext = createContext<SpeakerNotesAPI | null>(null);
@@ -11,12 +12,12 @@ export function SpeakerNotesProvider({ children }: { children: React.ReactNode }
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
 
   const getNotes = useCallback(
-    (slideId: string) => notesMap[slideId] ?? '',
+    (slideId: NodeId) => notesMap[slideId] ?? '',
     [notesMap],
   );
 
   const setNotes = useCallback(
-    (slideId: string, text: string) => {
+    (slideId: NodeId, text: string) => {
       setNotesMap((prev) => ({ ...prev, [slideId]: text }));
     },
     [],

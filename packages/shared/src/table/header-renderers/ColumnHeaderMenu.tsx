@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { GridApi, Column } from 'ag-grid-community';
-import { IconButton, Menu } from '@figma/fpl-components';
+import { IconButton } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon16ChevronDown, Icon16ArrowUp, Icon16ArrowDown } from '@figma/fpl-icons';
 import type { ColumnMenuGroup } from '../types';
 import styles from '../table.module.css';
@@ -24,25 +25,25 @@ export function ColumnHeaderMenu({
   onAddColumn,
   onDeleteColumn,
 }: ColumnHeaderMenuProps) {
-  const menu = Menu.useMenu();
+  const menu = MenuV2.useMenu();
   const colId = column.getColId();
 
   const menuContent = useMemo(() => {
     // Custom menu groups
     if (Array.isArray(columnMenu)) {
       return columnMenu.map((group, groupIndex) => (
-        <Menu.Group key={groupIndex}>
+        <MenuV2.Group key={groupIndex}>
           {group.items.map((item) => (
-            <Menu.Item
+            <MenuV2.Item
               key={item.id}
               disabled={item.disabled}
               onClick={item.onClick}
+              lead={item.icon}
             >
-              {item.icon && <Menu.ItemLead>{item.icon}</Menu.ItemLead>}
               {item.label}
-            </Menu.Item>
+            </MenuV2.Item>
           ))}
-        </Menu.Group>
+        </MenuV2.Group>
       ));
     }
 
@@ -52,8 +53,9 @@ export function ColumnHeaderMenu({
     // Group 1: Sort actions
     if (sorting) {
       groups.push(
-        <Menu.Group key="sort">
-          <Menu.Item
+        <MenuV2.Group key="sort">
+          <MenuV2.Item
+            lead={<Icon16ArrowUp />}
             onClick={() => {
               api.applyColumnState({
                 state: [{ colId, sort: 'asc' }],
@@ -61,10 +63,10 @@ export function ColumnHeaderMenu({
               });
             }}
           >
-            <Menu.ItemLead><Icon16ArrowUp /></Menu.ItemLead>
             Sort ascending
-          </Menu.Item>
-          <Menu.Item
+          </MenuV2.Item>
+          <MenuV2.Item
+            lead={<Icon16ArrowDown />}
             onClick={() => {
               api.applyColumnState({
                 state: [{ colId, sort: 'desc' }],
@@ -72,10 +74,9 @@ export function ColumnHeaderMenu({
               });
             }}
           >
-            <Menu.ItemLead><Icon16ArrowDown /></Menu.ItemLead>
             Sort descending
-          </Menu.Item>
-        </Menu.Group>,
+          </MenuV2.Item>
+        </MenuV2.Group>,
       );
     }
 
@@ -90,7 +91,7 @@ export function ColumnHeaderMenu({
 
     if (colIndex > 0) {
       moveItems.push(
-        <Menu.Item
+        <MenuV2.Item
           key="moveLeft"
           onClick={() => {
             const displayIndex = allColumns.indexOf(column);
@@ -101,12 +102,12 @@ export function ColumnHeaderMenu({
           }}
         >
           Move left
-        </Menu.Item>,
+        </MenuV2.Item>,
       );
     }
     if (colIndex < userColumns.length - 1) {
       moveItems.push(
-        <Menu.Item
+        <MenuV2.Item
           key="moveRight"
           onClick={() => {
             const displayIndex = allColumns.indexOf(column);
@@ -116,7 +117,7 @@ export function ColumnHeaderMenu({
           }}
         >
           Move right
-        </Menu.Item>,
+        </MenuV2.Item>,
       );
     }
 
@@ -125,24 +126,23 @@ export function ColumnHeaderMenu({
 
     if (hasMove || hasResize) {
       groups.push(
-        <Menu.Group key="move-resize">
+        <MenuV2.Group key="move-resize">
           {hasMove && (
-            <Menu.SubMenu key="move">
-              <Menu.SubTrigger>Move column</Menu.SubTrigger>
-              <Menu.SubContainer>{moveItems}</Menu.SubContainer>
-            </Menu.SubMenu>
+            <MenuV2.SubMenu key="move" title="Move column">
+              {moveItems}
+            </MenuV2.SubMenu>
           )}
           {hasResize && (
-            <Menu.Item
+            <MenuV2.Item
               key="resizeToFit"
               onClick={() => {
                 api.autoSizeColumns([colId]);
               }}
             >
               Resize to fit
-            </Menu.Item>
+            </MenuV2.Item>
           )}
-        </Menu.Group>,
+        </MenuV2.Group>,
       );
     }
 
@@ -150,32 +150,32 @@ export function ColumnHeaderMenu({
     const columnOps: React.ReactNode[] = [];
     if (onAddColumn) {
       columnOps.push(
-        <Menu.Item
+        <MenuV2.Item
           key="addLeft"
           onClick={() => onAddColumn(colId, 'left')}
         >
           Add column left
-        </Menu.Item>,
-        <Menu.Item
+        </MenuV2.Item>,
+        <MenuV2.Item
           key="addRight"
           onClick={() => onAddColumn(colId, 'right')}
         >
           Add column right
-        </Menu.Item>,
+        </MenuV2.Item>,
       );
     }
     if (onDeleteColumn) {
       columnOps.push(
-        <Menu.Item
+        <MenuV2.Item
           key="delete"
           onClick={() => onDeleteColumn(colId)}
         >
           Delete column
-        </Menu.Item>,
+        </MenuV2.Item>,
       );
     }
     if (columnOps.length > 0) {
-      groups.push(<Menu.Group key="column-ops">{columnOps}</Menu.Group>);
+      groups.push(<MenuV2.Group key="column-ops">{columnOps}</MenuV2.Group>);
     }
 
     return groups;
@@ -192,17 +192,17 @@ export function ColumnHeaderMenu({
 
   return (
     <span className={styles.columnMenuTrigger}>
-      <Menu.Root manager={menu.manager}>
-        <IconButton
-          aria-label="Column menu"
-          variant="ghost"
-          // eslint-disable-next-line react/jsx-props-no-spreading
-          {...menu.getTriggerProps()}
-        >
-          <Icon16ChevronDown />
-        </IconButton>
-        <Menu.Container>{menuContent}</Menu.Container>
-      </Menu.Root>
+      <IconButton
+        aria-label="Column menu"
+        variant="ghost"
+        // eslint-disable-next-line react/jsx-props-no-spreading
+        {...menu.getTriggerProps()}
+      >
+        <Icon16ChevronDown />
+      </IconButton>
+      <MenuV2.Root manager={menu.manager}>
+        {menuContent}
+      </MenuV2.Root>
     </span>
   );
 }

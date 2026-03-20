@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { IconButton, Menu } from '@figma/fpl-components';
+import { IconButton } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon24FigmaLarge, Icon24SearchLarge } from '@figma/fpl-icons';
 import { useActionRegistry } from '../actions/provider';
 import { renderMenuItems, type MenuItemDef } from './menuTypes';
@@ -11,7 +12,7 @@ interface FigJamMainMenuProps {
 }
 
 export function FigJamMainMenu({ themeSetting, onThemeChange }: FigJamMainMenuProps) {
-  const mainMenu = Menu.useMenu();
+  const mainMenu = MenuV2.useMenu();
   const actionRegistry = useActionRegistry();
 
   // Consolidated preferences state
@@ -304,13 +305,13 @@ export function FigJamMainMenu({ themeSetting, onThemeChange }: FigJamMainMenuPr
   ];
 
   return (
-    <Menu.Root manager={mainMenu.manager}>
+    <>
       <IconButton size="lg" aria-label="Main menu" {...mainMenu.getTriggerProps()}>
         <Icon24FigmaLarge />
       </IconButton>
-      <Menu.Container>
+      <MenuV2.Root manager={mainMenu.manager}>
         {renderMenuItems(menuItems)}
-      </Menu.Container>
-    </Menu.Root>
+      </MenuV2.Root>
+    </>
   );
 }

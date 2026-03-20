@@ -19,7 +19,15 @@ export const SHORTCUT_MAP: Record<string, string> = {
   h: 'tool.hand',
   c: 'tool.comment',
   l: 'tool.line',
-  'Shift+s': 'tool.section',
+  // Nudge
+  ArrowUp: 'nudge.up',
+  ArrowDown: 'nudge.down',
+  ArrowLeft: 'nudge.left',
+  ArrowRight: 'nudge.right',
+  'Shift+ArrowUp': 'nudge.up.big',
+  'Shift+ArrowDown': 'nudge.down.big',
+  'Shift+ArrowLeft': 'nudge.left.big',
+  'Shift+ArrowRight': 'nudge.right.big',
 
   // Selection
   'Mod+a': 'select-all',

@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ButtonPrimitive, InputPrimitive } from '@figma/fpl-components';
 
-import { useRootNodes, useSceneGraph } from '../scene-graph/provider';
-import { useTextEditing } from '../text-editing/provider';
 import type {
   Color,
   EllipseNode,
@@ -14,22 +12,32 @@ import type {
   SceneNode,
   SectionNode,
   StarNode,
-  Stroke,
+  StrokeAlign,
   TextNode,
   VectorNode,
-} from '../types';
+} from '@prototype/shared/canvas';
+import {
+  useCanvasId,
+  useRootNodes,
+  useSceneGraph,
+  useTextEditing,
+  useSelection,
+  useViewportState,
+  useRendering,
+  useNodeRef,
+} from '@prototype/shared/canvas';
+
 import { CURSORS } from '../cursors';
-import { useSelection } from '../selection/provider';
-import { useViewport } from '../viewport/provider';
 
 export function CanvasRenderer() {
-  const rootNodes = useRootNodes();
-  const store = useSceneGraph();
+  const canvasId = useCanvasId();
+  const rootNodes = useRootNodes(canvasId);
+  const sg = useSceneGraph();
 
   return (
     <>
       {rootNodes.map((node) => (
-        <SceneNodeRenderer key={node.id} node={node} store={store} isRoot />
+        <SceneNodeRenderer key={node.id} node={node} sg={sg} isRoot />
       ))}
     </>
   );
@@ -39,11 +47,11 @@ export function CanvasRenderer() {
 
 function SceneNodeRenderer({
   node,
-  store,
+  sg,
   isRoot,
 }: {
   node: SceneNode
-  store: ReturnType<typeof useSceneGraph>
+  sg: ReturnType<typeof useSceneGraph>
   isRoot?: boolean
 }) {
   if (!node.visible) return null;
@@ -67,14 +75,14 @@ function SceneNodeRenderer({
       return (
         <>
           {isRoot && <FrameLabel node={node} />}
-          <FrameRenderer node={node} store={store} />
+          <FrameRenderer node={node} sg={sg} />
         </>
       );
     case 'SECTION':
       return (
         <>
           <SectionLabel node={node as SectionNode} />
-          <SectionRenderer node={node as SectionNode} store={store} />
+          <SectionRenderer node={node as SectionNode} sg={sg} />
         </>
       );
     default:
@@ -83,11 +91,14 @@ function SceneNodeRenderer({
 }
 
 function RectangleRenderer({ node }: { node: RectangleNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
         position: 'absolute',
@@ -97,18 +108,26 @@ function RectangleRenderer({ node }: { node: RectangleNode }) {
         borderRadius: node.cornerRadius,
         transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
       }}
     />
   );
 }
 
 function TextRenderer({ node }: { node: TextNode }) {
+  const { nodeRegistry } = useRendering();
   const fill = getFirstVisibleFill(node.fills);
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
   const { editingNodeId, stopEditing } = useTextEditing();
   const isEditing = editingNodeId === node.id;
   const elRef = useRef<HTMLDivElement>(null);
+
+  // Register with NodeRegistry for imperative updates
+  useEffect(() => {
+    const el = elRef.current;
+    if (el) nodeRegistry.register(node.id, el);
+    return () => { nodeRegistry.unregister(node.id); };
+  }, [node.id, nodeRegistry]);
 
   const selection = useSelection();
 
@@ -136,13 +155,13 @@ function TextRenderer({ node }: { node: TextNode }) {
       }
 
       if (Object.keys(updates).length > 0) {
-        store.updateNode(node.id, updates);
+        sg.updateNode(node.id, updates);
       }
     });
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [node.id, node.textAutoResize, node.width, node.height, store]);
+  }, [node.id, node.textAutoResize, node.width, node.height, sg]);
 
   // Auto-focus and place cursor when entering edit mode.
   // Deferred via rAF so the browser's pointer-event sequence (pointerdown →
@@ -169,14 +188,14 @@ function TextRenderer({ node }: { node: TextNode }) {
   const commitAndStop = useCallback(() => {
     const text = elRef.current?.innerText.trim() ?? '';
     if (text) {
-      store.updateNode(node.id, { characters: text });
+      sg.updateNode(node.id, { characters: text });
     } else {
       // Empty text → delete the node
-      store.deleteNode(node.id);
+      sg.deleteNode(node.id);
       selection.clear();
     }
     stopEditing();
-  }, [store, node.id, stopEditing, selection]);
+  }, [sg, node.id, stopEditing, selection]);
 
   // Handle Escape key via useEffect to avoid forbidden onKeyDown DOM prop
   useEffect(() => {
@@ -227,17 +246,20 @@ function TextRenderer({ node }: { node: TextNode }) {
 }
 
 function EllipseRenderer({ node }: { node: EllipseNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const rx = node.width / 2;
   const ry = node.height / 2;
 
   // For inside strokes, we need to inset the ellipse
-  const strokeWeight = stroke ? stroke.weight : 0;
-  const inset = stroke?.position === 'INSIDE' ? strokeWeight : 0;
+  const weight = stroke ? node.strokeWeight : 0;
+  const inset = node.strokeAlign === 'INSIDE' ? weight : 0;
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
       style={{
         position: 'absolute',
@@ -254,8 +276,8 @@ function EllipseRenderer({ node }: { node: EllipseNode }) {
         rx={rx - inset / 2}
         ry={ry - inset / 2}
         fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-        strokeWidth={strokeWeight}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+        strokeWidth={weight}
       />
     </svg>
   );
@@ -263,17 +285,20 @@ function EllipseRenderer({ node }: { node: EllipseNode }) {
 
 function FrameRenderer({
   node,
-  store,
+  sg,
 }: {
   node: SceneNode & { type: 'FRAME' }
-  store: ReturnType<typeof useSceneGraph>
+  sg: ReturnType<typeof useSceneGraph>
 }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
+  const childNodes = node.children.map((id) => sg.getNode(id)).filter(Boolean) as SceneNode[];
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
         position: 'absolute',
@@ -284,11 +309,11 @@ function FrameRenderer({
         overflow: node.clipsContent ? 'hidden' : undefined,
         transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
       }}
     >
       {childNodes.map((child) => (
-        <SceneNodeRenderer key={child.id} node={child} store={store} />
+        <SceneNodeRenderer key={child.id} node={child} sg={sg} />
       ))}
     </div>
   );
@@ -296,17 +321,20 @@ function FrameRenderer({
 
 function SectionRenderer({
   node,
-  store,
+  sg,
 }: {
   node: SectionNode
-  store: ReturnType<typeof useSceneGraph>
+  sg: ReturnType<typeof useSceneGraph>
 }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
+  const childNodes = node.children.map((id) => sg.getNode(id)).filter(Boolean) as SceneNode[];
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
         position: 'absolute',
@@ -317,11 +345,11 @@ function SectionRenderer({
         overflow: 'visible',
         transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
       }}
     >
       {childNodes.map((child) => (
-        <SceneNodeRenderer key={child.id} node={child} store={store} />
+        <SceneNodeRenderer key={child.id} node={child} sg={sg} />
       ))}
     </div>
   );
@@ -329,9 +357,9 @@ function SectionRenderer({
 
 /** Label rendered above sections as a colored pill with section icon */
 function SectionLabel({ node }: { node: SectionNode }) {
-  const { state } = useViewport();
+  const { state } = useViewportState();
   const { isSelected } = useSelection();
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
   const selected = isSelected(node.id);
   const [isEditing, setIsEditing] = useState(false);
   const labelRef = useRef<HTMLInputElement>(null);
@@ -347,9 +375,9 @@ function SectionLabel({ node }: { node: SectionNode }) {
   const commitRename = useCallback(() => {
     if (!labelRef.current) return;
     const newName = labelRef.current.value.trim() || node.name;
-    store.updateNode(node.id, { name: newName });
+    sg.updateNode(node.id, { name: newName });
     setIsEditing(false);
-  }, [node.id, node.name, store]);
+  }, [node.id, node.name, sg]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -431,27 +459,34 @@ function SectionLabel({ node }: { node: SectionNode }) {
 }
 
 function VectorRenderer({ node }: { node: VectorNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const stroke = getFirstVisibleStroke(node.strokes);
   const fill = getFirstVisibleFill(node.fills);
   const hasStroke = !!stroke;
-  const strokeWeight = stroke ? stroke.weight : 0;
+  const weight = hasStroke ? node.strokeWeight : 0;
 
-  // Expand the SVG viewport to accommodate stroke that extends beyond bounds
-  const padding = hasStroke ? strokeWeight / 2 : 0;
-  const svgWidth = node.width + padding * 2;
-  const svgHeight = node.height + padding * 2;
+  // Use path-space dimensions for viewBox (falls back to node size for legacy vectors)
+  const pw = node.pathWidth ?? node.width;
+  const ph = node.pathHeight ?? node.height;
+  // Expand the SVG viewBox by the stroke weight so strokes aren't clipped
+  const padding = hasStroke ? weight / 2 : 0;
+  const viewBoxW = pw + padding * 2;
+  const viewBoxH = ph + padding * 2;
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
-      viewBox={`${-padding} ${-padding} ${svgWidth} ${svgHeight}`}
+      viewBox={`${-padding} ${-padding} ${viewBoxW} ${viewBoxH}`}
+      preserveAspectRatio="none"
       style={{
         position: 'absolute',
-        width: svgWidth,
-        height: svgHeight,
+        width: node.width,
+        height: node.height,
         opacity: node.opacity,
         overflow: 'visible',
-        transform: nodeTransform(node.x - padding, node.y - padding, node.rotation),
+        transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
       {node.paths.map((p, i) => (
@@ -459,10 +494,11 @@ function VectorRenderer({ node }: { node: VectorNode }) {
           key={i}
           d={p.d}
           fill={p.fill ?? (fill ? colorToCSS(fill.color, fill.opacity) : 'none')}
-          stroke={hasStroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-          strokeWidth={hasStroke ? strokeWeight : undefined}
+          stroke={hasStroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+          strokeWidth={hasStroke ? weight : undefined}
           strokeLinecap="round"
           strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
         />
       ))}
     </svg>
@@ -470,13 +506,16 @@ function VectorRenderer({ node }: { node: VectorNode }) {
 }
 
 function LineRenderer({ node }: { node: LineNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const strokeWeight = stroke ? stroke.weight : 1;
+  const weight = stroke ? node.strokeWeight : 1;
   // Line height is 0; the SVG has a minimum height of the stroke weight so the line is visible
-  const svgHeight = Math.max(node.height, strokeWeight * 2);
+  const svgHeight = Math.max(node.height, weight * 2);
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
       style={{
         position: 'absolute',
@@ -494,14 +533,16 @@ function LineRenderer({ node }: { node: LineNode }) {
         y1={svgHeight / 2}
         x2={node.width}
         y2={svgHeight / 2}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'rgb(0,0,0)'}
-        strokeWidth={strokeWeight}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'rgb(0,0,0)'}
+        strokeWidth={weight}
       />
     </svg>
   );
 }
 
 function PolygonRenderer({ node }: { node: PolygonNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const cx = node.width / 2;
@@ -517,6 +558,7 @@ function PolygonRenderer({ node }: { node: PolygonNode }) {
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
       style={{
         position: 'absolute',
@@ -530,15 +572,17 @@ function PolygonRenderer({ node }: { node: PolygonNode }) {
       <polygon
         points={pts.join(' ')}
         fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-        strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
-        paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+        strokeWidth={stroke ? svgStrokeWidth(node.strokeWeight, node.strokeAlign) : 0}
+        paintOrder={node.strokeAlign === 'OUTSIDE' ? 'stroke' : undefined}
       />
     </svg>
   );
 }
 
 function StarRenderer({ node }: { node: StarNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const cx = node.width / 2;
@@ -559,6 +603,7 @@ function StarRenderer({ node }: { node: StarNode }) {
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
       style={{
         position: 'absolute',
@@ -572,9 +617,9 @@ function StarRenderer({ node }: { node: StarNode }) {
       <polygon
         points={pts.join(' ')}
         fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-        strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
-        paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+        strokeWidth={stroke ? svgStrokeWidth(node.strokeWeight, node.strokeAlign) : 0}
+        paintOrder={node.strokeAlign === 'OUTSIDE' ? 'stroke' : undefined}
       />
     </svg>
   );
@@ -582,7 +627,7 @@ function StarRenderer({ node }: { node: StarNode }) {
 
 /** Label rendered above root-level frames, matching Figma's canvas chrome (FB-45) */
 function FrameLabel({ node }: { node: FrameNode }) {
-  const { state } = useViewport();
+  const { state } = useViewportState();
   const { isSelected } = useSelection();
   // Render at a fixed screen-size by counter-scaling the viewport zoom
   const fontSize = 11 / state.scale;
@@ -627,37 +672,37 @@ function getFirstVisibleFill(fills: Paint[]): Paint | undefined {
   return undefined;
 }
 
-function getFirstVisibleStroke(strokes: Stroke[]): Stroke | undefined {
+function getFirstVisibleStroke(strokes: Paint[]): Paint | undefined {
   for (const s of strokes) {
-    if (s.paint.visible) return s;
+    if (s.visible) return s;
   }
   return undefined;
 }
 
-/** SVG stroke width adjusted for position (OUTSIDE/INSIDE double to compensate for clipping) */
-function svgStrokeWidth(stroke: Stroke): number {
-  return stroke.position === 'CENTER' ? stroke.weight : stroke.weight * 2;
+/** SVG stroke width adjusted for align (OUTSIDE/INSIDE double to compensate for clipping) */
+function svgStrokeWidth(weight: number, align: StrokeAlign): number {
+  return align === 'CENTER' ? weight : weight * 2;
 }
 
-function strokeStyles(stroke: Stroke | undefined): React.CSSProperties {
+function strokeStyles(stroke: Paint | undefined, weight: number, align: StrokeAlign): React.CSSProperties {
   if (!stroke) return {};
 
-  const color = colorToCSS(stroke.paint.color, stroke.paint.opacity);
+  const color = colorToCSS(stroke.color, stroke.opacity);
 
-  if (stroke.position === 'INSIDE') {
+  if (align === 'INSIDE') {
     return {
-      boxShadow: `inset 0 0 0 ${stroke.weight}px ${color}`,
+      boxShadow: `inset 0 0 0 ${weight}px ${color}`,
     };
   }
 
-  if (stroke.position === 'OUTSIDE') {
+  if (align === 'OUTSIDE') {
     return {
-      boxShadow: `0 0 0 ${stroke.weight}px ${color}`,
+      boxShadow: `0 0 0 ${weight}px ${color}`,
     };
   }
 
   // CENTER — half inside, half outside (matches Figma behavior)
-  const half = stroke.weight / 2;
+  const half = weight / 2;
   return {
     boxShadow: `inset 0 0 0 ${half}px ${color}, 0 0 0 ${half}px ${color}`,
   };

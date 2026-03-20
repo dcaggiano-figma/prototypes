@@ -54,7 +54,8 @@ import { PenIllustration, BrushIllustration, PencilIllustration } from './ToolIl
 import { QUICK_ACTIONS_TABS } from './quickActionsData';
 import type { Mode } from './menuTypes';
 import { MODE_TO_BRAND } from '../helpers/theme';
-import { useActiveTool, type ToolType } from '../canvas';
+import { useActiveTool, useSceneGraph, useSelection, type ToolType } from '../canvas';
+import type { Paint } from '../canvas';
 import { useAction } from '../actions/provider';
 import { DrawToolSecondaryToolbar } from './DrawToolSecondaryToolbar';
 
@@ -267,6 +268,15 @@ interface ToolbarProps {
   onActionsOpenChange: (open: boolean) => void;
 }
 
+/** Parse a CSS hex color (#RRGGBB or #RGB) to {r, g, b} (0–255) */
+function parseHex(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '');
+  if (h.length === 3) {
+    return { r: parseInt(h[0] + h[0], 16), g: parseInt(h[1] + h[1], 16), b: parseInt(h[2] + h[2], 16) };
+  }
+  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+}
+
 export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpenChange }: ToolbarProps) {
   const [activeTool, setActiveTool] = useState('move');
   const [selectedByGroup, setSelectedByGroup] = useState<Record<string, string>>({});
@@ -274,6 +284,31 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
     activeTool: providerTool, setActiveTool: setProviderTool,
     drawColor, setDrawColor, drawStrokeWeight, setDrawStrokeWeight,
   } = useActiveTool();
+  const sg = useSceneGraph();
+  const { selectedIds } = useSelection();
+
+  /** Update draw tool state AND apply to any selected vector nodes */
+  const handleDrawColorChange = useCallback((color: string) => {
+    setDrawColor(color);
+    const rgb = parseHex(color);
+    for (const id of selectedIds) {
+      const node = sg.getNode(id);
+      if (node && node.type === 'VECTOR' && node.strokes.length > 0) {
+        const updatedStrokes: Paint[] = node.strokes.map((s) => ({ ...s, color: rgb }));
+        sg.updateNode(id, { strokes: updatedStrokes });
+      }
+    }
+  }, [setDrawColor, sg, selectedIds]);
+
+  const handleDrawStrokeWeightChange = useCallback((weight: number) => {
+    setDrawStrokeWeight(weight);
+    for (const id of selectedIds) {
+      const node = sg.getNode(id);
+      if (node && node.type === 'VECTOR') {
+        sg.updateNode(id, { strokeWeight: weight });
+      }
+    }
+  }, [setDrawStrokeWeight, sg, selectedIds]);
 
   // Sync local toolbar state when provider tool changes externally (e.g. after shape creation)
   const prevProviderToolRef = useRef(providerTool);
@@ -462,9 +497,9 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
       {activeMode === 'draw' && ILLUSTRATION_IDS.includes(activeTool) && (
         <DrawToolSecondaryToolbar
           color={drawColor}
-          onColorChange={setDrawColor}
+          onColorChange={handleDrawColorChange}
           strokeWeight={drawStrokeWeight}
-          onStrokeWeightChange={setDrawStrokeWeight}
+          onStrokeWeightChange={handleDrawStrokeWeightChange}
         />
       )}
     <div ref={toolbarRef} className="bg-bg flex items-end rounded-lg shadow-300">

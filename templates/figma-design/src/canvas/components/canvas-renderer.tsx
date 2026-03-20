@@ -1,35 +1,58 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { ButtonPrimitive, InputPrimitive } from '@figma/fpl-components';
 
-import { useRootNodes, useSceneGraph } from '../scene-graph/provider';
-import { useTextEditing } from '../text-editing/provider';
+import {
+  useRootNodes,
+  useSceneGraph,
+  useCanvasId,
+  useCanvasColorScheme,
+  useTextEditing,
+  useSelection,
+  useViewportState,
+  useRendering,
+  useNodeRef,
+  useNode,
+  getRotatedEdgeAnchor,
+  LINE_HIT_AREA,
+  nodePosition,
+  StickyNoteRenderer,
+  ShapeTextOverlay,
+  ConnectorRenderer,
+  useLabelEditing,
+} from '@prototype/shared/canvas';
 import type {
   Color,
+  ConnectorNode,
   EllipseNode,
   FrameNode,
+  GroupNode,
+  GridSectionNode,
   LineNode,
+  NodeId,
   Paint,
   PolygonNode,
   RectangleNode,
   SceneNode,
   SectionNode,
+  ShapeWithTextNode,
+  SlideNode,
+  StickyNoteNode,
   StarNode,
-  Stroke,
+  StrokeAlign,
   TextNode,
   VectorNode,
-} from '../types';
+} from '@prototype/shared/canvas';
 import { CURSORS } from '../cursors';
-import { useSelection } from '../selection/provider';
-import { useViewport } from '../viewport/provider';
 
 export function CanvasRenderer() {
-  const rootNodes = useRootNodes();
-  const store = useSceneGraph();
+  const canvasId = useCanvasId();
+  const rootNodes = useRootNodes(canvasId);
+  const sg = useSceneGraph();
 
   return (
     <>
       {rootNodes.map((node) => (
-        <SceneNodeRenderer key={node.id} node={node} store={store} isRoot />
+        <SceneNodeRenderer key={node.id} node={node} store={sg} isRoot />
       ))}
     </>
   );
@@ -66,49 +89,76 @@ function SceneNodeRenderer({
     case 'FRAME':
       return (
         <>
-          {isRoot && <FrameLabel node={node} />}
           <FrameRenderer node={node} store={store} />
+          {isRoot && <FrameLabel nodeId={node.id} />}
         </>
       );
     case 'SECTION':
       return (
         <>
-          <SectionLabel node={node as SectionNode} />
           <SectionRenderer node={node as SectionNode} store={store} />
+          <SectionLabel node={node as SectionNode} />
         </>
       );
+    case 'GRID_SECTION':
+      return (
+        <>
+          <SectionRenderer node={node as GridSectionNode} store={store} />
+          <SectionLabel node={node as GridSectionNode} />
+        </>
+      );
+    case 'STICKY_NOTE':
+      return <StickyNoteRenderer node={node as StickyNoteNode} />;
+    case 'CONNECTOR':
+      return <ConnectorRenderer node={node as ConnectorNode} />;
+    case 'SHAPE_WITH_TEXT':
+      return <ShapeWithTextRenderer node={node as ShapeWithTextNode} />;
+    case 'SLIDE':
+      return <SlideRenderer node={node as SlideNode} store={store} />;
+    case 'GROUP':
+      return <GroupRenderer node={node as GroupNode} store={store} />;
     default:
       return null;
   }
 }
 
 function RectangleRenderer({ node }: { node: RectangleNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
         borderRadius: node.cornerRadius,
-        transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
       }}
     />
   );
 }
 
 function TextRenderer({ node }: { node: TextNode }) {
+  const { nodeRegistry } = useRendering();
   const fill = getFirstVisibleFill(node.fills);
   const store = useSceneGraph();
   const { editingNodeId, stopEditing } = useTextEditing();
   const isEditing = editingNodeId === node.id;
   const elRef = useRef<HTMLDivElement>(null);
+
+  // Register with NodeRegistry for imperative updates
+  useEffect(() => {
+    const el = elRef.current;
+    if (el) nodeRegistry.register(node.id, el);
+    return () => { nodeRegistry.unregister(node.id); };
+  }, [node.id, nodeRegistry]);
 
   const selection = useSelection();
 
@@ -202,11 +252,10 @@ function TextRenderer({ node }: { node: TextNode }) {
       suppressContentEditableWarning
       onBlur={isEditing ? commitAndStop : undefined}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.textAutoResize === 'WIDTH_AND_HEIGHT' ? 'max-content' : node.width,
         minHeight: node.textAutoResize === 'NONE' ? node.height : 'auto',
         opacity: node.opacity,
-        transform: nodeTransform(node.x, node.y, node.rotation),
         color: fill ? colorToCSS(fill.color, fill.opacity) : 'rgb(0,0,0)',
         fontFamily: `"${node.fontFamily}"`,
         fontSize: node.fontSize,
@@ -227,25 +276,27 @@ function TextRenderer({ node }: { node: TextNode }) {
 }
 
 function EllipseRenderer({ node }: { node: EllipseNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const rx = node.width / 2;
   const ry = node.height / 2;
 
   // For inside strokes, we need to inset the ellipse
-  const strokeWeight = stroke ? stroke.weight : 0;
-  const inset = stroke?.position === 'INSIDE' ? strokeWeight : 0;
+  const strokeWeight = stroke ? node.strokeWeight : 0;
+  const inset = node.strokeAlign === 'INSIDE' ? strokeWeight : 0;
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
         overflow: 'visible',
-        transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
       <ellipse
@@ -254,7 +305,7 @@ function EllipseRenderer({ node }: { node: EllipseNode }) {
         rx={rx - inset / 2}
         ry={ry - inset / 2}
         fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
         strokeWidth={strokeWeight}
       />
     </svg>
@@ -268,24 +319,27 @@ function FrameRenderer({
   node: SceneNode & { type: 'FRAME' }
   store: ReturnType<typeof useSceneGraph>
 }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
+        anchorName: `--node-${node.id}`,
         width: node.width,
         height: node.height,
         opacity: node.opacity,
         borderRadius: node.cornerRadius,
         overflow: node.clipsContent ? 'hidden' : undefined,
-        transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
-      }}
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
+      } as React.CSSProperties}
     >
       {childNodes.map((child) => (
         <SceneNodeRenderer key={child.id} node={child} store={store} />
@@ -298,27 +352,30 @@ function SectionRenderer({
   node,
   store,
 }: {
-  node: SectionNode
+  node: SectionNode | GridSectionNode
   store: ReturnType<typeof useSceneGraph>
 }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
+        anchorName: `--node-${node.id}`,
         width: node.width,
         height: node.height,
         opacity: node.opacity,
         borderRadius: node.cornerRadius,
         overflow: 'visible',
-        transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
-      }}
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
+      } as React.CSSProperties}
     >
       {childNodes.map((child) => (
         <SceneNodeRenderer key={child.id} node={child} store={store} />
@@ -328,12 +385,15 @@ function SectionRenderer({
 }
 
 /** Label rendered above sections as a colored pill with section icon */
-function SectionLabel({ node }: { node: SectionNode }) {
-  const { state } = useViewport();
+function SectionLabel({ node }: { node: SectionNode | GridSectionNode }) {
+  const { state } = useViewportState();
   const { isSelected } = useSelection();
   const store = useSceneGraph();
+  const canvasId = useCanvasId();
+  const scheme = useCanvasColorScheme(canvasId);
   const selected = isSelected(node.id);
-  const [isEditing, setIsEditing] = useState(false);
+  const { editingLabelNodeId, startLabelEdit, stopLabelEdit } = useLabelEditing();
+  const isEditing = editingLabelNodeId === node.id;
   const labelRef = useRef<HTMLInputElement>(null);
   const fontSize = 11 / state.scale;
   const pillPadY = 4 / state.scale;
@@ -342,24 +402,25 @@ function SectionLabel({ node }: { node: SectionNode }) {
 
   const fill = getFirstVisibleFill(node.fills);
   const pillBg = fill ? colorToCSS(fill.color, Math.min(fill.opacity, 0.6)) : 'rgba(255,255,255,0.6)';
-  const textColor = selected ? 'var(--color-fsTextOnLightCanvas' : 'var(--color-fsTextOnLightCanvas)';
+  const suffix = scheme === 'dark' ? 'OnDarkCanvas' : 'OnLightCanvas';
+  const textColor = selected ? `var(--color-fsTextSelected${suffix})` : `var(--color-fsText${suffix})`;
 
   const commitRename = useCallback(() => {
     if (!labelRef.current) return;
     const newName = labelRef.current.value.trim() || node.name;
     store.updateNode(node.id, { name: newName });
-    setIsEditing(false);
-  }, [node.id, node.name, store]);
+    stopLabelEdit();
+  }, [node.id, node.name, store, stopLabelEdit]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsEditing(true);
+    startLabelEdit(node.id);
     requestAnimationFrame(() => {
       if (!labelRef.current) return;
       labelRef.current.focus();
       labelRef.current.select();
     });
-  }, []);
+  }, [startLabelEdit, node.id]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -367,23 +428,28 @@ function SectionLabel({ node }: { node: SectionNode }) {
       commitRename();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      setIsEditing(false);
+      stopLabelEdit();
     }
-  }, [commitRename]);
+  }, [commitRename, stopLabelEdit]);
+
+  const gap = 16 / state.scale;
 
   return (
     <div
       data-node-id={node.id}
       style={{
         position: 'absolute',
-        transform: `translate(${node.x}px, ${node.y - fontSize - 16 / state.scale}px)`,
+        positionAnchor: `--node-${node.id}`,
+        bottom: `anchor(top)`,
+        left: `anchor(left)`,
+        marginBottom: gap,
         fontSize,
         lineHeight: 1,
         color: textColor,
         whiteSpace: 'nowrap',
         cursor: CURSORS.default,
         userSelect: 'none',
-      }}
+      } as React.CSSProperties}
     >
       {/* Label — editable on double-click */}
       {isEditing ? (
@@ -431,27 +497,33 @@ function SectionLabel({ node }: { node: SectionNode }) {
 }
 
 function VectorRenderer({ node }: { node: VectorNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const stroke = getFirstVisibleStroke(node.strokes);
   const fill = getFirstVisibleFill(node.fills);
   const hasStroke = !!stroke;
-  const strokeWeight = stroke ? stroke.weight : 0;
+  const strokeWeight = stroke ? node.strokeWeight : 0;
 
-  // Expand the SVG viewport to accommodate stroke that extends beyond bounds
+  // Use path-space dimensions for viewBox (falls back to node size for legacy vectors)
+  const pw = node.pathWidth ?? node.width;
+  const ph = node.pathHeight ?? node.height;
+  // Expand the SVG viewBox by the stroke weight so strokes aren't clipped
   const padding = hasStroke ? strokeWeight / 2 : 0;
-  const svgWidth = node.width + padding * 2;
-  const svgHeight = node.height + padding * 2;
+  const viewBoxW = pw + padding * 2;
+  const viewBoxH = ph + padding * 2;
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
-      viewBox={`${-padding} ${-padding} ${svgWidth} ${svgHeight}`}
+      viewBox={`${-padding} ${-padding} ${viewBoxW} ${viewBoxH}`}
+      preserveAspectRatio="none"
       style={{
-        position: 'absolute',
-        width: svgWidth,
-        height: svgHeight,
+        ...nodePosition(node.x, node.y, node.rotation),
+        width: node.width,
+        height: node.height,
         opacity: node.opacity,
         overflow: 'visible',
-        transform: nodeTransform(node.x - padding, node.y - padding, node.rotation),
       }}
     >
       {node.paths.map((p, i) => (
@@ -459,10 +531,11 @@ function VectorRenderer({ node }: { node: VectorNode }) {
           key={i}
           d={p.d}
           fill={p.fill ?? (fill ? colorToCSS(fill.color, fill.opacity) : 'none')}
-          stroke={hasStroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
+          stroke={hasStroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
           strokeWidth={hasStroke ? strokeWeight : undefined}
           strokeLinecap="round"
           strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
         />
       ))}
     </svg>
@@ -470,31 +543,36 @@ function VectorRenderer({ node }: { node: VectorNode }) {
 }
 
 function LineRenderer({ node }: { node: LineNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const strokeWeight = stroke ? stroke.weight : 1;
-  // Line height is 0; the SVG has a minimum height of the stroke weight so the line is visible
-  const svgHeight = Math.max(node.height, strokeWeight * 2);
+  const strokeWeight = stroke ? node.strokeWeight : 1;
+  // Line height is 0; the SVG has a minimum height of the hit area so it's easily clickable
+  const svgHeight = Math.max(node.height, strokeWeight * 2, LINE_HIT_AREA);
+  const cy = svgHeight / 2;
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y - svgHeight / 2, node.rotation),
         width: node.width,
         height: svgHeight,
         opacity: node.opacity,
         overflow: 'visible',
-        transform: nodeTransform(node.x, node.y - svgHeight / 2, node.rotation),
         // Rotate around the start point of the line so (x,y) = visual start
         transformOrigin: '0 50%',
       }}
     >
+      {/* Invisible hit area for easier clicking */}
+      <line x1={0} y1={cy} x2={node.width} y2={cy} stroke="transparent" strokeWidth={LINE_HIT_AREA} />
       <line
         x1={0}
-        y1={svgHeight / 2}
+        y1={cy}
         x2={node.width}
-        y2={svgHeight / 2}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'rgb(0,0,0)'}
+        y2={cy}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'rgb(0,0,0)'}
         strokeWidth={strokeWeight}
       />
     </svg>
@@ -502,6 +580,8 @@ function LineRenderer({ node }: { node: LineNode }) {
 }
 
 function PolygonRenderer({ node }: { node: PolygonNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const cx = node.width / 2;
@@ -517,28 +597,30 @@ function PolygonRenderer({ node }: { node: PolygonNode }) {
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
         overflow: 'visible',
-        transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
       <polygon
         points={pts.join(' ')}
         fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-        strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
-        paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+        strokeWidth={stroke ? svgStrokeWidth(node.strokeWeight, node.strokeAlign) : 0}
+        paintOrder={node.strokeAlign === 'OUTSIDE' ? 'stroke' : undefined}
       />
     </svg>
   );
 }
 
 function StarRenderer({ node }: { node: StarNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const cx = node.width / 2;
@@ -559,60 +641,266 @@ function StarRenderer({ node }: { node: StarNode }) {
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
         overflow: 'visible',
-        transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
       <polygon
         points={pts.join(' ')}
         fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-        strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
-        paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+        strokeWidth={stroke ? svgStrokeWidth(node.strokeWeight, node.strokeAlign) : 0}
+        paintOrder={node.strokeAlign === 'OUTSIDE' ? 'stroke' : undefined}
       />
     </svg>
   );
 }
 
-/** Label rendered above root-level frames, matching Figma's canvas chrome (FB-45) */
-function FrameLabel({ node }: { node: FrameNode }) {
-  const { state } = useViewport();
-  const { isSelected } = useSelection();
-  // Render at a fixed screen-size by counter-scaling the viewport zoom
-  const fontSize = 11 / state.scale;
+/** Minimum screen-space width (px) before the frame label is hidden entirely */
+const FRAME_LABEL_MIN_WIDTH = 16;
 
-  return (
-    <div
-      data-node-id={node.id}
+/**
+ * Label rendered above root-level frames, matching Figma's canvas chrome.
+ * Subscribes directly to the node via useNode so it updates live during
+ * shape creation drag (useRootNodes only fires on structural changes).
+ */
+function FrameLabel({ nodeId }: { nodeId: NodeId }) {
+  const node = useNode(nodeId) as FrameNode | undefined;
+  const { state } = useViewportState();
+  const { isSelected, hoveredId } = useSelection();
+  const sg = useSceneGraph();
+  const canvasId = useCanvasId();
+  const scheme = useCanvasColorScheme(canvasId);
+  const { editingLabelNodeId, startLabelEdit, stopLabelEdit } = useLabelEditing();
+  const isEditing = node ? editingLabelNodeId === node.id : false;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const commitRename = useCallback(() => {
+    if (!inputRef.current || !node) return;
+    const newName = inputRef.current.value.trim() || node.name;
+    sg.updateNode(node.id, { name: newName });
+    stopLabelEdit();
+  }, [node, sg, stopLabelEdit]);
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (!node) return;
+    e.stopPropagation();
+    startLabelEdit(node.id);
+    requestAnimationFrame(() => {
+      if (!inputRef.current) return;
+      inputRef.current.focus();
+      inputRef.current.select();
+    });
+  }, [startLabelEdit, node]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      stopLabelEdit();
+    }
+  }, [commitRename, stopLabelEdit]);
+
+  if (!node) return null;
+
+  const fontSize = 11 / state.scale;
+  const gap = 8 / state.scale;
+
+  // Constrain label to the frame's screen-space width
+  const screenW = node.width * state.scale;
+  if (screenW < FRAME_LABEL_MIN_WIDTH) return null;
+
+  const suffix = scheme === 'dark' ? 'OnDarkCanvas' : 'OnLightCanvas';
+  const selected = isSelected(node.id);
+  const hovered = hoveredId === node.id;
+  const color = selected || hovered
+    ? `var(--color-fsTextSelected${suffix})`
+    : `var(--color-fsText${suffix}Secondary)`;
+
+  const labelContent = isEditing ? (
+    <InputPrimitive
+      id={`frame-rename-${node.id}`}
+      ref={inputRef}
+      defaultValue={node.name}
+      onBlur={commitRename}
+      onKeyDown={handleKeyDown}
       style={{
-        position: 'absolute',
-        transform: `translate(${node.x}px, ${node.y - fontSize - 8 / state.scale}px)`,
-        fontSize,
-        lineHeight: 1,
-        color: isSelected(node.id) ? 'var(--color-fsTextSelectedOnLightCanvas)' : 'var(--color-fsTextOnLightCanvasSecondary)',
-        whiteSpace: 'nowrap',
+        border: 'none',
+        outline: 'solid 2px var(--color-border-selected)',
+        borderRadius: 2 / state.scale,
+        padding: `${2 / state.scale}px ${4 / state.scale}px`,
+        minWidth: 60 / state.scale,
+        font: 'inherit',
+        color: 'inherit',
+        lineHeight: 'inherit',
+        background: 'var(--color-bg)',
+        cursor: 'text',
+      }}
+    />
+  ) : (
+    <ButtonPrimitive
+      onDoubleClick={handleDoubleClick}
+      style={{
+        border: 'none',
+        background: 'none',
+        padding: 0,
+        font: 'inherit',
+        color: 'inherit',
+        lineHeight: 'inherit',
         cursor: CURSORS.default,
         userSelect: 'none',
       }}
     >
       {node.name}
+    </ButtonPrimitive>
+  );
+
+  // When rotated, CSS anchor positioning uses the AABB (not the visual edge),
+  // so we compute the top-left endpoint of the visual top edge manually and
+  // rotate the label to match the edge angle.
+  if (node.rotation) {
+    const cx = node.x + node.width / 2;
+    const cy = node.y + node.height / 2;
+    const anchor = getRotatedEdgeAnchor(node.width, node.height, node.rotation);
+    const labelX = cx + anchor.topLeftEnd.x + anchor.topNormal.x * (gap + fontSize);
+    const labelY = cy + anchor.topLeftEnd.y + anchor.topNormal.y * (gap + fontSize);
+
+    return (
+      <div
+        data-frame-label={node.id}
+        data-node-id={node.id}
+        style={{
+          position: 'absolute',
+          transform: `translate(${labelX}px, ${labelY}px) rotate(${anchor.topAngleDeg}deg)`,
+          transformOrigin: '0 100%',
+          fontSize,
+          lineHeight: 1,
+          color,
+          whiteSpace: 'nowrap',
+          cursor: CURSORS.default,
+          userSelect: 'none',
+        }}
+      >
+        {labelContent}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-frame-label={nodeId}
+      data-node-id={node.id}
+      style={{
+        position: 'absolute',
+        positionAnchor: `--node-${nodeId}`,
+        bottom: `anchor(top)`,
+        left: `anchor(left)`,
+        marginBottom: gap,
+        maxWidth: isEditing ? undefined : node.width,
+        fontSize,
+        lineHeight: 1,
+        color,
+        whiteSpace: 'nowrap',
+        overflow: isEditing ? 'visible' : 'hidden',
+        textOverflow: isEditing ? undefined : 'ellipsis',
+        cursor: CURSORS.default,
+        userSelect: 'none',
+      } as React.CSSProperties}
+    >
+      {labelContent}
     </div>
+  );
+}
+
+function ShapeWithTextRenderer({ node }: { node: ShapeWithTextNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+
+  return (
+    <div
+      ref={ref}
+      data-node-id={node.id}
+      style={{
+        ...nodePosition(node.x, node.y, node.rotation),
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        borderRadius: node.shapeType === 'ELLIPSE' ? '50%' : node.cornerRadius,
+        backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
+        overflow: 'hidden',
+      }}
+    >
+      <ShapeTextOverlay node={{ ...node, type: node.shapeType }} />
+    </div>
+  );
+}
+
+function SlideRenderer({
+  node,
+  store,
+}: {
+  node: SlideNode
+  store: ReturnType<typeof useSceneGraph>
+}) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
+
+  return (
+    <div
+      ref={ref}
+      data-node-id={node.id}
+      style={{
+        ...nodePosition(node.x, node.y, node.rotation),
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        borderRadius: node.cornerRadius,
+        overflow: node.clipsContent ? 'hidden' : undefined,
+        backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
+      }}
+    >
+      {childNodes.map((child) => (
+        <SceneNodeRenderer key={child.id} node={child} store={store} />
+      ))}
+    </div>
+  );
+}
+
+function GroupRenderer({
+  node,
+  store,
+}: {
+  node: GroupNode
+  store: ReturnType<typeof useSceneGraph>
+}) {
+  const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
+
+  return (
+    <>
+      {childNodes.map((child) => (
+        <SceneNodeRenderer key={child.id} node={child} store={store} />
+      ))}
+    </>
   );
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-/** Build a GPU-composited transform for node positioning (avoids layout thrash) */
-function nodeTransform(x: number, y: number, rotation: number): string {
-  if (rotation) return `translate(${x}px, ${y}px) rotate(${rotation}deg)`;
-  return `translate(${x}px, ${y}px)`;
-}
 
 function colorToCSS(color: Color, opacity: number): string {
   if (opacity >= 1) return `rgb(${color.r}, ${color.g}, ${color.b})`;
@@ -627,37 +915,37 @@ function getFirstVisibleFill(fills: Paint[]): Paint | undefined {
   return undefined;
 }
 
-function getFirstVisibleStroke(strokes: Stroke[]): Stroke | undefined {
+function getFirstVisibleStroke(strokes: Paint[]): Paint | undefined {
   for (const s of strokes) {
-    if (s.paint.visible) return s;
+    if (s.visible) return s;
   }
   return undefined;
 }
 
 /** SVG stroke width adjusted for position (OUTSIDE/INSIDE double to compensate for clipping) */
-function svgStrokeWidth(stroke: Stroke): number {
-  return stroke.position === 'CENTER' ? stroke.weight : stroke.weight * 2;
+function svgStrokeWidth(weight: number, align: StrokeAlign): number {
+  return align === 'CENTER' ? weight : weight * 2;
 }
 
-function strokeStyles(stroke: Stroke | undefined): React.CSSProperties {
+function strokeStyles(stroke: Paint | undefined, weight: number, align: StrokeAlign): React.CSSProperties {
   if (!stroke) return {};
 
-  const color = colorToCSS(stroke.paint.color, stroke.paint.opacity);
+  const color = colorToCSS(stroke.color, stroke.opacity);
 
-  if (stroke.position === 'INSIDE') {
+  if (align === 'INSIDE') {
     return {
-      boxShadow: `inset 0 0 0 ${stroke.weight}px ${color}`,
+      boxShadow: `inset 0 0 0 ${weight}px ${color}`,
     };
   }
 
-  if (stroke.position === 'OUTSIDE') {
+  if (align === 'OUTSIDE') {
     return {
-      boxShadow: `0 0 0 ${stroke.weight}px ${color}`,
+      boxShadow: `0 0 0 ${weight}px ${color}`,
     };
   }
 
   // CENTER — half inside, half outside (matches Figma behavior)
-  const half = stroke.weight / 2;
+  const half = weight / 2;
   return {
     boxShadow: `inset 0 0 0 ${half}px ${color}, 0 0 0 ${half}px ${color}`,
   };

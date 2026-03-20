@@ -1,4 +1,5 @@
-import { Button, Menu } from '@figma/fpl-components';
+import { Button } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon16ChevronDown } from '@figma/fpl-icons';
 import type { ModelOption } from './types';
 
@@ -15,11 +16,11 @@ export function ModelSelector({
   onChange,
   maxWidth,
 }: ModelSelectorProps) {
-  const modelMenu = Menu.useMenu();
+  const modelMenu = MenuV2.useMenu();
   const selectedLabel = options.find((m) => m.value === value)?.label ?? 'Default';
 
   return (
-    <Menu.Root manager={modelMenu.manager}>
+    <>
       <Button
         aria-label="Select model"
         variant="ghost"
@@ -33,22 +34,22 @@ export function ModelSelector({
           <span className="flex-shrink w-12px"><Icon16ChevronDown /></span>
         </span>
       </Button>
-      <Menu.Container>
-        <Menu.RadioGroup
-          title={<Menu.Title>Select model</Menu.Title>}
+      <MenuV2.Root manager={modelMenu.manager}>
+        <MenuV2.RadioGroup
+          title="Select model"
           value={value}
           onChange={(v) => onChange(v as string)}
         >
           {options.map((model) => (
-            <Menu.RadioGroupItem key={model.value} value={model.value} disabled={model.disabled}>
+            <MenuV2.RadioGroupItem key={model.value} value={model.value} disabled={model.disabled}>
               <span>
                 {model.label}
-                <Menu.SubText>{model.description}</Menu.SubText>
+                <MenuV2.SubText>{model.description}</MenuV2.SubText>
               </span>
-            </Menu.RadioGroupItem>
+            </MenuV2.RadioGroupItem>
           ))}
-        </Menu.RadioGroup>
-      </Menu.Container>
-    </Menu.Root>
+        </MenuV2.RadioGroup>
+      </MenuV2.Root>
+    </>
   );
 }

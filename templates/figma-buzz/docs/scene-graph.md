@@ -1,298 +1,283 @@
-# Scene graph
+# Scene Graph
 
-The scene graph is the core data model. It represents every object on the
-canvas as a typed node in a tree structure.
+The scene graph is the canonical document model for every canvas-based app and
+template in this repo.
 
-## Data model
+It lives in `packages/shared/src/scene-graph/` and is consumed through
+`@prototype/shared/canvas`.
 
-### Node types
+## Core model
 
+The scene graph is a pure TypeScript system with no React dependency.
+
+It stores nodes in a flat `Map<NodeId, SceneNode>` and represents tree
+structure through `parentId` and `children`. This gives:
+
+- O(1) lookup by node ID
+- straightforward reparent/reorder operations
+- one shared model that every template can understand
+
+All node fields are treated as immutable values. Mutations replace field values
+rather than mutating nested structures in place. This is required for undo/redo
+and predictable event snapshots.
+
+## Hierarchy
+
+The document tree is:
+
+`DOCUMENT -> CANVAS -> scene nodes`
+
+- `DOCUMENT` is the root and is not rendered.
+- `CANVAS` represents a page and owns page-local state such as
+  `backgroundColor` and `selection`.
+- All rendered nodes live under a `CANVAS`, either directly or nested under
+  other nodes.
+
+## Node IDs
+
+`NodeId` is a 32-bit integer encoded as:
+
+`[12 bits session][20 bits local]`
+
+This supports:
+
+- fast single-player IDs in session `0`
+- distinct client sessions for multiplayer-oriented work
+- reserved negative-session space for special operations such as paste
+
+Use the shared helpers:
+
+- `makeNodeId(sessionId, localId)`
+- `getSessionId(nodeId)`
+- `getLocalId(nodeId)`
+- `NodeIdGenerator`
+
+## Node types
+
+All persistent node types live in shared so any template can understand them.
+
+The current shared union is:
+
+```ts
+type NodeType =
+  | 'DOCUMENT'
+  | 'CANVAS'
+  | 'FRAME'
+  | 'SECTION'
+  | 'RECTANGLE'
+  | 'ELLIPSE'
+  | 'TEXT'
+  | 'LINE'
+  | 'GROUP'
+  | 'VECTOR'
+  | 'POLYGON'
+  | 'STAR'
+  | 'SHAPE_WITH_TEXT'
+  | 'STICKY_NOTE'
+  | 'CONNECTOR'
+  | 'SLIDE'
+  | 'GRID_SECTION'
 ```
-NodeType = 'FRAME' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'LINE' | 'GROUP'
-```
 
-### Base node
+Not every template renders every type, but every template can structurally
+understand them.
 
-Every node has these fields:
+## Base fields
+
+Every node has these fields from `BaseNode`:
 
 ```ts
 interface BaseNode {
-  /** Unique identifier */
-  id: string
-  /** Display name shown in layers panel */
+  id: NodeId
   name: string
-  /** Discriminator for node behavior */
   type: NodeType
-  /** Parent node ID, null for root nodes */
-  parentId: string | null
-  /** Ordered child node IDs */
-  children: string[]
-  /** Whether the node is visible */
+  parentId: NodeId | null
+  children: NodeId[]
   visible: boolean
-  /** Whether the node is locked (can't be selected on canvas) */
   locked: boolean
+  compoundOwner: NodeId | null
 }
 ```
 
-### Geometry
+Important note:
 
-Shared by all visual nodes:
+- `children` are user-managed structural children
+- implicit slot children are not stored in `children`
+
+## Mixins
+
+Shared capabilities are modeled with mixins.
+
+### GeometryMixin
 
 ```ts
 interface GeometryMixin {
-  /** Position in parent's coordinate space */
   x: number
   y: number
-  /** Dimensions */
   width: number
   height: number
-  /** Rotation in degrees, clockwise */
   rotation: number
-  /** Opacity 0-1 */
   opacity: number
 }
 ```
 
-### Appearance
+### AppearanceMixin
 
 ```ts
 interface AppearanceMixin {
-  /** Corner radius (uniform for now) */
   cornerRadius: number
-  /** Fill paints, rendered bottom to top */
   fills: Paint[]
-  /** Stroke paints */
-  strokes: Stroke[]
-  /** Visual effects (shadows, blurs) */
+  strokes: Paint[]
+  strokeWeight: number
+  strokeAlign: 'INSIDE' | 'CENTER' | 'OUTSIDE'
   effects: Effect[]
 }
 ```
 
-### Paints and strokes
+### CompoundMixin
+
+Compound nodes own implicit slot children that are managed by the scene graph.
 
 ```ts
-interface SolidPaint {
-  type: 'SOLID'
-  color: { r: number; g: number; b: number }
-  opacity: number
-  visible: boolean
-}
-
-type Paint = SolidPaint
-// Future: GradientPaint, ImagePaint
-
-interface Stroke {
-  paint: Paint
-  weight: number
-  position: 'INSIDE' | 'CENTER' | 'OUTSIDE'
-}
-
-interface Effect {
-  type: 'DROP_SHADOW' | 'INNER_SHADOW' | 'LAYER_BLUR' | 'BACKGROUND_BLUR'
-  visible: boolean
-  // ... type-specific fields
+interface CompoundMixin {
+  slots: Readonly<Record<string, NodeId>>
 }
 ```
 
-### Concrete node types
+## Compound nodes and slots
 
-```ts
-interface FrameNode extends BaseNode, GeometryMixin, AppearanceMixin {
-  type: 'FRAME'
-  /** Whether children are clipped to frame bounds */
-  clipsContent: boolean
-  /** Auto-layout direction */
-  layoutMode: 'NONE' | 'HORIZONTAL' | 'VERTICAL'
-  /** Gap between auto-layout children */
-  itemSpacing: number
-  /** Padding */
-  paddingTop: number
-  paddingRight: number
-  paddingBottom: number
-  paddingLeft: number
-}
+`TEXT` is the only node type with text properties.
 
-interface RectangleNode extends BaseNode, GeometryMixin, AppearanceMixin {
-  type: 'RECTANGLE'
-}
+Nodes such as `STICKY_NOTE` and `SHAPE_WITH_TEXT` model editable text by owning
+an implicit `TEXT` slot child instead of duplicating text fields on the parent.
 
-interface EllipseNode extends BaseNode, GeometryMixin, AppearanceMixin {
-  type: 'ELLIPSE'
-}
+Slot rules:
 
-interface TextNode extends BaseNode, GeometryMixin, AppearanceMixin {
-  type: 'TEXT'
-  characters: string
-  fontSize: number
-  fontWeight: number
-  textAlignHorizontal: 'LEFT' | 'CENTER' | 'RIGHT'
-  textAlignVertical: 'TOP' | 'CENTER' | 'BOTTOM'
-}
+- slots are auto-created with the compound parent
+- slots are auto-deleted with the compound parent
+- slot children cannot be independently selected, reparented, or deleted
+- slot children are hidden from the layers panel
+- slot descendants carry `compoundOwner` so structural rules remain enforced
 
-interface LineNode extends BaseNode, GeometryMixin {
-  type: 'LINE'
-  strokes: Stroke[]
-}
+This is a core invariant, not a template preference.
 
-interface GroupNode extends BaseNode {
-  type: 'GROUP'
-  /** Groups don't have their own geometry — bounds are derived */
-}
+## Selection
 
-type SceneNode =
-  | FrameNode
-  | RectangleNode
-  | EllipseNode
-  | TextNode
-  | LineNode
-  | GroupNode
-```
+Selection is stored on each `CanvasNode` as an immutable `Selection` instance.
 
-## Store structure
+That means selection is part of the shared document model, not an arbitrary
+React-only set.
 
-Flat map for O(1) lookups, tree structure via ID references:
+Key operations include:
 
-```
-┌─────────────────────────────────────────────┐
-│ SceneGraphStore                             │
-│                                             │
-│  nodes: Map<string, SceneNode>              │
-│    "node_1" → { type: 'RECTANGLE', ... }   │
-│    "node_2" → { type: 'ELLIPSE', ... }     │
-│                                             │
-│  rootIds: ["node_1", "node_2"]              │
-│    (top-level ordering)                     │
-│                                             │
-│  Tree derived from parent/children refs:    │
-│                                             │
-│    [root]                                   │
-│    ├── node_1 (Rectangle 1)                 │
-│    └── node_2 (Ellipse 1)                   │
-│                                             │
-└─────────────────────────────────────────────┘
-```
+- `withSelected(nodeIds, sg)`
+- `withToggled(nodeId, sg)`
+- `withAdded(nodeIds, sg)`
+- `cleared()`
+- `isDirectlySelected(nodeId)`
+- `isSelected(nodeId, sg)`
+- `getDirectSelection()`
+- `getEffectiveSelection(sg)`
 
-## API
+Key invariant:
 
-```ts
-interface SceneGraphAPI {
-  /** Get a node by ID */
-  getNode(id: string): SceneNode | undefined
+- the direct selection set never contains both an ancestor and its descendant
 
-  /** Get all root-level nodes in order */
-  getRootNodes(): SceneNode[]
+Selecting a parent removes descendants from the direct set. Descendants remain
+effectively selected through ancestry.
 
-  /** Create a new node and add to the tree */
-  createNode(type: NodeType, props: Partial<SceneNode>): SceneNode
+## SceneGraph API
 
-  /** Update properties on a node */
-  updateNode(id: string, updates: Partial<SceneNode>): void
+### Reads
 
-  /** Delete a node and its descendants */
-  deleteNode(id: string): void
+Representative read operations:
 
-  /** Move a node to a new parent at a given index */
-  reparentNode(id: string, newParentId: string | null, index: number): void
+- `getNode(id)`
+- `getNodeOrThrow(id)`
+- `getDocument()`
+- `getCanvases()`
+- `getAncestors(id)`
+- `getDescendants(id)`
+- `walk(rootId, callback)`
+- `walkLayersOrder(rootId, callback)`
 
-  /** Reorder a node within its siblings */
-  reorderNode(id: string, newIndex: number): void
+### Mutations
 
-  /** Walk the tree depth-first */
-  walk(callback: (node: SceneNode, depth: number) => void): void
+Representative mutation operations:
 
-  /** Find a node by ID */
-  findById(id: string): SceneNode | undefined
+- `setNodeField(nodeId, field, value)`
+- `updateNode(nodeId, updates)`
+- `createNode(type, parentId, props?)`
+- `createNodeAt(type, parentId, index, props?)`
+- `deleteNode(nodeId)`
+- `reparentNode(nodeId, newParentId, index)`
+- `reorderNode(nodeId, newIndex)`
+- `createCanvas(name, backgroundColor?)`
 
-  /** Get all ancestors from node to root */
-  getAncestors(id: string): SceneNode[]
+All persistent document changes should flow through these APIs.
 
-  /** Get all descendants depth-first */
-  getDescendants(id: string): SceneNode[]
-}
-```
+## Events and dirty tracking
 
-## Defaults
+The scene graph emits shared events for structural and field changes:
 
-To keep storage minimal, only non-default values are persisted. Defaults per
-mixin:
+- `field-change`
+- `reparent`
+- `create`
+- `delete`
 
-```ts
-const GEOMETRY_DEFAULTS = {
-  x: 0,
-  y: 0,
-  width: 100,
-  height: 100,
-  rotation: 0,
-  opacity: 1,
-}
+The scene graph also tracks dirty nodes so the shared render loop can update
+only what changed.
 
-const APPEARANCE_DEFAULTS = {
-  cornerRadius: 0,
-  fills: [{ type: 'SOLID', color: { r: 196, g: 196, b: 196 }, opacity: 1, visible: true }],
-  strokes: [],
-  effects: [],
-}
+Key APIs:
 
-const FRAME_DEFAULTS = {
-  clipsContent: true,
-  layoutMode: 'NONE',
-  itemSpacing: 0,
-  paddingTop: 0,
-  paddingRight: 0,
-  paddingBottom: 0,
-  paddingLeft: 0,
-}
-```
+- `addListener(listener)`
+- `flushDirty()`
+- `hasDirty`
 
-## Demo scene (north star)
+## Undo / redo
 
-The initial hardcoded scene matching the screenshot:
+Undo is built on scene-graph events and immutable value snapshots.
 
-```ts
-const DEMO_SCENE: SceneNode[] = [
-  {
-    id: 'rect_1',
-    name: 'Rectangle 1',
-    type: 'RECTANGLE',
-    parentId: null,
-    children: [],
-    visible: true,
-    locked: false,
-    x: 410,
-    y: 180,
-    width: 300,
-    height: 250,
-    rotation: 0,
-    opacity: 1,
-    cornerRadius: 0,
-    fills: [{ type: 'SOLID', color: { r: 126, g: 200, b: 227 }, opacity: 1, visible: true }],
-    strokes: [],
-    effects: [],
-  },
-  {
-    id: 'ellipse_1',
-    name: 'Ellipse 1',
-    type: 'ELLIPSE',
-    parentId: null,
-    children: [],
-    visible: true,
-    locked: false,
-    x: 530,
-    y: 270,
-    width: 206,
-    height: 206,
-    rotation: 0,
-    opacity: 1,
-    cornerRadius: 0,
-    fills: [{ type: 'SOLID', color: { r: 234, g: 171, b: 146 }, opacity: 1, visible: true }],
-    strokes: [
-      {
-        paint: { type: 'SOLID', color: { r: 98, g: 57, b: 40 }, opacity: 1, visible: true },
-        weight: 2,
-        position: 'INSIDE',
-      },
-    ],
-    effects: [],
-  },
-]
-```
+The shared `UndoManager` uses a buffer/commit model and separate tainted vs
+untainted history so workflows such as selection changes vs document changes can
+behave correctly.
+
+Review implication:
+
+- direct mutation or bypassing commit boundaries is an architectural bug, not
+  just a style issue
+
+## Defaults and shared helpers
+
+Use shared helpers instead of inventing local defaults:
+
+- `getTypeDefaults(type)` for node creation defaults
+- shared selection-property helpers for property editing
+- shared paint helpers such as `createPaint()`
+
+## React bindings
+
+React bindings are thin adapters over the scene graph and related shared model
+objects.
+
+Important hooks exposed through `@prototype/shared/canvas` include:
+
+- `useSceneGraph()`
+- `useCanvasId()`
+- `useNode(id)`
+- `useSelection()`
+- `useViewport()`
+- `useViewportState()`
+
+These bindings subscribe to model state. They are not alternate sources of
+truth for the document.
+
+## Architectural guardrails
+
+When extending the canvas model:
+
+- add truly reusable persistent node concepts in shared
+- keep template-specific visuals and behaviors outside the scene-graph core
+- preserve compound-node, selection, and undo invariants
+- prefer extending shared seams over introducing template-local forks of the
+  document model

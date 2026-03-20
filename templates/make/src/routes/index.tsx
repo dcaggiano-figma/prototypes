@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import {
-  Menu,
   IconButton,
   Button,
   ButtonGroup,
   Badge,
   Input,
 } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import {
   Icon16ChevronDown,
   Icon24FigmaLarge,
@@ -67,9 +67,9 @@ function HomePage() {
   const [promptValue, setPromptValue] = useState('');
 
   /* Menus */
-  const chevronMenu = Menu.useMenu();
-  const fileMenu = Menu.useMenu();
-  const settingsMenu = Menu.useMenu();
+  const chevronMenu = MenuV2.useMenu();
+  const fileMenu = MenuV2.useMenu();
+  const settingsMenu = MenuV2.useMenu();
 
   /* Auto-focus and select file name input when editing */
   useEffect(() => {
@@ -112,8 +112,7 @@ function HomePage() {
         {/* Leading */}
         <div className="flex items-center gap-4px">
           {/* 1. Chevron menu (theme switcher) */}
-          <Menu.Root manager={chevronMenu.manager}>
-            <IconButton
+          <IconButton
               aria-label="Figma"
               size="lg"
               // eslint-disable-next-line react/jsx-props-no-spreading
@@ -121,104 +120,74 @@ function HomePage() {
             >
               <Icon24FigmaLarge />
             </IconButton>
-            <Menu.Container>
+          <MenuV2.Root manager={chevronMenu.manager}>
               {/* File */}
-              <Menu.SubMenu>
-                <Menu.SubTrigger>File</Menu.SubTrigger>
-                <Menu.SubContainer>
-                  <Menu.Item onClick={() => { ws.reset(); navigate({ to: '/' }); }}>New Make</Menu.Item>
-                  <Menu.SubMenu>
-                    <Menu.SubTrigger>New</Menu.SubTrigger>
-                    <Menu.SubContainer>
-                      <Menu.Item onClick={() => console.log('design')}>Design</Menu.Item>
-                      <Menu.Item onClick={() => console.log('figjam')}>FigJam</Menu.Item>
-                      <Menu.Item onClick={() => console.log('slides')}>Slides</Menu.Item>
-                      <Menu.Item onClick={() => console.log('buzz')}>Buzz</Menu.Item>
-                      <Menu.Item onClick={() => console.log('site')}>Site</Menu.Item>
-                    </Menu.SubContainer>
-                  </Menu.SubMenu>
-                  <Menu.Separator />
-                  <Menu.Item onClick={() => console.log('save-local')}>Save local copy...</Menu.Item>
-                  <Menu.Item disabled onClick={() => console.log('save-version')}>
-                    <span>Save to version history...</span>
-                    <Menu.Shortcut>⌥⌘S</Menu.Shortcut>
-                  </Menu.Item>
-                  <Menu.Item disabled onClick={() => console.log('show-version')}>Show version history</Menu.Item>
-                </Menu.SubContainer>
-              </Menu.SubMenu>
+              <MenuV2.SubMenu title="File">
+                  <MenuV2.Item onClick={() => { ws.reset(); navigate({ to: '/' }); }}>New Make</MenuV2.Item>
+                  <MenuV2.SubMenu title="New">
+                      <MenuV2.Item onClick={() => console.log('design')}>Design</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('figjam')}>FigJam</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('slides')}>Slides</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('buzz')}>Buzz</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('site')}>Site</MenuV2.Item>
+                    </MenuV2.SubMenu>
+                  <MenuV2.Separator />
+                  <MenuV2.Item onClick={() => console.log('save-local')}>Save local copy...</MenuV2.Item>
+                  <MenuV2.Item disabled onClick={() => console.log('save-version')} trail={<MenuV2.Shortcut>⌥⌘S</MenuV2.Shortcut>}>Save to version history...</MenuV2.Item>
+                  <MenuV2.Item disabled onClick={() => console.log('show-version')}>Show version history</MenuV2.Item>
+                </MenuV2.SubMenu>
 
               {/* Preferences (with theme switcher) */}
-              <Menu.SubMenu>
-                <Menu.SubTrigger>Preferences</Menu.SubTrigger>
-                <Menu.SubContainer>
-                  <Menu.Group>
-                    <Menu.CheckboxItem checked={audioNotifications} onChange={setAudioNotifications}>Play audio notifications in AI chat</Menu.CheckboxItem>
-                    <Menu.CheckboxItem checked={openLinksDesktop} onChange={setOpenLinksDesktop}>Open links in desktop app</Menu.CheckboxItem>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.SubMenu>
-                      <Menu.SubTrigger>Labs</Menu.SubTrigger>
-                      <Menu.SubContainer>
-                        <Menu.Item onClick={() => console.log('lab-1')}>Feature preview 1</Menu.Item>
-                        <Menu.Item onClick={() => console.log('lab-2')}>Feature preview 2</Menu.Item>
-                      </Menu.SubContainer>
-                    </Menu.SubMenu>
-                    <Menu.Item onClick={() => console.log('color-profile')}>Color profile...</Menu.Item>
-                    <Menu.Item onClick={() => console.log('keyboard-layout')}>Keyboard layout...</Menu.Item>
-                    <Menu.Item onClick={() => console.log('accessibility')}>Accessibility settings...</Menu.Item>
-                  </Menu.Group>
-                  <Menu.SubMenu>
-                    <Menu.SubTrigger>
-                      <span>Theme</span>
-                    </Menu.SubTrigger>
-                    <Menu.SubContainer>
-                      <Menu.RadioGroup
-                        title={<Menu.HiddenTitle>Theme</Menu.HiddenTitle>}
+              <MenuV2.SubMenu title="Preferences">
+                  <MenuV2.Group>
+                    <MenuV2.CheckboxItem checked={audioNotifications} onChange={setAudioNotifications}>Play audio notifications in AI chat</MenuV2.CheckboxItem>
+                    <MenuV2.CheckboxItem checked={openLinksDesktop} onChange={setOpenLinksDesktop}>Open links in desktop app</MenuV2.CheckboxItem>
+                  </MenuV2.Group>
+                  <MenuV2.Group>
+                    <MenuV2.SubMenu title="Labs">
+                        <MenuV2.Item onClick={() => console.log('lab-1')}>Feature preview 1</MenuV2.Item>
+                        <MenuV2.Item onClick={() => console.log('lab-2')}>Feature preview 2</MenuV2.Item>
+                      </MenuV2.SubMenu>
+                    <MenuV2.Item onClick={() => console.log('color-profile')}>Color profile...</MenuV2.Item>
+                    <MenuV2.Item onClick={() => console.log('keyboard-layout')}>Keyboard layout...</MenuV2.Item>
+                    <MenuV2.Item onClick={() => console.log('accessibility')}>Accessibility settings...</MenuV2.Item>
+                  </MenuV2.Group>
+                  <MenuV2.SubMenu title="Theme">
+                      <MenuV2.RadioGroup
+                        title="Theme"
                         value={theme}
                         onChange={(value) => setTheme(value as ThemeSetting)}
                       >
-                        <Menu.RadioGroupItem value="light">Light</Menu.RadioGroupItem>
-                        <Menu.RadioGroupItem value="dark">Dark</Menu.RadioGroupItem>
-                        <Menu.RadioGroupItem value="system">System</Menu.RadioGroupItem>
-                      </Menu.RadioGroup>
-                    </Menu.SubContainer>
-                  </Menu.SubMenu>
-                </Menu.SubContainer>
-              </Menu.SubMenu>
-              <Menu.Separator />
+                        <MenuV2.RadioGroupItem value="light">Light</MenuV2.RadioGroupItem>
+                        <MenuV2.RadioGroupItem value="dark">Dark</MenuV2.RadioGroupItem>
+                        <MenuV2.RadioGroupItem value="system">System</MenuV2.RadioGroupItem>
+                      </MenuV2.RadioGroup>
+                    </MenuV2.SubMenu>
+                </MenuV2.SubMenu>
+              <MenuV2.Separator />
 
               {/* AI balance */}
-              <Menu.SubMenu>
-                <Menu.SubTrigger>AI balance</Menu.SubTrigger>
-                <Menu.SubContainer>
-                  <Menu.Item onClick={() => console.log('speed')}>Speed</Menu.Item>
-                  <Menu.Item onClick={() => console.log('balanced')}>Balanced</Menu.Item>
-                  <Menu.Item onClick={() => console.log('quality')}>Quality</Menu.Item>
-                </Menu.SubContainer>
-              </Menu.SubMenu>
+              <MenuV2.SubMenu title="AI balance">
+                  <MenuV2.Item onClick={() => console.log('speed')}>Speed</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('balanced')}>Balanced</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('quality')}>Quality</MenuV2.Item>
+                </MenuV2.SubMenu>
 
               {/* Help and account */}
-              <Menu.SubMenu>
-                <Menu.SubTrigger>Help and account</Menu.SubTrigger>
-                <Menu.SubContainer>
-                  <Menu.Item onClick={() => console.log('help-center')}>Help center</Menu.Item>
-                  <Menu.Item onClick={() => console.log('keyboard')}>Keyboard shortcuts</Menu.Item>
-                  <Menu.Separator />
-                  <Menu.Item onClick={() => console.log('account')}>Account settings</Menu.Item>
-                </Menu.SubContainer>
-              </Menu.SubMenu>
+              <MenuV2.SubMenu title="Help and account">
+                  <MenuV2.Item onClick={() => console.log('help-center')}>Help center</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('keyboard')}>Keyboard shortcuts</MenuV2.Item>
+                  <MenuV2.Separator />
+                  <MenuV2.Item onClick={() => console.log('account')}>Account settings</MenuV2.Item>
+                </MenuV2.SubMenu>
 
               {/* Debug */}
-              <Menu.SubMenu>
-                <Menu.SubTrigger>Debug</Menu.SubTrigger>
-                <Menu.SubContainer>
-                  <Menu.Item onClick={() => console.log('console')}>Open console</Menu.Item>
-                  <Menu.Item onClick={() => console.log('network')}>Network log</Menu.Item>
-                  <Menu.Item onClick={() => console.log('performance')}>Performance</Menu.Item>
-                </Menu.SubContainer>
-              </Menu.SubMenu>
-            </Menu.Container>
-          </Menu.Root>
+              <MenuV2.SubMenu title="Debug">
+                  <MenuV2.Item onClick={() => console.log('console')}>Open console</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('network')}>Network log</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('performance')}>Performance</MenuV2.Item>
+                </MenuV2.SubMenu>
+          </MenuV2.Root>
 
           {/* 2. File name button group */}
           {isEditingFileName ? (
@@ -239,39 +208,36 @@ function HomePage() {
               />
             </div>
           ) : (
-            <Menu.Root manager={fileMenu.manager}>
+            <>
               <ButtonGroup aria-label="File actions">
                 <Button size="lg" variant="ghost" onClick={startEditingFileName}>
                   <span className="text-bodyLg text-text">{fileName}</span>
                 </Button>
                 <ButtonGroup.Trigger
                   size="lg"
-                  aria-label="File options"
                   // eslint-disable-next-line react/jsx-props-no-spreading
-                  {...fileMenu.getTriggerProps()}
+                  {...fileMenu.getTriggerProps() as React.ComponentProps<typeof ButtonGroup.Trigger>}
+                  aria-label="File options"
                 >
                   <Icon16ChevronDown />
                 </ButtonGroup.Trigger>
               </ButtonGroup>
-              <Menu.Container>
-                <Menu.Group>
-                  <Menu.SubMenu>
-                    <Menu.SubTrigger>Add to sidebar</Menu.SubTrigger>
-                    <Menu.SubContainer>
-                      <Menu.Group>
-                        <Menu.Item onClick={() => console.log('starred')}>Starred</Menu.Item>
-                      </Menu.Group>
-                    </Menu.SubContainer>
-                  </Menu.SubMenu>
-                </Menu.Group>
-                <Menu.Group>
-                  <Menu.Item onClick={() => console.log('duplicate')}>Duplicate</Menu.Item>
-                  <Menu.Item onClick={() => console.log('rename')}>Rename</Menu.Item>
-                  <Menu.Item onClick={() => console.log('move-file')}>Move file…</Menu.Item>
-                  <Menu.Item onClick={() => console.log('move-to-trash')}>Move to trash</Menu.Item>
-                </Menu.Group>
-              </Menu.Container>
-            </Menu.Root>
+              <MenuV2.Root manager={fileMenu.manager}>
+                <MenuV2.Group>
+                  <MenuV2.SubMenu title="Add to sidebar">
+                      <MenuV2.Group>
+                        <MenuV2.Item onClick={() => console.log('starred')}>Starred</MenuV2.Item>
+                      </MenuV2.Group>
+                    </MenuV2.SubMenu>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.Item onClick={() => console.log('duplicate')}>Duplicate</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('rename')}>Rename</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('move-file')}>Move file…</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('move-to-trash')}>Move to trash</MenuV2.Item>
+                </MenuV2.Group>
+              </MenuV2.Root>
+            </>
           )}
 
         </div>
@@ -282,8 +248,7 @@ function HomePage() {
           <Badge size="md" variant="defaultOutline">AI</Badge>
 
           {/* Settings icon button with menu */}
-          <Menu.Root manager={settingsMenu.manager}>
-            <IconButton
+          <IconButton
               size="lg"
               aria-label="Settings"
               // eslint-disable-next-line react/jsx-props-no-spreading
@@ -291,41 +256,33 @@ function HomePage() {
             >
               <Icon24SettingsLarge />
             </IconButton>
-            <Menu.Container>
-              <Menu.Group>
-                <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'general' } })}>
-                  <Menu.ItemLead><Icon24Adjust /></Menu.ItemLead>
+          <MenuV2.Root manager={settingsMenu.manager}>
+              <MenuV2.Group>
+                <MenuV2.Item onClick={() => navigate({ to: '/settings', state: { section: 'general' } })} lead={<Icon24Adjust />}>
                   General
-                </Menu.Item>
-                <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'design-libraries' } })}>
-                  <Menu.ItemLead><Icon24Library /></Menu.ItemLead>
+                </MenuV2.Item>
+                <MenuV2.Item onClick={() => navigate({ to: '/settings', state: { section: 'design-libraries' } })} lead={<Icon24Library />}>
                   Design libraries
-                </Menu.Item>
-                <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'domains' } })}>
-                  <Menu.ItemLead><Icon24Public /></Menu.ItemLead>
+                </MenuV2.Item>
+                <MenuV2.Item onClick={() => navigate({ to: '/settings', state: { section: 'domains' } })} lead={<Icon24Public />}>
                   Domains
-                </Menu.Item>
-                <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'fonts' } })}>
-                  <Menu.ItemLead><Icon24Font /></Menu.ItemLead>
+                </MenuV2.Item>
+                <MenuV2.Item onClick={() => navigate({ to: '/settings', state: { section: 'fonts' } })} lead={<Icon24Font />}>
                   Fonts
-                </Menu.Item>
-                <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'chat' } })}>
-                  <Menu.ItemLead><Icon24Chat /></Menu.ItemLead>
+                </MenuV2.Item>
+                <MenuV2.Item onClick={() => navigate({ to: '/settings', state: { section: 'chat' } })} lead={<Icon24Chat />}>
                   Chat
-                </Menu.Item>
-              </Menu.Group>
-              <Menu.Group>
-                <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'general' } })}>
-                  <Menu.ItemLead><Icon24SpacingVertical /></Menu.ItemLead>
+                </MenuV2.Item>
+              </MenuV2.Group>
+              <MenuV2.Group>
+                <MenuV2.Item onClick={() => navigate({ to: '/settings', state: { section: 'general' } })} lead={<Icon24SpacingVertical />}>
                   Adjust guidelines
-                </Menu.Item>
-                <Menu.Item onClick={() => navigate({ to: '/settings', state: { section: 'general' } })}>
-                  <Menu.ItemLead><Icon24Code /></Menu.ItemLead>
+                </MenuV2.Item>
+                <MenuV2.Item onClick={() => navigate({ to: '/settings', state: { section: 'general' } })} lead={<Icon24Code />}>
                   Access code editor
-                </Menu.Item>
-              </Menu.Group>
-            </Menu.Container>
-          </Menu.Root>
+                </MenuV2.Item>
+              </MenuV2.Group>
+          </MenuV2.Root>
         </div>
       </header>
 

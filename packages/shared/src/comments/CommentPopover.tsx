@@ -113,7 +113,7 @@ export function CommentPopover({ onSubmit, onClose, style }: CommentPopoverProps
                   rows={2}
                   expandable
                   maxHeight={120}
-                  className="w-full px-2 py-1 text-bodyLg text-text resize-none border-none outline-none"
+                  className="w-full px-2 py-1 text-bodyLg text-text resize-none border-none outline-none bg-bg-elevated"
                 />
               </TextareaPrimitive.Root>
             </div>

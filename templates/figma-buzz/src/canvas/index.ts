@@ -1,70 +1,11 @@
 // Canvas module public API
 // All external code should import from this barrel export.
 
-// Types (shared data model contract)
-export type {
-  NodeType,
-  Color,
-  SolidPaint,
-  Paint,
-  Stroke,
-  Effect,
-  BaseNode,
-  GeometryMixin,
-  AppearanceMixin,
-  FrameNode,
-  SlideNode,
-  SectionNode,
-  RectangleNode,
-  EllipseNode,
-  TextNode,
-  LineNode,
-  PolygonNode,
-  StarNode,
-  VectorPath,
-  VectorNode,
-  GroupNode,
-  SceneNode,
-  GeometryNode,
-  AppearanceNode,
-} from './types';
+export * from '@prototype/shared/canvas'
 
-// Scene Graph
-export {
-  SceneGraphProvider,
-  useSceneGraph,
-  useRootNodes,
-  useNode,
-  usePageBackground,
-} from './scene-graph/provider';
-export type { SceneGraphStore } from './scene-graph/provider';
+// Tools (local)
+export { ToolProvider, useActiveTool } from './tools/provider'
+export type { ToolType } from './tools/provider'
 
-// Node behavior
-export { NodeBehaviorProvider } from './node-behavior';
-export type { NodeBehaviorConfig } from './node-behavior';
-
-// Selection
-export { SelectionProvider, useSelection } from './selection/provider';
-
-// Text editing
-export { TextEditingProvider, useTextEditing } from './text-editing/provider';
-
-// Viewport
-export { ViewportProvider, useViewport } from './viewport/provider';
-
-// Tools
-export { ToolProvider, useActiveTool } from './tools/provider';
-export type { ToolType } from './tools/provider';
-
-// Canvas component
-export { Canvas } from './components/Canvas';
-
-// Alignment
-export { alignNodes, distributeNodes } from './scene-graph/alignment';
-export type { AlignDirection, DistributeDirection } from './scene-graph/alignment';
-
-// Selection utilities
-export { computeGroupScreenBBox } from './scene-graph/selection-utils';
-
-// Utilities needed by external consumers
-export { isGeometryNode } from './scene-graph/world-position';
+// Canvas component (local)
+export { Canvas } from './components/Canvas'

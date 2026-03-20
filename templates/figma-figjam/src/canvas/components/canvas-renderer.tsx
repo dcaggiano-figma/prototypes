@@ -1,40 +1,66 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ButtonPrimitive, InputPrimitive } from '@figma/fpl-components';
 
-import { useRootNodes, useSceneGraph } from '../scene-graph/provider';
-import { useTextEditing } from '../text-editing/provider';
 import type {
-  Color,
   ConnectorNode,
   EllipseNode,
   FrameNode,
+  GridSectionNode,
+  GroupNode,
   LineNode,
-  Paint,
   PolygonNode,
   RectangleNode,
   SceneNode,
   SectionNode,
   ShapeWithTextNode,
+  SlideNode,
   StarNode,
-  StickyNoteNode,
-  Stroke,
   TextNode,
   VectorNode,
-} from '../types';
-import { ConnectorRenderer } from '../connectors/ConnectorRenderer';
+} from '@prototype/shared/canvas';
+import {
+  useRootNodes,
+  useCanvasId,
+  useSceneGraph,
+  useTextEditing,
+  useSelection,
+  useViewportState,
+  useRendering,
+  useNodeRef,
+  getRotatedEdgeAnchor,
+  LINE_HIT_AREA,
+  nodePosition,
+  colorToCSS,
+  getFirstVisibleFill,
+  getFirstVisibleStroke,
+  svgStrokeWidth,
+  strokeBoxShadow,
+  StickyNoteRenderer,
+  ShapeTextOverlay,
+  ConnectorRenderer,
+  useLabelEditing,
+} from '@prototype/shared/canvas';
+import type { FigJamStickyNoteNode, FigJamShapeWithTextNode } from '../text-types';
 import { CURSORS } from '../cursors';
-import { useSelection } from '../selection/provider';
-import { useViewport } from '../viewport/provider';
 
 
 export function CanvasRenderer() {
-  const rootNodes = useRootNodes();
-  const store = useSceneGraph();
+  const canvasId = useCanvasId();
+  const rootNodes = useRootNodes(canvasId);
+  const sg = useSceneGraph();
+
+  // Render connectors last so they always appear above other nodes (e.g. sections).
+  // Connectors are cross-cutting elements that can span multiple containers.
+  const nonConnectors = rootNodes.filter((n) => n.type !== 'CONNECTOR');
+  const connectors = rootNodes.filter((n) => n.type === 'CONNECTOR');
 
   return (
     <>
-      {rootNodes.map((node) => (
-        <SceneNodeRenderer key={node.id} node={node} store={store} isRoot />
+      {nonConnectors.map((node) => (
+        <SceneNodeRenderer key={node.id} node={node} sg={sg} isRoot />
+      ))}
+      {connectors.map((node) => (
+        <SceneNodeRenderer key={node.id} node={node} sg={sg} isRoot />
       ))}
     </>
   );
@@ -44,11 +70,11 @@ export function CanvasRenderer() {
 
 function SceneNodeRenderer({
   node,
-  store,
+  sg,
   isRoot,
 }: {
   node: SceneNode
-  store: ReturnType<typeof useSceneGraph>
+  sg: ReturnType<typeof useSceneGraph>
   isRoot?: boolean
 }) {
   if (!node.visible) return null;
@@ -67,64 +93,87 @@ function SceneNodeRenderer({
     case 'TEXT':
       return <TextRenderer node={node as TextNode} />;
     case 'STICKY_NOTE':
-      return <StickyNoteRenderer node={node as StickyNoteNode} />;
+      return <StickyNoteRenderer node={node as FigJamStickyNoteNode} />;
     case 'VECTOR':
       return <VectorRenderer node={node} />;
     case 'FRAME':
       return (
         <>
           {isRoot && <FrameLabel node={node} />}
-          <FrameRenderer node={node} store={store} />
+          <FrameRenderer node={node} sg={sg} />
         </>
       );
     case 'SECTION':
       return (
         <>
           <SectionLabel node={node as SectionNode} />
-          <SectionRenderer node={node as SectionNode} store={store} />
+          <SectionRenderer node={node as SectionNode} sg={sg} />
         </>
       );
     case 'CONNECTOR':
       return <ConnectorRenderer node={node as ConnectorNode} />;
+    case 'SHAPE_WITH_TEXT':
+      return <ShapeWithTextRenderer node={node as ShapeWithTextNode} />;
+    case 'SLIDE':
+      return <SlideContainerRenderer node={node as SlideNode} sg={sg} />;
+    case 'GRID_SECTION':
+      return (
+        <>
+          <SectionLabel node={node as GridSectionNode} />
+          <SectionRenderer node={node as GridSectionNode} sg={sg} />
+        </>
+      );
+    case 'GROUP':
+      return <GroupRenderer node={node as GroupNode} sg={sg} />;
     default:
       return null;
   }
 }
 
 function RectangleRenderer({ node }: { node: RectangleNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
         borderRadius: node.cornerRadius,
-        transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
         overflow: 'hidden',
-        ...strokeStyles(stroke),
+        boxShadow: strokeBoxShadow(stroke, node.strokeWeight, node.strokeAlign),
       }}
     >
-      <ShapeTextOverlay node={node} />
+      <ShapeTextOverlay node={node as FigJamShapeWithTextNode} />
     </div>
   );
 }
 
 function TextRenderer({ node }: { node: TextNode }) {
+  const { nodeRegistry } = useRendering();
   const fill = getFirstVisibleFill(node.fills);
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
   const { editingNodeId, stopEditing } = useTextEditing();
   const isEditing = editingNodeId === node.id;
   const elRef = useRef<HTMLDivElement>(null);
 
+  // Register with NodeRegistry for imperative updates
+  useEffect(() => {
+    const el = elRef.current;
+    if (el) nodeRegistry.register(node.id, el);
+    return () => { nodeRegistry.unregister(node.id); };
+  }, [node.id, nodeRegistry]);
+
   const selection = useSelection();
 
-  // Sync rendered DOM size back to the store for auto-resized dimensions.
+  // Sync rendered DOM size back to the scene graph for auto-resized dimensions.
   // In WIDTH_AND_HEIGHT mode both dimensions are auto; in HEIGHT mode only
   // height is auto. ResizeObserver reports dimensions in the element's own
   // coordinate space (world-space), so no viewport scale conversion needed.
@@ -148,13 +197,13 @@ function TextRenderer({ node }: { node: TextNode }) {
       }
 
       if (Object.keys(updates).length > 0) {
-        store.updateNode(node.id, updates);
+        sg.updateNode(node.id, updates);
       }
     });
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [node.id, node.textAutoResize, node.width, node.height, store]);
+  }, [node.id, node.textAutoResize, node.width, node.height, sg]);
 
   // Auto-focus and place cursor when entering edit mode.
   // Deferred via rAF so the browser's pointer-event sequence (pointerdown →
@@ -181,14 +230,14 @@ function TextRenderer({ node }: { node: TextNode }) {
   const commitAndStop = useCallback(() => {
     const text = elRef.current?.innerText.trim() ?? '';
     if (text) {
-      store.updateNode(node.id, { characters: text });
+      sg.updateNode(node.id, { characters: text });
     } else {
       // Empty text → delete the node
-      store.deleteNode(node.id);
+      sg.deleteNode(node.id);
       selection.clear();
     }
     stopEditing();
-  }, [store, node.id, stopEditing, selection]);
+  }, [sg, node.id, stopEditing, selection]);
 
   // Handle Escape key via useEffect to avoid forbidden onKeyDown DOM prop
   useEffect(() => {
@@ -214,11 +263,10 @@ function TextRenderer({ node }: { node: TextNode }) {
       suppressContentEditableWarning
       onBlur={isEditing ? commitAndStop : undefined}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.textAutoResize === 'WIDTH_AND_HEIGHT' ? 'max-content' : node.width,
         minHeight: node.textAutoResize === 'NONE' ? node.height : 'auto',
         opacity: node.opacity,
-        transform: nodeTransform(node.x, node.y, node.rotation),
         color: fill ? colorToCSS(fill.color, fill.opacity) : 'rgb(0,0,0)',
         fontFamily: node.fontFamily,
         fontSize: node.fontSize,
@@ -238,363 +286,28 @@ function TextRenderer({ node }: { node: TextNode }) {
   );
 }
 
-const STICKY_PADDING = 20;
-const STICKY_FOOTER_HEIGHT = 40;
-
-function StickyNoteRenderer({ node }: { node: StickyNoteNode }) {
-  const fill = getFirstVisibleFill(node.fills);
-  const store = useSceneGraph();
-  const { editingNodeId, stopEditing, selectAllRef } = useTextEditing();
-  const isEditing = editingNodeId === node.id;
-  const elRef = useRef<HTMLDivElement>(null);
-
-  // Track whether the user has typed (for placeholder visibility)
-  const [hasInput, setHasInput] = useState(false);
-
-  // Reset input tracking when editing state changes
-  useEffect(() => {
-    if (isEditing) {
-      setHasInput(!!node.characters);
-    } else {
-      setHasInput(false);
-    }
-  }, [isEditing, node.characters]);
-
-  // Track input events for placeholder hiding
-  useEffect(() => {
-    if (!isEditing || !elRef.current) return;
-    const el = elRef.current;
-    const onInput = () => {
-      setHasInput(!!el.textContent?.trim());
-    };
-    el.addEventListener('input', onInput);
-    return () => el.removeEventListener('input', onInput);
-  }, [isEditing]);
-
-  // Auto-height: observe the text content area and grow the node height if needed
-  useEffect(() => {
-    const el = elRef.current;
-    if (!el) return;
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      const contentH = Math.round(entry.contentRect.height);
-      const footerH = node.showAuthor ? STICKY_FOOTER_HEIGHT : 0;
-      const paddingBottom = node.showAuthor ? 16 : STICKY_PADDING;
-      const totalNeeded = contentH + STICKY_PADDING + paddingBottom + footerH;
-      const minH = node.width; // Square minimum
-      const newH = Math.max(minH, totalNeeded);
-      if (newH !== Math.round(node.height)) {
-        store.updateNode(node.id, { height: newH });
-      }
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [node.id, node.width, node.height, node.showAuthor, store]);
-
-  // Auto-focus when entering edit mode (selectAllRef controls selection behavior)
-  useEffect(() => {
-    if (!isEditing || !elRef.current) return;
-    const id = requestAnimationFrame(() => {
-      const el = elRef.current;
-      if (!el) return;
-      el.focus({ preventScroll: true });
-      if (el.textContent) {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        if (!selectAllRef.current) {
-          range.collapse(false); // Cursor at end
-        }
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(range);
-      }
-    });
-    return () => cancelAnimationFrame(id);
-  }, [isEditing, selectAllRef]);
-
-  const commitAndStop = useCallback(() => {
-    const text = elRef.current?.innerText.trim() ?? '';
-    store.updateNode(node.id, { characters: text });
-    stopEditing();
-  }, [store, node.id, stopEditing]);
-
-  // Handle Escape key
-  useEffect(() => {
-    if (!isEditing || !elRef.current) return;
-    const el = elRef.current;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        commitAndStop();
-      }
-    }
-    el.addEventListener('keydown', handleKeyDown);
-    return () => el.removeEventListener('keydown', handleKeyDown);
-  }, [isEditing, commitAndStop]);
-
-  const footerH = node.showAuthor ? STICKY_FOOTER_HEIGHT : 0;
-  const showPlaceholder = isEditing && !hasInput;
-
-  return (
-    <div
-      data-node-id={node.id}
-      style={{
-        position: 'absolute',
-        width: node.width,
-        minHeight: node.height,
-        opacity: node.opacity,
-        transform: nodeTransform(node.x, node.y, node.rotation),
-        backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-        display: 'flex',
-        flexDirection: 'column',
-        userSelect: isEditing ? 'text' : 'none',
-      }}
-    >
-      {/* Placeholder for empty editing state */}
-      {showPlaceholder && (
-        <div
-          style={{
-            position: 'absolute',
-            top: STICKY_PADDING,
-            left: STICKY_PADDING,
-            color: 'rgba(0, 0, 0, 0.3)',
-            fontFamily: node.fontFamily,
-            fontSize: node.fontSize,
-            fontWeight: node.fontWeight,
-            lineHeight: 1.4,
-            pointerEvents: 'none',
-            userSelect: 'none',
-          }}
-        >
-          Add text
-        </div>
-      )}
-      {/* Text body */}
-      <div
-        ref={elRef}
-        role={isEditing ? 'textbox' : undefined}
-        aria-multiline={isEditing ? true : undefined}
-        contentEditable={isEditing}
-        suppressContentEditableWarning
-        onBlur={isEditing ? commitAndStop : undefined}
-        style={{
-          padding: STICKY_PADDING,
-          paddingBottom: node.showAuthor ? 16 : STICKY_PADDING,
-          fontFamily: node.fontFamily,
-          fontSize: node.fontSize,
-          fontWeight: node.fontWeight,
-          lineHeight: 1.4,
-          color: 'rgb(0, 0, 0)',
-          wordBreak: 'break-word',
-          whiteSpace: 'pre-wrap',
-          outline: 'none',
-          minHeight: node.width - STICKY_PADDING * 2 - footerH,
-          cursor: isEditing ? CURSORS.text : CURSORS.default,
-        }}
-      >
-        {node.characters}
-      </div>
-      {/* Author footer */}
-      {node.showAuthor && (
-        <div
-          style={{
-            marginTop: 'auto',
-            height: STICKY_FOOTER_HEIGHT,
-            padding: `0 ${STICKY_PADDING}px ${STICKY_PADDING}px`,
-            display: 'flex',
-            alignItems: 'center',
-            fontSize: 12,
-            fontFamily: 'Inter, system-ui, sans-serif',
-            color: 'rgba(0, 0, 0, 0.5)',
-            pointerEvents: 'none',
-          }}
-        >
-          {node.authorName}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Padding config for text inside shapes (as fraction of width/height or fixed px) */
-function getShapeTextPadding(type: string, width: number, height: number): { horizontal: number; vertical: number } {
-  switch (type) {
-    case 'ELLIPSE':
-      return { horizontal: width * 0.146, vertical: height * 0.146 };
-    case 'POLYGON':
-      return { horizontal: width * 0.2, vertical: height * 0.25 };
-    case 'STAR':
-      return { horizontal: width * 0.3, vertical: height * 0.3 };
-    default: // RECTANGLE
-      return { horizontal: 8, vertical: 8 };
-  }
-}
-
-/** Returns black or white text color for best contrast against the fill */
-function autoContrastColor(fill: Paint | undefined): string {
-  if (!fill || fill.type !== 'SOLID') return 'rgb(0, 0, 0)';
-  const { r, g, b } = fill.color;
-  // Relative luminance (sRGB)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)';
-}
-
-function ShapeTextOverlay({ node }: { node: ShapeWithTextNode }) {
-  const store = useSceneGraph();
-  const { editingNodeId, stopEditing, selectAllRef } = useTextEditing();
-  const isEditing = editingNodeId === node.id;
-  const elRef = useRef<HTMLDivElement>(null);
-
-  const [hasInput, setHasInput] = useState(false);
-
-  useEffect(() => {
-    if (isEditing) {
-      setHasInput(!!node.characters);
-    } else {
-      setHasInput(false);
-    }
-  }, [isEditing, node.characters]);
-
-  useEffect(() => {
-    if (!isEditing || !elRef.current) return;
-    const el = elRef.current;
-    const onInput = () => {
-      setHasInput(!!el.textContent?.trim());
-    };
-    el.addEventListener('input', onInput);
-    return () => el.removeEventListener('input', onInput);
-  }, [isEditing]);
-
-  // Auto-focus when entering edit mode
-  useEffect(() => {
-    if (!isEditing || !elRef.current) return;
-    const id = requestAnimationFrame(() => {
-      const el = elRef.current;
-      if (!el) return;
-      el.focus({ preventScroll: true });
-      if (el.textContent) {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        if (!selectAllRef.current) {
-          range.collapse(false);
-        }
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(range);
-      }
-    });
-    return () => cancelAnimationFrame(id);
-  }, [isEditing, selectAllRef]);
-
-  const commitAndStop = useCallback(() => {
-    const text = elRef.current?.innerText.trim() ?? '';
-    store.updateNode(node.id, { characters: text });
-    stopEditing();
-  }, [store, node.id, stopEditing]);
-
-  // Handle Escape key
-  useEffect(() => {
-    if (!isEditing || !elRef.current) return;
-    const el = elRef.current;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        commitAndStop();
-      }
-    }
-    el.addEventListener('keydown', handleKeyDown);
-    return () => el.removeEventListener('keydown', handleKeyDown);
-  }, [isEditing, commitAndStop]);
-
-  const fill = getFirstVisibleFill(node.fills);
-  const textColor = autoContrastColor(fill);
-  const padding = getShapeTextPadding(node.type, node.width, node.height);
-  const showPlaceholder = isEditing && !hasInput;
-  const hasText = !!node.characters;
-
-  // Don't render anything if not editing and no text
-  if (!isEditing && !hasText) return null;
-
-  return (
-    <>
-      {showPlaceholder && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: `${padding.vertical}px ${padding.horizontal}px`,
-            color: textColor,
-            opacity: 0.3,
-            fontFamily: node.fontFamily,
-            fontSize: node.fontSize,
-            fontWeight: node.fontWeight,
-            pointerEvents: 'none',
-            userSelect: 'none',
-          }}
-        >
-          Add text
-        </div>
-      )}
-      <div
-        ref={elRef}
-        role={isEditing ? 'textbox' : undefined}
-        aria-multiline={isEditing ? true : undefined}
-        contentEditable={isEditing}
-        suppressContentEditableWarning
-        onBlur={isEditing ? commitAndStop : undefined}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: node.textAlignHorizontal === 'LEFT' ? 'flex-start' : node.textAlignHorizontal === 'RIGHT' ? 'flex-end' : 'center',
-          padding: `${padding.vertical}px ${padding.horizontal}px`,
-          fontFamily: node.fontFamily,
-          fontSize: node.fontSize,
-          fontWeight: node.fontWeight,
-          textAlign: node.textAlignHorizontal.toLowerCase() as 'left' | 'center' | 'right',
-          color: textColor,
-          lineHeight: 1.4,
-          wordBreak: 'break-word',
-          whiteSpace: 'pre-wrap',
-          overflow: 'hidden',
-          outline: 'none',
-          cursor: isEditing ? CURSORS.text : CURSORS.default,
-          userSelect: isEditing ? 'text' : 'none',
-        }}
-      >
-        {node.characters}
-      </div>
-    </>
-  );
-}
 
 function EllipseRenderer({ node }: { node: EllipseNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const rx = node.width / 2;
   const ry = node.height / 2;
 
   // For inside strokes, we need to inset the ellipse
-  const strokeWeight = stroke ? stroke.weight : 0;
-  const inset = stroke?.position === 'INSIDE' ? strokeWeight : 0;
+  const weight = stroke ? node.strokeWeight : 0;
+  const inset = node.strokeAlign === 'INSIDE' ? weight : 0;
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
-        transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
       <svg
@@ -611,88 +324,101 @@ function EllipseRenderer({ node }: { node: EllipseNode }) {
           rx={rx - inset / 2}
           ry={ry - inset / 2}
           fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-          stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-          strokeWidth={strokeWeight}
+          stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+          strokeWidth={weight}
         />
       </svg>
-      <ShapeTextOverlay node={node} />
+      <ShapeTextOverlay node={node as FigJamShapeWithTextNode} />
     </div>
   );
 }
 
 function FrameRenderer({
   node,
-  store,
+  sg,
 }: {
   node: SceneNode & { type: 'FRAME' }
-  store: ReturnType<typeof useSceneGraph>
+  sg: ReturnType<typeof useSceneGraph>
 }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
+  const childNodes = node.children.map((id) => sg.getNode(id));
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
         borderRadius: node.cornerRadius,
         overflow: node.clipsContent ? 'hidden' : undefined,
-        transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
+        boxShadow: strokeBoxShadow(stroke, node.strokeWeight, node.strokeAlign),
       }}
     >
-      {childNodes.map((child) => (
-        <SceneNodeRenderer key={child.id} node={child} store={store} />
-      ))}
+      {childNodes.map((child) => child ? (
+        <SceneNodeRenderer key={child.id} node={child} sg={sg} />
+      ) : null)}
     </div>
   );
 }
 
 function SectionRenderer({
   node,
-  store,
+  sg,
 }: {
-  node: SectionNode
-  store: ReturnType<typeof useSceneGraph>
+  node: SectionNode | GridSectionNode
+  sg: ReturnType<typeof useSceneGraph>
 }) {
-  const fill = getFirstVisibleFill(node.fills);
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
+  const childNodes = node.children.map((id) => sg.getNode(id));
+
+  const fill = getFirstVisibleFill(node.fills);
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
-        borderRadius: node.cornerRadius,
         overflow: 'visible',
-        transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
+        borderRadius: node.cornerRadius ? `${node.cornerRadius}px` : undefined,
+        boxShadow: strokeBoxShadow(stroke, node.strokeWeight, node.strokeAlign),
       }}
     >
-      {childNodes.map((child) => (
-        <SceneNodeRenderer key={child.id} node={child} store={store} />
-      ))}
+      {childNodes.map((child) => child ? (
+        <SceneNodeRenderer key={child.id} node={child} sg={sg} />
+      ) : null)}
     </div>
   );
 }
 
 /** Label rendered above sections as a colored pill with section icon */
-function SectionLabel({ node }: { node: SectionNode }) {
-  const { state } = useViewport();
+function SectionLabel({ node: nodeProp }: { node: SectionNode | GridSectionNode }) {
+  const { state } = useViewportState();
   const { isSelected } = useSelection();
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
+
+  // Subscribe to scene graph changes so the label repositions during resize drag
+  // (useRootNodes only fires on create/delete/reparent, not field changes).
+  const [, bump] = useState(0);
+  useEffect(() => sg.addListener(() => bump((n) => n + 1)), [sg]);
+  const node = (sg.getNode(nodeProp.id) as SectionNode | GridSectionNode | undefined) ?? nodeProp;
+
   const selected = isSelected(node.id);
-  const [isEditing, setIsEditing] = useState(false);
+  const { editingLabelNodeId, startLabelEdit, stopLabelEdit } = useLabelEditing();
+  const isEditing = editingLabelNodeId === node.id;
   const labelRef = useRef<HTMLInputElement>(null);
   const fontSize = 13 / state.scale;
   const pillPadY = 4 / state.scale;
@@ -707,19 +433,19 @@ function SectionLabel({ node }: { node: SectionNode }) {
   const commitRename = useCallback(() => {
     if (!labelRef.current) return;
     const newName = labelRef.current.value.trim() || node.name;
-    store.updateNode(node.id, { name: newName });
-    setIsEditing(false);
-  }, [node.id, node.name, store]);
+    sg.updateNode(node.id, { name: newName });
+    stopLabelEdit();
+  }, [node.id, node.name, sg, stopLabelEdit]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsEditing(true);
+    startLabelEdit(node.id);
     requestAnimationFrame(() => {
       if (!labelRef.current) return;
       labelRef.current.focus();
       labelRef.current.select();
     });
-  }, []);
+  }, [startLabelEdit, node.id]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -727,9 +453,9 @@ function SectionLabel({ node }: { node: SectionNode }) {
       commitRename();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      setIsEditing(false);
+      stopLabelEdit();
     }
-  }, [commitRename]);
+  }, [commitRename, stopLabelEdit]);
 
   return (
     <div
@@ -794,27 +520,116 @@ function SectionLabel({ node }: { node: SectionNode }) {
   );
 }
 
+function ShapeWithTextRenderer({
+  node,
+}: {
+  node: ShapeWithTextNode
+}) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+
+  return (
+    <div
+      ref={ref}
+      data-node-id={node.id}
+      style={{
+        ...nodePosition(node.x, node.y, node.rotation),
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        borderRadius: node.shapeType === 'ELLIPSE' ? '50%' : node.cornerRadius,
+        backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
+        boxShadow: strokeBoxShadow(stroke, node.strokeWeight, node.strokeAlign),
+        overflow: 'hidden',
+      }}
+    >
+      <ShapeTextOverlay node={{ ...node, type: node.shapeType }} />
+    </div>
+  );
+}
+
+function SlideContainerRenderer({
+  node,
+  sg,
+}: {
+  node: SlideNode
+  sg: ReturnType<typeof useSceneGraph>
+}) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const childNodes = node.children.map((id) => sg.getNode(id));
+
+  return (
+    <div
+      ref={ref}
+      data-node-id={node.id}
+      style={{
+        ...nodePosition(node.x, node.y, node.rotation),
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        borderRadius: node.cornerRadius,
+        overflow: node.clipsContent ? 'hidden' : undefined,
+        backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
+        boxShadow: strokeBoxShadow(stroke, node.strokeWeight, node.strokeAlign),
+      }}
+    >
+      {childNodes.map((child) => child ? (
+        <SceneNodeRenderer key={child.id} node={child} sg={sg} />
+      ) : null)}
+    </div>
+  );
+}
+
+function GroupRenderer({
+  node,
+  sg,
+}: {
+  node: GroupNode
+  sg: ReturnType<typeof useSceneGraph>
+}) {
+  const childNodes = node.children.map((id) => sg.getNode(id));
+
+  return (
+    <>
+      {childNodes.map((child) => child ? (
+        <SceneNodeRenderer key={child.id} node={child} sg={sg} />
+      ) : null)}
+    </>
+  );
+}
+
 function VectorRenderer({ node }: { node: VectorNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const stroke = getFirstVisibleStroke(node.strokes);
   const fill = getFirstVisibleFill(node.fills);
   const hasStroke = !!stroke;
-  const strokeWeight = hasStroke ? stroke.weight : 0;
+  const weight = hasStroke ? node.strokeWeight : 0;
+  // Use path-space dimensions for viewBox (falls back to node size for legacy vectors)
+  const pw = node.pathWidth ?? node.width;
+  const ph = node.pathHeight ?? node.height;
   // Expand the SVG viewBox by the stroke weight so strokes aren't clipped
-  const padding = hasStroke ? strokeWeight / 2 : 0;
-  const svgWidth = node.width + padding * 2;
-  const svgHeight = node.height + padding * 2;
+  const padding = hasStroke ? weight / 2 : 0;
+  const viewBoxW = pw + padding * 2;
+  const viewBoxH = ph + padding * 2;
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
-      viewBox={`${-padding} ${-padding} ${svgWidth} ${svgHeight}`}
+      viewBox={`${-padding} ${-padding} ${viewBoxW} ${viewBoxH}`}
+      preserveAspectRatio="none"
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
         overflow: 'visible',
-        transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
       {node.paths.map((p, i) => (
@@ -822,24 +637,89 @@ function VectorRenderer({ node }: { node: VectorNode }) {
           key={i}
           d={p.d}
           fill={p.fill ?? (fill ? colorToCSS(fill.color, fill.opacity) : 'none')}
-          stroke={hasStroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-          strokeWidth={strokeWeight}
+          stroke={hasStroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+          strokeWidth={weight}
           strokeLinecap="round"
           strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
         />
       ))}
     </svg>
   );
 }
 
+function renderLineCap(
+  cap: string,
+  x: number,
+  cy: number,
+  direction: 1 | -1, // 1 = pointing right (end), -1 = pointing left (start)
+  strokeColor: string,
+  weight: number,
+) {
+  if (cap === 'NONE') return null;
+  const len = weight * 4;
+  const half = weight * 3;
+
+  if (cap === 'LINE_ARROW') {
+    return (
+      <polyline
+        points={`${x - direction * len},${cy - half} ${x},${cy} ${x - direction * len},${cy + half}`}
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth={weight}
+        strokeLinejoin="round"
+      />
+    );
+  }
+  if (cap === 'FILLED_ARROW') {
+    return (
+      <polygon
+        points={`${x},${cy} ${x - direction * len},${cy - half} ${x - direction * len},${cy + half}`}
+        fill={strokeColor}
+        stroke="none"
+      />
+    );
+  }
+  if (cap === 'REVERSE_TRIANGLE') {
+    return (
+      <polygon
+        points={`${x - direction * len},${cy} ${x},${cy - half} ${x},${cy + half}`}
+        fill={strokeColor}
+        stroke="none"
+      />
+    );
+  }
+  if (cap === 'CIRCLE') {
+    const r = weight * 2;
+    return <circle cx={x} cy={cy} r={r} fill={strokeColor} />;
+  }
+  if (cap === 'DIAMOND') {
+    const size = weight * 2.5;
+    return (
+      <polygon
+        points={`${x},${cy - size} ${x + size},${cy} ${x},${cy + size} ${x - size},${cy}`}
+        fill={strokeColor}
+        stroke="none"
+      />
+    );
+  }
+  return null;
+}
+
 function LineRenderer({ node }: { node: LineNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const strokeWeight = stroke ? stroke.weight : 1;
-  // Line height is 0; the SVG has a minimum height of the stroke weight so the line is visible
-  const svgHeight = Math.max(node.height, strokeWeight * 2);
+  const weight = stroke ? node.strokeWeight : 1;
+  // Line height is 0; the SVG has a minimum height of the hit area so it's easily clickable
+  const svgHeight = Math.max(node.height, weight * 2, LINE_HIT_AREA);
+  const cy = svgHeight / 2;
+  const strokeColor = stroke ? colorToCSS(stroke.color, stroke.opacity) : 'rgb(0,0,0)';
+  const hasDash = node.strokeDashPattern.length > 0;
 
   return (
     <svg
+      ref={ref}
       data-node-id={node.id}
       style={{
         position: 'absolute',
@@ -847,24 +727,31 @@ function LineRenderer({ node }: { node: LineNode }) {
         height: svgHeight,
         opacity: node.opacity,
         overflow: 'visible',
-        transform: nodeTransform(node.x, node.y - svgHeight / 2, node.rotation),
+        ...nodePosition(node.x, node.y - svgHeight / 2, node.rotation),
         // Rotate around the start point of the line so (x,y) = visual start
         transformOrigin: '0 50%',
       }}
     >
+      {/* Invisible hit area for easier clicking */}
+      <line x1={0} y1={cy} x2={node.width} y2={cy} stroke="transparent" strokeWidth={LINE_HIT_AREA} />
       <line
         x1={0}
-        y1={svgHeight / 2}
+        y1={cy}
         x2={node.width}
-        y2={svgHeight / 2}
-        stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'rgb(0,0,0)'}
-        strokeWidth={strokeWeight}
+        y2={cy}
+        stroke={strokeColor}
+        strokeWidth={weight}
+        strokeDasharray={hasDash ? node.strokeDashPattern.join(' ') : undefined}
       />
+      {renderLineCap(node.startCap, 0, cy, -1, strokeColor, weight)}
+      {renderLineCap(node.endCap, node.width, cy, 1, strokeColor, weight)}
     </svg>
   );
 }
 
 function PolygonRenderer({ node }: { node: PolygonNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const cx = node.width / 2;
@@ -880,13 +767,13 @@ function PolygonRenderer({ node }: { node: PolygonNode }) {
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
-        transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
       <svg
@@ -900,17 +787,19 @@ function PolygonRenderer({ node }: { node: PolygonNode }) {
         <polygon
           points={pts.join(' ')}
           fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-          stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-          strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
-          paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
+          stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+          strokeWidth={stroke ? svgStrokeWidth(node.strokeWeight, node.strokeAlign) : 0}
+          paintOrder={node.strokeAlign === 'OUTSIDE' ? 'stroke' : undefined}
         />
       </svg>
-      <ShapeTextOverlay node={node} />
+      <ShapeTextOverlay node={node as FigJamShapeWithTextNode} />
     </div>
   );
 }
 
 function StarRenderer({ node }: { node: StarNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
   const cx = node.width / 2;
@@ -931,13 +820,13 @@ function StarRenderer({ node }: { node: StarNode }) {
 
   return (
     <div
+      ref={ref}
       data-node-id={node.id}
       style={{
-        position: 'absolute',
+        ...nodePosition(node.x, node.y, node.rotation),
         width: node.width,
         height: node.height,
         opacity: node.opacity,
-        transform: nodeTransform(node.x, node.y, node.rotation),
       }}
     >
       <svg
@@ -951,95 +840,126 @@ function StarRenderer({ node }: { node: StarNode }) {
         <polygon
           points={pts.join(' ')}
           fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
-          stroke={stroke ? colorToCSS(stroke.paint.color, stroke.paint.opacity) : 'none'}
-          strokeWidth={stroke ? svgStrokeWidth(stroke) : 0}
-          paintOrder={stroke?.position === 'OUTSIDE' ? 'stroke' : undefined}
+          stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+          strokeWidth={stroke ? svgStrokeWidth(node.strokeWeight, node.strokeAlign) : 0}
+          paintOrder={node.strokeAlign === 'OUTSIDE' ? 'stroke' : undefined}
         />
       </svg>
-      <ShapeTextOverlay node={node} />
+      <ShapeTextOverlay node={node as FigJamShapeWithTextNode} />
     </div>
   );
 }
 
 /** Label rendered above root-level frames, matching Figma's canvas chrome (FB-45) */
 function FrameLabel({ node }: { node: FrameNode }) {
-  const { state } = useViewport();
+  const { state } = useViewportState();
   const { isSelected } = useSelection();
+  const sg = useSceneGraph();
+  const { editingLabelNodeId, startLabelEdit, stopLabelEdit } = useLabelEditing();
+  const isEditing = editingLabelNodeId === node.id;
+  const inputRef = useRef<HTMLInputElement>(null);
+
   // Render at a fixed screen-size by counter-scaling the viewport zoom
   const fontSize = 11 / state.scale;
+  const gap = 8 / state.scale;
+
+  const commitRename = useCallback(() => {
+    if (!inputRef.current) return;
+    const newName = inputRef.current.value.trim() || node.name;
+    sg.updateNode(node.id, { name: newName });
+    stopLabelEdit();
+  }, [node.id, node.name, sg, stopLabelEdit]);
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    startLabelEdit(node.id);
+    requestAnimationFrame(() => {
+      if (!inputRef.current) return;
+      inputRef.current.focus();
+      inputRef.current.select();
+    });
+  }, [startLabelEdit, node.id]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      stopLabelEdit();
+    }
+  }, [commitRename, stopLabelEdit]);
+
+  let labelX = node.x;
+  let labelY = node.y - fontSize - gap;
+  let rotateDeg = 0;
+  if (node.rotation) {
+    const cx = node.x + node.width / 2;
+    const cy = node.y + node.height / 2;
+    const anchor = getRotatedEdgeAnchor(node.width, node.height, node.rotation);
+    labelX = cx + anchor.topLeftEnd.x + anchor.topNormal.x * (gap + fontSize);
+    labelY = cy + anchor.topLeftEnd.y + anchor.topNormal.y * (gap + fontSize);
+    rotateDeg = anchor.topAngleDeg;
+  }
+
+  const selected = isSelected(node.id);
+  const color = selected ? 'var(--color-fsTextSelectedOnLightCanvas)' : 'var(--color-fsTextOnLightCanvasSecondary)';
 
   return (
     <div
       data-node-id={node.id}
       style={{
         position: 'absolute',
-        transform: `translate(${node.x}px, ${node.y - fontSize - 8 / state.scale}px)`,
+        transform: `translate(${labelX}px, ${labelY}px)${rotateDeg ? ` rotate(${rotateDeg}deg)` : ''}`,
+        transformOrigin: rotateDeg ? '0 100%' : undefined,
         fontSize,
         lineHeight: 1,
-        color: isSelected(node.id) ? 'var(--color-fsTextSelectedOnLightCanvas)' : 'var(--color-fsTextOnLightCanvasSecondary)',
+        color,
         whiteSpace: 'nowrap',
         cursor: CURSORS.default,
         userSelect: 'none',
       }}
     >
-      {node.name}
+      {isEditing ? (
+        <InputPrimitive
+          id={`frame-rename-${node.id}`}
+          ref={inputRef}
+          defaultValue={node.name}
+          onBlur={commitRename}
+          onKeyDown={handleKeyDown}
+          style={{
+            border: 'none',
+            outline: 'solid 2px var(--color-border-selected)',
+            borderRadius: 2 / state.scale,
+            padding: `${2 / state.scale}px ${4 / state.scale}px`,
+            marginTop: -(2 / state.scale + 2),
+            marginBottom: -(2 / state.scale + 2),
+            minWidth: 60 / state.scale,
+            font: 'inherit',
+            color: 'inherit',
+            lineHeight: 'inherit',
+            background: 'var(--color-bg)',
+            cursor: 'text',
+          }}
+        />
+      ) : (
+        <ButtonPrimitive
+          onDoubleClick={handleDoubleClick}
+          style={{
+            border: 'none',
+            background: 'none',
+            padding: 0,
+            font: 'inherit',
+            color: 'inherit',
+            lineHeight: 'inherit',
+            cursor: CURSORS.default,
+            userSelect: 'none',
+          }}
+        >
+          {node.name}
+        </ButtonPrimitive>
+      )}
     </div>
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────
-
-/** Build a GPU-composited transform for node positioning (avoids layout thrash) */
-function nodeTransform(x: number, y: number, rotation: number): string {
-  if (rotation) return `translate(${x}px, ${y}px) rotate(${rotation}deg)`;
-  return `translate(${x}px, ${y}px)`;
-}
-
-function colorToCSS(color: Color, opacity: number): string {
-  if (opacity >= 1) return `rgb(${color.r}, ${color.g}, ${color.b})`;
-  return `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`;
-}
-
-function getFirstVisibleFill(fills: Paint[]): Paint | undefined {
-  // Fills render bottom to top, but for a single fill we just take the last visible one
-  for (let i = fills.length - 1; i >= 0; i--) {
-    if (fills[i].visible) return fills[i];
-  }
-  return undefined;
-}
-
-function getFirstVisibleStroke(strokes: Stroke[]): Stroke | undefined {
-  for (const s of strokes) {
-    if (s.paint.visible) return s;
-  }
-  return undefined;
-}
-
-/** SVG stroke width adjusted for position (OUTSIDE/INSIDE double to compensate for clipping) */
-function svgStrokeWidth(stroke: Stroke): number {
-  return stroke.position === 'CENTER' ? stroke.weight : stroke.weight * 2;
-}
-
-function strokeStyles(stroke: Stroke | undefined): React.CSSProperties {
-  if (!stroke) return {};
-
-  const color = colorToCSS(stroke.paint.color, stroke.paint.opacity);
-
-  if (stroke.position === 'INSIDE') {
-    return {
-      boxShadow: `inset 0 0 0 ${stroke.weight}px ${color}`,
-    };
-  }
-
-  if (stroke.position === 'OUTSIDE') {
-    return {
-      boxShadow: `0 0 0 ${stroke.weight}px ${color}`,
-    };
-  }
-
-  // CENTER — half inside, half outside (matches Figma behavior)
-  const half = stroke.weight / 2;
-  return {
-    boxShadow: `inset 0 0 0 ${half}px ${color}, 0 0 0 ${half}px ${color}`,
-  };
-}

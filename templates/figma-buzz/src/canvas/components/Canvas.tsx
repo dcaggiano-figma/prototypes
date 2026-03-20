@@ -1,51 +1,34 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { useAction } from '../../actions/provider';
-import type { NodeType } from '../types';
-import { usePageBackground, useSceneGraph } from '../scene-graph/provider';
-import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
+import type { NodeId, SceneNode } from '@prototype/shared/canvas';
+import {
+  usePageBackground,
+  isDefaultPageBackground,
+  useSceneGraph,
+  useCanvasId,
+  getWorldPosition,
+  isGeometryNode,
+  useSelection,
+  useViewport,
+  useViewportState,
+  useTextEditing,
+  useUndoActions,
+  useNudgeActions,
+  useUndoManager,
+  useBehaviorManager,
+  findNodeAtWorldPoint,
+  CanvasLayers,
+} from '@prototype/shared/canvas';
 import { SelectionOverlay } from '../selection/overlay';
-import { useSelection } from '../selection/provider';
 import { useActiveTool } from '../tools/provider';
-import { useViewport } from '../viewport/provider';
-
+import { useBehaviorChain } from '../behaviors';
 import { CURSORS } from '../cursors';
-import { useTextEditing } from '../text-editing/provider';
-import { computeBounds, pointsToBezierPath, pointsToPolyline, simplifyRDP } from '../tools/path-smoothing';
-import type { Point } from '../tools/path-smoothing';
-import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
-import { findNodeAtWorldPoint } from '../scene-graph/selection-utils';
 import { CanvasRenderer } from './canvas-renderer';
 import { CommentPinLayer, useComments } from '@prototype/shared';
 import { copyNodes, cutNodes, pasteNodes, duplicateNodes } from '../clipboard/clipboard';
 import { useViewMode } from '../../components/ViewModeContext';
-import { isManagedSlide, findDropTarget, applyGridDrop, getDropIndicatorX, type DropTarget } from '../scene-graph/grid-manager';
-import { recomputeGridLayout } from '../scene-graph/grid-layout';
-
-/** Shape tools that support click-drag-to-create */
-const CREATION_TOOLS = new Set(['FRAME', 'SECTION', 'RECTANGLE', 'ELLIPSE', 'LINE', 'POLYGON', 'STAR']);
-
-/** Default fills for newly created shapes */
-const SHAPE_FILL = { type: 'SOLID' as const, color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true };
-const FRAME_FILL = { type: 'SOLID' as const, color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true };
-const SECTION_FILL = { type: 'SOLID' as const, color: { r: 255, g: 255, b: 255 }, opacity: 1, visible: true };
-const SECTION_STROKE = {
-  paint: { type: 'SOLID' as const, color: { r: 217, g: 217, b: 217 }, opacity: 1, visible: true },
-  weight: 1,
-  position: 'INSIDE' as const,
-};
-const TEXT_FILL = { type: 'SOLID' as const, color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true };
-const DEFAULT_STROKE = {
-  paint: { type: 'SOLID' as const, color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true },
-  weight: 1,
-  position: 'CENTER' as const,
-};
-
-/** Minimum distance (world-space px) between recorded pencil points */
-const PENCIL_MIN_DISTANCE = 2;
-
-/** RDP simplification epsilon (world-space px) */
-const PENCIL_RDP_EPSILON = 2.0;
+import { type DropTarget, getDropIndicatorX, recomputeGridLayout } from '../scene-graph/grid';
 
 interface CanvasProps {
   onOpenContextMenu?: (type: 'node' | 'canvas', x: number, y: number) => void;
@@ -65,8 +48,9 @@ function getVisibleBounds(containerEl: HTMLElement) {
   return { left: full.left, top: full.top, width: full.width, height: full.height };
 }
 
-/** Padding (px) around the frame when auto-fitting in asset view */
-const ASSET_FIT_PADDING = 48;
+/** Safe zone (px) around the focused frame in asset view.
+ *  Used for both fit-zoom padding and pan clamping. */
+const ASSET_SAFE_ZONE = 150;
 
 /**
  * Compute the scale to fit a frame within the visible canvas area.
@@ -91,22 +75,38 @@ function computeAssetFitScale(
 
 export function Canvas({ onOpenContextMenu }: CanvasProps) {
   const viewport = useViewport();
-  const { containerRef, transform, screenToWorld } = viewport;
+  const { containerRef, screenToWorld, instance: vp } = viewport;
+  const { state: viewportState } = useViewportState();
   const selection = useSelection();
   const store = useSceneGraph();
-  const pageBg = usePageBackground();
+  const canvasId = useCanvasId();
+  const pageBg = usePageBackground(canvasId);
   const { effectiveTool, setActiveTool, drawColor, drawStrokeWeight, drawOpacity } = useActiveTool();
   const textEditing = useTextEditing();
   const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
-  const { viewMode, focusedFrameId, setFocusedFrameId, setIsAnimatingViewMode } = useViewMode();
+  const { viewMode, focusedFrameId, setFocusedFrameId, setIsAnimatingViewMode, setIsAnimatingModeChange } = useViewMode();
 
   /** Grid drop target for visual indicator when dragging managed frames */
   const [gridDropTarget, setGridDropTarget] = useState<DropTarget | null>(null);
 
+  // Stable callbacks for CommentPinLayer's useSyncExternalStore.
+  // The subscribe function must be referentially stable, and the snapshot
+  // must return the same value (by Object.is) when nothing changed.
+  // A monotonic counter avoids creating a new array each call.
+  const nodeStoreVersionRef = useRef(0);
+  const nodeStoreSubscribe = useCallback(
+    (listener: () => void) => store.addListener(() => { nodeStoreVersionRef.current++; listener(); }),
+    [store],
+  );
+  const nodeStoreGetSnapshot = useCallback(
+    () => nodeStoreVersionRef.current,
+    [],
+  );
+
   /** Resolve the world position of a node by ID (for comment node-attachment) */
   const getNodePosition = useCallback(
     (nodeId: string): { x: number; y: number } | undefined => {
-      const node = store.getNode(nodeId);
+      const node = store.getNode(Number(nodeId) as NodeId);
       if (!node || !isGeometryNode(node)) return undefined;
       return getWorldPosition(store, node);
     },
@@ -116,82 +116,90 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   /** Whether the hand tool is actively dragging (for cursor styling) */
   const [isPanning, setIsPanning] = useState(false);
 
-  /** Screen-space drag box for box selection (null when not dragging on empty canvas) */
-  const [dragBox, setDragBox] = useState<{
-    startX: number
-    startY: number
-    currentX: number
-    currentY: number
-  } | null>(null);
-
-  /** Tracks the pointer-down position and drag state */
-  const dragRef = useRef<{
-    startX: number
-    startY: number
-    dragging: boolean
-    /** World-space position at last pointer event */
-    lastWorld: { x: number; y: number }
-    /** IDs being dragged */
-    nodeIds: string[]
-    /** Whether the hit node was already selected before this pointerdown */
-    wasAlreadySelected?: boolean
-  } | null>(null);
-
-  /** Tracks hand-tool panning state (screen-space) */
-  const panRef = useRef<{ lastX: number; lastY: number } | null>(null);
-
-  /** Tracks last click for manual double-click detection */
-  const lastClickRef = useRef<{ time: number; clientX: number; clientY: number } | null>(null);
-
-  /** Tracks active shape creation drag */
-  const creationRef = useRef<{
-    nodeId: string
-    nodeType: NodeType
-    startWorldX: number
-    startWorldY: number
-    /** Parent's world offset for converting world→local coords during drag */
-    parentOffsetX: number
-    parentOffsetY: number
-  } | null>(null);
-
   /** Skip the click-away text editing exit on the pointerup that follows text creation */
   const skipTextExitRef = useRef(false);
-
-  /** Tracks pencil freehand drawing state */
-  const pencilRef = useRef<{
-    points: Point[]
-    pathEl: SVGPathElement
-  } | null>(null);
 
   /** SVG overlay for pencil live preview (in world-space) */
   const pencilOverlayRef = useRef<SVGSVGElement>(null);
 
-  // Cancel any in-progress creation drag when the tool switches away
+  // ── Behavior system (handles all tools) ─────────────────────────
+  const isSpaceHeldRef = useRef(false);
   useEffect(() => {
-    if (!CREATION_TOOLS.has(effectiveTool)) {
-      creationRef.current = null;
-    }
-  }, [effectiveTool]);
+    const onKeyDown = (e: KeyboardEvent) => { if (e.code === 'Space') isSpaceHeldRef.current = true; };
+    const onKeyUp = (e: KeyboardEvent) => { if (e.code === 'Space') isSpaceHeldRef.current = false; };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
 
-  // Clean up pencil preview when tool switches away from PENCIL
-  useEffect(() => {
-    if (effectiveTool !== 'PENCIL') {
-      const pencil = pencilRef.current;
-      if (pencil) {
-        pencil.pathEl.remove();
-        pencilRef.current = null;
-      }
-    }
-  }, [effectiveTool]);
+  const behaviors = useBehaviorChain({
+    effectiveTool,
+    isSpaceHeld: () => isSpaceHeldRef.current,
+    onPanStart: () => setIsPanning(true),
+    onPanEnd: () => setIsPanning(false),
+    drawColor,
+    drawStrokeWeight,
+    drawOpacity,
+    pencilOverlayRef,
+    onToolCreated: () => {
+      setActiveTool('MOVE');
+      skipTextExitRef.current = effectiveTool === 'TEXT';
+    },
+    onCommentPlace: (placement) => {
+      setInteraction({
+        type: 'placing',
+        worldX: placement.worldX,
+        worldY: placement.worldY,
+        ...(placement.nodeId != null ? {
+          nodeId: String(placement.nodeId),
+          nodeOffsetX: placement.nodeOffsetX,
+          nodeOffsetY: placement.nodeOffsetY,
+        } : {}),
+      });
+    },
+    onGridDropTargetChange: setGridDropTarget,
+    isSlideView: () => viewMode === 'asset',
+  });
+
+  const bm = useBehaviorManager({
+    behaviors,
+    enteredFrameId: selection.enteredFrameId,
+  });
+
+  // Register undo/redo actions
+  const um = useUndoManager();
+  const { undo, redo } = useUndoActions();
+  useAction('undo', undo);
+  useAction('redo', redo);
+
+  // Register nudge actions — SLIDE nodes can't be nudged in slide/focus view
+  const skipSlideNudge = useCallback(
+    (node: { type: string }) => node.type === 'SLIDE' && viewMode !== 'grid',
+    [viewMode],
+  );
+  const nudge = useNudgeActions({ shouldSkip: skipSlideNudge });
+  useAction('nudge.up', nudge.nudgeUp);
+  useAction('nudge.down', nudge.nudgeDown);
+  useAction('nudge.left', nudge.nudgeLeft);
+  useAction('nudge.right', nudge.nudgeRight);
+  useAction('nudge.up.big', nudge.nudgeUpBig);
+  useAction('nudge.down.big', nudge.nudgeDownBig);
+  useAction('nudge.left.big', nudge.nudgeLeftBig);
+  useAction('nudge.right.big', nudge.nudgeRightBig);
 
   // Register selection actions
   useAction(
     'select-all',
     useCallback(() => {
-      for (const node of store.getRootNodes()) {
-        selection.add(node.id);
+      const canvas = store.getNode(canvasId);
+      if (!canvas) return;
+      for (const childId of canvas.children) {
+        selection.add(childId);
       }
-    }, [store, selection]),
+    }, [store, canvasId, selection]),
   );
 
   useAction(
@@ -213,7 +221,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         store.deleteNode(id);
       }
       selection.clear();
-    }, [store, selection]),
+      um.commit();
+    }, [store, selection, um]),
   );
 
   useAction(
@@ -230,7 +239,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       if (selection.selectedIds.size === 0) return;
       cutNodes(store, selection.selectedIds);
       selection.clear();
-    }, [store, selection]),
+      um.commit();
+    }, [store, selection, um]),
   );
 
   useAction(
@@ -240,22 +250,24 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       if (!container) return;
       const rect = container.getBoundingClientRect();
       const center = screenToWorld(rect.width / 2, rect.height / 2);
-      const newIds = pasteNodes(store, selection.selectedIds, center);
+      const newIds = pasteNodes(store, canvasId, selection.selectedIds, center);
       if (newIds.length > 0) {
         selection.selectMany(newIds);
       }
-    }, [store, selection, containerRef, screenToWorld]),
+      um.commit();
+    }, [store, selection, containerRef, screenToWorld, um, canvasId]),
   );
 
   useAction(
     'duplicate',
     useCallback(() => {
       if (selection.selectedIds.size === 0) return;
-      const newIds = duplicateNodes(store, selection.selectedIds);
+      const newIds = duplicateNodes(store, canvasId, selection.selectedIds);
       if (newIds.length > 0) {
         selection.selectMany(newIds);
       }
-    }, [store, selection]),
+      um.commit();
+    }, [store, selection, um, canvasId]),
   );
 
   useAction(
@@ -265,7 +277,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       if (!container) return;
 
       // Compute world-space bounding box of all nodes
-      const roots = store.getRootNodes();
+      const roots = getRootNodes(store, canvasId);
       if (roots.length === 0) return;
 
       let minX = Infinity;
@@ -304,7 +316,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           y: vis.top + vis.height / 2 - cy * scale,
         },
       });
-    }, [store, containerRef, viewport]),
+    }, [store, containerRef, viewport, canvasId]),
   );
 
   // Dynamic min scale for zoom actions: in asset mode, use 20% coverage floor
@@ -379,7 +391,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     const container = containerRef.current;
     if (!container) return;
 
-    const roots = store.getRootNodes();
+    const roots = getRootNodes(store, canvasId);
     if (roots.length === 0) return;
 
     let minX = Infinity;
@@ -410,43 +422,141 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         y: vis.top + vis.height / 2 - cy,
       },
     });
-  }, [store, containerRef, viewport]);
+  }, [store, canvasId, containerRef, viewport]);
 
-  // Update zoom limits, pan restrictions, and zoom anchor based on view mode
-  useEffect(() => {
-    const isAsset = viewMode === 'asset';
-    viewport.setMaxScale(256);
+  // --- Asset-mode: wheel interception + pan bounds clamping ---
 
-    if (isAsset && focusedFrameId) {
-      const fNode = store.getNode(focusedFrameId);
-      const container = containerRef.current;
-      if (fNode && isGeometryNode(fNode) && container) {
-        const vis = getVisibleBounds(container);
-        // Dynamic min scale based on 20% coverage rule
-        const dynamicMin = Math.max(0.2 * vis.width / fNode.width, 0.2 * vis.height / fNode.height, 0.1);
-        viewport.setMinScale(dynamicMin);
-        viewport.setZoomAnchor({ x: vis.left + vis.width / 2, y: vis.top + vis.height / 2 });
-      } else {
-        viewport.setMinScale(0.5);
-      }
+  // Keep minScale in a ref so the capture-phase wheel handler always reads
+  // the current value without re-attaching the listener.
+  const minScaleRef = useRef(minScale);
+  minScaleRef.current = minScale;
+
+  // Shared clamp helper: keeps ASSET_SAFE_ZONE (world-space) visible around
+  // the focused frame. If the safe zone fits in the viewport, pan is locked
+  // (centered). If it overflows, panning stops at the safe zone edge.
+  const clampPanBounds = () => {
+    if (viewMode !== 'asset' || !focusedFrameId || isAnimatingRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const fNode = store.getNode(focusedFrameId);
+    if (!fNode || !isGeometryNode(fNode)) return;
+    const pos = getWorldPosition(store, fNode);
+    const vis = getVisibleBounds(container);
+    const s = vp.scale;
+    const ox = vp.originX;
+    const oy = vp.originY;
+
+    // Frame screen-space bounds
+    const fL = pos.x * s + ox;
+    const fT = pos.y * s + oy;
+    const fW = fNode.width * s;
+    const fH = fNode.height * s;
+
+    // Safe zone: ASSET_SAFE_ZONE in world space, scaled to screen
+    const safePx = ASSET_SAFE_ZONE * s;
+
+    // Safe zone rect in screen space
+    const szL = fL - safePx;
+    const szT = fT - safePx;
+    const szW = fW + safePx * 2;
+    const szH = fH + safePx * 2;
+
+    let nx = ox;
+    let ny = oy;
+
+    // Horizontal axis
+    if (szW <= vis.width) {
+      // Safe zone fits — lock horizontal pan (center the frame)
+      const frameCenterWorld = pos.x + fNode.width / 2;
+      nx = vis.left + vis.width / 2 - frameCenterWorld * s;
     } else {
-      viewport.setMinScale(isAsset ? 0.5 : 0.02);
-      viewport.setZoomAnchor(null);
+      // Safe zone overflows — clamp to safe zone edges
+      if (szL > vis.left) nx -= szL - vis.left;
+      const szR = szL + szW;
+      const visR = vis.left + vis.width;
+      if (szR < visR) nx += visR - szR;
     }
 
-    viewport.setPanEnabled(!isAsset);
-  }, [viewMode, focusedFrameId, viewport, containerRef, store]);
+    // Vertical axis
+    if (szH <= vis.height) {
+      // Safe zone fits — lock vertical pan (center the frame)
+      const frameCenterWorld = pos.y + fNode.height / 2;
+      ny = vis.top + vis.height / 2 - frameCenterWorld * s;
+    } else {
+      // Safe zone overflows — clamp to safe zone edges
+      if (szT > vis.top) ny -= szT - vis.top;
+      const szB = szT + szH;
+      const visB = vis.top + vis.height;
+      if (szB < visB) ny += visB - szB;
+    }
+
+    if (nx !== ox || ny !== oy) vp.set(nx, ny, s);
+  };
+  const clampPanBoundsRef = useRef(clampPanBounds);
+  clampPanBoundsRef.current = clampPanBounds;
+
+  // Part 1: Capture-phase wheel listener — fires before the shared provider's
+  // bubble-phase handler, enforcing asset-mode zoom limits and pan bounds.
+  useEffect(() => {
+    if (viewMode !== 'asset') return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.ctrlKey || e.metaKey) {
+        // Zoom: clamp to [minScale, maxScale]
+        const rect = container.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const newScale = Math.max(
+          minScaleRef.current,
+          Math.min(maxScale, vp.scale * (1 - e.deltaY / 100)),
+        );
+        vp.zoomTo(newScale, mx, my);
+      } else {
+        // Pan
+        vp.pan(-e.deltaX, -e.deltaY);
+      }
+      clampPanBoundsRef.current();
+    };
+
+    container.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    return () => container.removeEventListener('wheel', onWheel, { capture: true });
+  }, [viewMode, vp, containerRef]);
+
+  // Part 2: Subscribe to viewport changes and clamp pan bounds as a safety
+  // net for mutation sources other than the wheel handler (e.g. hand tool pan).
+  useEffect(() => {
+    if (viewMode !== 'asset' || !focusedFrameId) return;
+    let clamping = false;
+    return vp.subscribe(() => {
+      if (clamping || isAnimatingRef.current) return;
+      clamping = true;
+      clampPanBoundsRef.current();
+      clamping = false;
+    });
+  }, [viewMode, focusedFrameId, vp]);
 
   // When entering asset mode, focus the selected slide (or default to first slide).
   // Uses useLayoutEffect so focusedFrameId is set before the animation effect runs.
   // We also write to a ref so the animation effect (same render cycle) can read
   // the intended target synchronously, since setState is async.
   const prevViewModeForFocusRef = useRef(viewMode);
-  const pendingFocusIdRef = useRef<string | null>(null);
+  const pendingFocusIdRef = useRef<NodeId | null>(null);
   useLayoutEffect(() => {
+    const wasAsset = prevViewModeForFocusRef.current === 'asset';
     const wasGrid = prevViewModeForFocusRef.current === 'grid';
     prevViewModeForFocusRef.current = viewMode;
     pendingFocusIdRef.current = null;
+
+    // Switching asset -> grid: select the focused frame so it's highlighted
+    if (viewMode === 'grid' && wasAsset && focusedFrameId) {
+      selection.select(focusedFrameId);
+      return;
+    }
 
     if (viewMode !== 'asset') return;
 
@@ -460,24 +570,33 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           return;
         }
         // If a section is selected, focus its first child slide
-        if (node && node.type === 'SECTION' && node.children.length > 0) {
+        if (node && (node.type === 'SECTION' || node.type === 'GRID_SECTION') && node.children.length > 0) {
           pendingFocusIdRef.current = node.children[0];
           setFocusedFrameId(node.children[0]);
           return;
+        }
+        // If a child of a slide is selected, focus the parent slide
+        if (node && node.parentId) {
+          const parent = store.getNode(node.parentId);
+          if (parent && (parent.type === 'SLIDE' || parent.type === 'FRAME')) {
+            pendingFocusIdRef.current = parent.id;
+            setFocusedFrameId(parent.id);
+            return;
+          }
         }
       }
     }
 
     // Default: focus first slide if nothing is focused
     if (!focusedFrameId) {
-      const roots = store.getRootNodes();
-      const firstSection = roots.find((n) => n.type === 'SECTION');
+      const roots = getRootNodes(store, canvasId);
+      const firstSection = roots.find((n) => n.type === 'SECTION' || n.type === 'GRID_SECTION');
       if (firstSection && firstSection.children.length > 0) {
         pendingFocusIdRef.current = firstSection.children[0];
         setFocusedFrameId(firstSection.children[0]);
       }
     }
-  }, [viewMode, focusedFrameId, store, setFocusedFrameId, selection.selectedIds]);
+  }, [viewMode, focusedFrameId, store, canvasId, setFocusedFrameId, selection.selectedIds, selection]);
 
   // Track visible-area center and shift viewport when the left panel opens/closes/resizes.
   const prevVisCenterRef = useRef<{ cx: number; cy: number } | null>(null);
@@ -504,10 +623,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         }
       }
       prevVisCenterRef.current = { cx, cy };
-      // Keep zoom anchor in sync with the visible center
-      if (viewMode === 'asset') {
-        viewport.setZoomAnchor({ x: cx, y: cy });
-      }
+      // TODO: Keep zoom anchor in sync with the visible center once Viewport supports setZoomAnchor
     });
 
     // Seed the initial center
@@ -523,8 +639,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   // don't re-trigger this centering logic.
   const setViewportRef = useRef(viewport.setState);
   setViewportRef.current = viewport.setState;
-  const viewportStateRef = useRef(viewport.state);
-  viewportStateRef.current = viewport.state;
+  const viewportStateRef = useRef(viewportState);
+  viewportStateRef.current = viewportState;
   const animFrameRef = useRef(0);
   const prevViewModeRef = useRef(viewMode);
   const isFirstRenderRef = useRef(true);
@@ -533,6 +649,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   const pendingAnimateRef = useRef(false);
   // Guard: skip re-entry while animation is in progress
   const isAnimatingRef = useRef(false);
+  // Tracks whether the pending animation is a focus-only change (no grid render needed)
+  const pendingFocusOnlyRef = useRef(false);
+  const prevFocusedIdRef = useRef(focusedFrameId);
 
   useLayoutEffect(() => {
     // If we're mid-animation, don't restart or cancel
@@ -548,6 +667,17 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       prevViewModeRef.current = viewMode;
     }
     isFirstRenderRef.current = false;
+
+    // Detect focus change within same mode (e.g. clicking different slide in SectionList)
+    const focusJustChanged = prevFocusedIdRef.current !== focusedFrameId;
+    prevFocusedIdRef.current = focusedFrameId;
+
+    // Focus change within asset mode — snap immediately (no animation).
+    // Mark as pending so the viewport gets updated, but don't set
+    // pendingAnimateRef so it takes the non-animated path.
+    if (!modeJustChanged && focusJustChanged && viewMode === 'asset' && focusedFrameId) {
+      pendingFocusOnlyRef.current = true;
+    }
 
     const container = containerRef.current;
     if (!container) return;
@@ -574,33 +704,35 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       if (!focusedWorldCenter) return;
       const fNode = store.getNode(effectiveFocusId);
       if (!fNode || !isGeometryNode(fNode)) return;
-      const fitScale = computeAssetFitScale(fNode.width, fNode.height, vis.width, vis.height, ASSET_FIT_PADDING);
-      target = { scale: fitScale, worldCenter: focusedWorldCenter };
+      const padding = ASSET_SAFE_ZONE;
+      const fitScale = computeAssetFitScale(fNode.width, fNode.height, vis.width, vis.height, padding);
+      const effectiveScale = fitScale;
+      target = { scale: effectiveScale, worldCenter: focusedWorldCenter };
     } else if (viewMode === 'asset' && !effectiveFocusId) {
       // Waiting for focusedFrameId to be set — don't consume pendingAnimateRef
       return;
     } else if (viewMode === 'grid') {
-      const roots = store.getRootNodes();
+      const roots = getRootNodes(store, canvasId);
       if (roots.length === 0) return;
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
       for (const root of roots) {
         if (!isGeometryNode(root)) continue;
         const pos = getWorldPosition(store, root);
-        minX = Math.min(minX, pos.x);
-        minY = Math.min(minY, pos.y);
-        maxX = Math.max(maxX, pos.x + root.width);
-        maxY = Math.max(maxY, pos.y + root.height);
+        gMinX = Math.min(gMinX, pos.x);
+        gMinY = Math.min(gMinY, pos.y);
+        gMaxX = Math.max(gMaxX, pos.x + root.width);
+        gMaxY = Math.max(gMaxY, pos.y + root.height);
       }
-      if (!isFinite(minX)) return;
+      if (!isFinite(gMinX)) return;
       const padding = 48;
       const availW = vis.width - padding * 2;
       const availH = vis.height - padding * 2;
-      const contentW = maxX - minX;
-      const contentH = maxY - minY;
+      const contentW = gMaxX - gMinX;
+      const contentH = gMaxY - gMinY;
       if (contentW <= 0 || contentH <= 0) return;
       const scale = Math.min(availW / contentW, availH / contentH, 4);
       // Keep the focused frame centered in grid view (rather than centering on all content)
-      target = { scale, worldCenter: focusedWorldCenter ?? { x: (minX + maxX) / 2, y: (minY + maxY) / 2 } };
+      target = { scale, worldCenter: focusedWorldCenter ?? { x: (gMinX + gMaxX) / 2, y: (gMinY + gMaxY) / 2 } };
     }
 
     if (!target) return;
@@ -609,7 +741,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
     // Consume the pending animate flag
     const shouldAnimate = pendingAnimateRef.current;
+    const isFocusOnly = pendingFocusOnlyRef.current;
     pendingAnimateRef.current = false;
+    pendingFocusOnlyRef.current = false;
 
     // Cancel any in-progress animation
     if (animFrameRef.current) {
@@ -628,29 +762,31 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       return;
     }
 
-    // Animated transition between view modes.
-    // Interpolate scale and world-space center independently, then derive
-    // origin each frame. This keeps the focused frame visually centered
-    // throughout the zoom instead of drifting.
+    // Animated transition between view modes or focus changes.
     const fromState = viewportStateRef.current;
     const fromWorldCenter = {
       x: (screenCenter.x - fromState.origin.x) / fromState.scale,
       y: (screenCenter.y - fromState.origin.y) / fromState.scale,
     };
-    // Use the focused frame as the pivot so it stays centered throughout
-    const pivotCenter = focusedWorldCenter ?? fromWorldCenter;
+    const toWorldCenter = target.worldCenter;
     const fromScale = fromState.scale;
     const toScale = target.scale;
-    const duration = 600;
+    const duration = isFocusOnly ? 300 : 600;
     const start = performance.now();
 
     // Ease-in-out cubic
     const ease = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
     isAnimatingRef.current = true;
+    // Always signal that a viewport animation is in progress so the
+    // floating toolbar hides. For mode-change animations, CanvasRenderer
+    // also needs to show the full grid — tracked via isAnimatingModeChange.
     // Use queueMicrotask to avoid triggering a synchronous re-render
     // (which would run cleanup and cancel the animation we just started)
-    queueMicrotask(() => setIsAnimatingViewMode(true));
+    queueMicrotask(() => {
+      setIsAnimatingViewMode(true);
+      if (!isFocusOnly) setIsAnimatingModeChange(true);
+    });
 
     const tick = (now: number) => {
       const elapsed = now - start;
@@ -659,11 +795,16 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
       const s = fromScale + (toScale - fromScale) * e;
 
+      // Interpolate the world center so the viewport pans smoothly
+      // between frames (focus-only) or zooms around the target (mode change).
+      const wcx = fromWorldCenter.x + (toWorldCenter.x - fromWorldCenter.x) * e;
+      const wcy = fromWorldCenter.y + (toWorldCenter.y - fromWorldCenter.y) * e;
+
       setViewportRef.current({
         scale: s,
         origin: {
-          x: screenCenter.x - pivotCenter.x * s,
-          y: screenCenter.y - pivotCenter.y * s,
+          x: screenCenter.x - wcx * s,
+          y: screenCenter.y - wcy * s,
         },
       });
 
@@ -673,6 +814,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         animFrameRef.current = 0;
         isAnimatingRef.current = false;
         setIsAnimatingViewMode(false);
+        setIsAnimatingModeChange(false);
       }
     };
 
@@ -694,27 +836,34 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       prevH = fNode.height;
     }
 
-    const unsub = store.subscribe(() => {
+    const unsub = store.addListener((_e) => {
       const node = store.getNode(focusedFrameId);
       if (!node || !isGeometryNode(node)) return;
       if (node.width === prevW && node.height === prevH) return;
       prevW = node.width;
       prevH = node.height;
 
-      const container = containerRef.current;
-      if (!container) return;
-      const vis = getVisibleBounds(container);
-      const fitScale = computeAssetFitScale(node.width, node.height, vis.width, vis.height, ASSET_FIT_PADDING);
-      const pos = getWorldPosition(store, node);
-      const cx = pos.x + node.width / 2;
-      const cy = pos.y + node.height / 2;
+      // Defer viewport update to a microtask so that recomputeGridLayout
+      // (which also runs as a store listener) has already repositioned nodes.
+      // Reading world position before layout runs causes misalignment.
+      queueMicrotask(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const updatedNode = store.getNode(focusedFrameId);
+        if (!updatedNode || !isGeometryNode(updatedNode)) return;
+        const vis = getVisibleBounds(container);
+        const fitScale = computeAssetFitScale(updatedNode.width, updatedNode.height, vis.width, vis.height, ASSET_SAFE_ZONE);
+        const pos = getWorldPosition(store, updatedNode);
+        const cx = pos.x + updatedNode.width / 2;
+        const cy = pos.y + updatedNode.height / 2;
 
-      setViewportRef.current({
-        scale: fitScale,
-        origin: {
-          x: vis.left + vis.width / 2 - cx * fitScale,
-          y: vis.top + vis.height / 2 - cy * fitScale,
-        },
+        setViewportRef.current({
+          scale: fitScale,
+          origin: {
+            x: vis.left + vis.width / 2 - cx * fitScale,
+            y: vis.top + vis.height / 2 - cy * fitScale,
+          },
+        });
       });
     });
 
@@ -724,10 +873,10 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   // Recompute grid layout whenever a managed frame's size changes
   useEffect(() => {
     // Snapshot sizes of all managed frames
-    const prevSizes = new Map<string, { w: number; h: number }>();
-    const roots = store.getRootNodes();
+    const prevSizes = new Map<NodeId, { w: number; h: number }>();
+    const roots = getRootNodes(store, canvasId);
     for (const root of roots) {
-      if (root.type !== 'SECTION') continue;
+      if (root.type !== 'SECTION' && root.type !== 'GRID_SECTION') continue;
       for (const childId of root.children) {
         const child = store.getNode(childId);
         if (child && isGeometryNode(child)) {
@@ -736,11 +885,11 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       }
     }
 
-    return store.subscribe(() => {
+    return store.addListener((_e) => {
       let changed = false;
-      const currentRoots = store.getRootNodes();
+      const currentRoots = getRootNodes(store, canvasId);
       for (const root of currentRoots) {
-        if (root.type !== 'SECTION') continue;
+        if (root.type !== 'SECTION' && root.type !== 'GRID_SECTION') continue;
         for (const childId of root.children) {
           const child = store.getNode(childId);
           if (!child || !isGeometryNode(child)) continue;
@@ -752,11 +901,13 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
         }
       }
       if (changed) {
-        const sectionIds = currentRoots.filter((n) => n.type === 'SECTION').map((n) => n.id);
+        const sectionIds = currentRoots.filter((n) => n.type === 'SECTION' || n.type === 'GRID_SECTION').map((n) => n.id);
         recomputeGridLayout(store, sectionIds);
       }
     });
-  }, [store]);
+  }, [store, canvasId]);
+
+  // ── Pointer handlers (delegated to behavior manager) ──────────────
 
   const onContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -780,431 +931,24 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      // Only handle left-click (button 0) — right-clicks use the context menu
-      if (e.button !== 0) return;
-
+      if (e.button !== 0 && e.button !== 1) return;
       selection.setHovered(null);
-
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      // Hand tool: start panning (disabled in asset/focus view)
-      if (effectiveTool === 'HAND' && viewMode !== 'asset') {
-        panRef.current = { lastX: e.clientX, lastY: e.clientY };
-        setIsPanning(true);
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
-        return;
-      }
-
-      const localX = e.clientX - rect.left;
-      const localY = e.clientY - rect.top;
-      const world = screenToWorld(localX, localY);
-
-      // Comment tool: click-to-place a comment pin
-      if (effectiveTool === 'COMMENT') {
-        const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
-        if (hitId) {
-          const node = store.getNode(hitId);
-          if (node && isGeometryNode(node)) {
-            const nodeWorldPos = getWorldPosition(store, node);
-            setInteraction({
-              type: 'placing',
-              worldX: world.x,
-              worldY: world.y,
-              nodeId: hitId,
-              nodeOffsetX: world.x - nodeWorldPos.x,
-              nodeOffsetY: world.y - nodeWorldPos.y,
-            });
-          }
-        } else {
-          setInteraction({
-            type: 'placing',
-            worldX: world.x,
-            worldY: world.y,
-          });
-        }
-        return;
-      }
-
-      // Pencil tool: start freehand drawing
-      if (effectiveTool === 'PENCIL') {
-        const overlay = pencilOverlayRef.current;
-        if (!overlay) return;
-
-        const rgb = parseHexColor(drawColor);
-        const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        pathEl.setAttribute('d', `M${world.x},${world.y}`);
-        pathEl.setAttribute('fill', 'none');
-        pathEl.setAttribute('stroke', `rgb(${rgb.r},${rgb.g},${rgb.b})`);
-        pathEl.setAttribute('stroke-width', String(drawStrokeWeight));
-        pathEl.setAttribute('opacity', String(drawOpacity / 100));
-        pathEl.setAttribute('stroke-linecap', 'round');
-        pathEl.setAttribute('stroke-linejoin', 'round');
-        overlay.appendChild(pathEl);
-
-        pencilRef.current = {
-          points: [{ x: world.x, y: world.y }],
-          pathEl,
-        };
-
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
-        return;
-      }
-
-      // Text tool: click-to-place a text node and enter editing
-      if (effectiveTool === 'TEXT') {
-        const { parentId, worldToLocal } = getCreationParent(store, selection.enteredFrameId, focusedFrameId);
-        const local = worldToLocal(world.x, world.y);
-        const node = store.createNode('TEXT', {
-          x: local.x,
-          y: local.y,
-          width: 120,
-          height: 22,
-          fills: [TEXT_FILL],
-          ...(parentId ? { parentId } : {}),
-        });
-        selection.select(node.id);
-        textEditing.startEditing(node.id);
-        setActiveTool('MOVE');
-        skipTextExitRef.current = true;
-        return;
-      }
-
-      // Shape creation tools: create a node at click position and start drag-to-resize
-      if (CREATION_TOOLS.has(effectiveTool)) {
-        const nodeType = effectiveTool as NodeType;
-        const isLine = nodeType === 'LINE';
-        const isSection = nodeType === 'SECTION';
-        const fills = isLine ? [] : isSection ? [SECTION_FILL] : nodeType === 'FRAME' ? [FRAME_FILL] : [SHAPE_FILL];
-        const extra: Record<string, unknown> = {};
-        if (nodeType === 'FRAME') extra.clipsContent = true;
-        if (isSection) { extra.strokes = [SECTION_STROKE]; extra.cornerRadius = 8; }
-        if (isLine) extra.strokes = [DEFAULT_STROKE];
-        // Parent into focused/entered frame (not for sections which are top-level pages)
-        const { parentId, worldToLocal } = isSection
-          ? { parentId: null, worldToLocal: (wx: number, wy: number) => ({ x: wx, y: wy }) }
-          : getCreationParent(store, selection.enteredFrameId, focusedFrameId);
-        const local = worldToLocal(world.x, world.y);
-        const pOffsetX = world.x - local.x;
-        const pOffsetY = world.y - local.y;
-        const node = store.createNode(nodeType, {
-          x: local.x,
-          y: local.y,
-          width: 0,
-          height: 0,
-          fills,
-          ...extra,
-          ...(parentId ? { parentId } : {}),
-        });
-        creationRef.current = {
-          nodeId: node.id,
-          nodeType,
-          startWorldX: world.x,
-          startWorldY: world.y,
-          parentOffsetX: pOffsetX,
-          parentOffsetY: pOffsetY,
-        };
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
-        return;
-      }
-
-      if (effectiveTool === 'MOVE') {
-        // If we have a multi-selection, check if click is inside the combined
-        // bounding box — if so, start dragging all selected nodes
-        if (selection.selectedIds.size > 1) {
-          const bbox = getSelectionBBox(store, selection.selectedIds);
-          if (bbox && pointInRect(world.x, world.y, bbox)) {
-            dragRef.current = {
-              startX: e.clientX,
-              startY: e.clientY,
-              dragging: false,
-              lastWorld: world,
-              nodeIds: collectDraggableIds(store, selection.selectedIds),
-            };
-            (e.target as HTMLElement).setPointerCapture(e.pointerId);
-            return;
-          }
-        }
-
-        // DOM hit-test with Figma-style frame resolution
-        const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
-        if (hitId) {
-          // Track whether the node was already selected (for click-to-edit behavior)
-          const wasAlreadySelected = selection.isSelected(hitId);
-
-          // If the hit node isn't selected, select it now
-          if (!wasAlreadySelected) {
-            if (e.shiftKey) {
-              selection.toggle(hitId);
-            } else {
-              selection.select(hitId);
-            }
-          }
-
-          // Use hitId directly — React state from select() hasn't committed yet
-          const node = store.getNode(hitId);
-          const dragIds = node && isGeometryNode(node) ? [hitId] : [];
-
-          const nodeIds = selection.isSelected(hitId)
-            ? collectDraggableIds(store, selection.selectedIds)
-            : dragIds;
-
-          dragRef.current = {
-            startX: e.clientX,
-            startY: e.clientY,
-            dragging: false,
-            lastWorld: world,
-            nodeIds,
-            wasAlreadySelected,
-          };
-          (e.target as HTMLElement).setPointerCapture(e.pointerId);
-          return;
-        }
-      }
-
-      // No hit or not move tool — just record position for click detection
-      dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        dragging: false,
-        lastWorld: world,
-        nodeIds: [],
-      };
-
-      // Start box selection when clicking empty canvas with move tool
-      if (effectiveTool === 'MOVE') {
-        setDragBox({
-          startX: localX, startY: localY, currentX: localX, currentY: localY,
-        });
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      }
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      bm.onPointerDown(e);
     },
-    [containerRef, screenToWorld, store, selection, effectiveTool, textEditing, setActiveTool, setInteraction, drawColor, drawStrokeWeight, drawOpacity, viewMode, focusedFrameId],
+    [selection, bm],
   );
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
-      // Hover tracking — only when no active interaction
-      if (!pencilRef.current && !creationRef.current && !panRef.current && !dragRef.current) {
-        const hitId = resolveHoverNode(e.target as HTMLElement);
-        const hoverTarget = hitId && !selection.isSelected(hitId) ? hitId : null;
-        selection.setHovered(hoverTarget);
-      }
-
-      // Pencil drawing — append points to live preview
-      const pencil = pencilRef.current;
-      if (pencil) {
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        // Use coalesced events for high-fidelity input when available
-        const events = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent];
-        let updated = false;
-
-        for (const evt of events) {
-          const lx = evt.clientX - rect.left;
-          const ly = evt.clientY - rect.top;
-          const world = screenToWorld(lx, ly);
-          const last = pencil.points[pencil.points.length - 1];
-          const dx = world.x - last.x;
-          const dy = world.y - last.y;
-
-          // Distance filter: skip if too close to last point
-          if (dx * dx + dy * dy < PENCIL_MIN_DISTANCE * PENCIL_MIN_DISTANCE) continue;
-
-          pencil.points.push({ x: world.x, y: world.y });
-          updated = true;
-        }
-
-        if (updated) {
-          pencil.pathEl.setAttribute('d', pointsToPolyline(pencil.points));
-        }
-        return;
-      }
-
-      // Shape creation drag — resize the new node
-      const creation = creationRef.current;
-      if (creation) {
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        const localX = e.clientX - rect.left;
-        const localY = e.clientY - rect.top;
-        const world = screenToWorld(localX, localY);
-        const pOx = creation.parentOffsetX;
-        const pOy = creation.parentOffsetY;
-
-        // LINE: compute width as distance, rotation as angle, height stays 0
-        if (creation.nodeType === 'LINE') {
-          const dx = world.x - creation.startWorldX;
-          const dy = world.y - creation.startWorldY;
-          let length = Math.sqrt(dx * dx + dy * dy);
-          let angle = Math.atan2(dy, dx) * (180 / Math.PI);
-
-          // Shift-drag: snap to 45-degree increments
-          if (e.shiftKey) {
-            angle = Math.round(angle / 45) * 45;
-            const rad = angle * (Math.PI / 180);
-            length = Math.abs(dx * Math.cos(rad) + dy * Math.sin(rad));
-          }
-
-          store.updateNode(creation.nodeId, {
-            x: creation.startWorldX - pOx,
-            y: creation.startWorldY - pOy,
-            width: length,
-            height: 0,
-            rotation: angle,
-          });
-          return;
-        }
-
-        let x = Math.min(creation.startWorldX, world.x);
-        let y = Math.min(creation.startWorldY, world.y);
-        let w = Math.abs(world.x - creation.startWorldX);
-        let h = Math.abs(world.y - creation.startWorldY);
-
-        // Shift-drag: constrain to square/circle
-        if (e.shiftKey) {
-          const size = Math.max(w, h);
-          w = size;
-          h = size;
-          // Anchor from the original start point
-          if (world.x < creation.startWorldX) x = creation.startWorldX - size;
-          if (world.y < creation.startWorldY) y = creation.startWorldY - size;
-        }
-
-        store.updateNode(creation.nodeId, { x: x - pOx, y: y - pOy, width: w, height: h });
-        return;
-      }
-
-      // Hand tool panning
-      const pan = panRef.current;
-      if (pan) {
-        const dx = e.clientX - pan.lastX;
-        const dy = e.clientY - pan.lastY;
-        pan.lastX = e.clientX;
-        pan.lastY = e.clientY;
-        viewport.setState((prev) => ({
-          ...prev,
-          origin: { x: prev.origin.x + dx, y: prev.origin.y + dy },
-        }));
-        return;
-      }
-
-      const drag = dragRef.current;
-      if (!drag) return;
-
-      // Update box selection drag
-      if (drag.nodeIds.length === 0 && dragBox) {
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (rect) {
-          setDragBox((prev) => (prev
-            ? { ...prev, currentX: e.clientX - rect.left, currentY: e.clientY - rect.top }
-            : null));
-        }
-        return;
-      }
-
-      if (drag.nodeIds.length === 0) return;
-
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
-
-      // Start dragging once past threshold
-      if (!drag.dragging && dx * dx + dy * dy > 9) {
-        drag.dragging = true;
-      }
-
-      if (!drag.dragging) return;
-
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const localX = e.clientX - rect.left;
-      const localY = e.clientY - rect.top;
-      const world = screenToWorld(localX, localY);
-
-      // Check if dragging a managed grid frame
-      const isManagedDrag = drag.nodeIds.length === 1 && isManagedSlide(store, drag.nodeIds[0]);
-      if (isManagedDrag) {
-        // Compute drop target instead of free movement
-        const target = findDropTarget(store, world.x, world.y, drag.nodeIds[0]);
-        setGridDropTarget(target);
-        return;
-      }
-
-      const worldDx = world.x - drag.lastWorld.x;
-      const worldDy = world.y - drag.lastWorld.y;
-      drag.lastWorld = world;
-
-      // Update all dragged nodes
-      for (const id of drag.nodeIds) {
-        const node = store.getNode(id);
-        if (!node || !isGeometryNode(node)) continue;
-        store.updateNode(id, {
-          x: node.x + worldDx,
-          y: node.y + worldDy,
-        });
-      }
+      bm.onPointerMove(e);
     },
-    [containerRef, screenToWorld, store, dragBox, viewport],
+    [bm],
   );
 
   const onPointerUp = useCallback(
     (e: React.PointerEvent) => {
-      // Finalize pencil drawing
-      const pencil = pencilRef.current;
-      if (pencil) {
-        pencil.pathEl.remove();
-        pencilRef.current = null;
-
-        // Discard if too few points (click without drag)
-        if (pencil.points.length < 2) return;
-
-        // Compute bounding box, normalize points to local coords
-        const bounds = computeBounds(pencil.points);
-        // Add small padding to avoid zero-dimension nodes
-        const minSize = drawStrokeWeight;
-        const w = Math.max(bounds.width, minSize);
-        const h = Math.max(bounds.height, minSize);
-
-        const normalized = pencil.points.map((p) => ({
-          x: p.x - bounds.x,
-          y: p.y - bounds.y,
-        }));
-
-        // Simplify and smooth
-        const simplified = simplifyRDP(normalized, PENCIL_RDP_EPSILON);
-        const d = pointsToBezierPath(simplified);
-
-        // Build stroke from draw tool state
-        const rgb = parseHexColor(drawColor);
-        const stroke = {
-          paint: { type: 'SOLID' as const, color: rgb, opacity: drawOpacity / 100, visible: true },
-          weight: drawStrokeWeight,
-          position: 'CENTER' as const,
-        };
-
-        // Create the VectorNode — parent into focused/entered frame
-        const { parentId: vecParentId, worldToLocal: vecW2L } = getCreationParent(store, selection.enteredFrameId, focusedFrameId);
-        const vecLocal = vecW2L(bounds.x, bounds.y);
-        const node = store.createNode('VECTOR', {
-          x: vecLocal.x,
-          y: vecLocal.y,
-          width: w,
-          height: h,
-          fills: [],
-          strokes: [stroke],
-          paths: [{ d }],
-          ...(vecParentId ? { parentId: vecParentId } : {}),
-        });
-
-        selection.select(node.id);
-        applyNodeReparenting(store, [node.id]);
-        // Pencil stays active for consecutive draws — do NOT switch to MOVE
-        return;
-      }
-
-      // Click-away exits text editing (skip on the pointerup from text creation)
+      bm.onPointerUp(e);
       if (skipTextExitRef.current) {
         skipTextExitRef.current = false;
       } else if (textEditing.editingNodeId) {
@@ -1213,177 +957,8 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           textEditing.stopEditing();
         }
       }
-
-      // Finalize shape creation
-      const creation = creationRef.current;
-      if (creation) {
-        creationRef.current = null;
-        const node = store.getNode(creation.nodeId);
-        if (node && isGeometryNode(node)) {
-          // If the shape is too small (click without meaningful drag), set a default size
-          if (node.width < 2 && node.height < 2) {
-            const pOx = creation.parentOffsetX;
-            const pOy = creation.parentOffsetY;
-            if (creation.nodeType === 'LINE') {
-              store.updateNode(creation.nodeId, {
-                x: creation.startWorldX - pOx,
-                y: creation.startWorldY - pOy,
-                width: 100,
-                height: 0,
-                rotation: 0,
-              });
-            } else {
-              const defaultW = creation.nodeType === 'FRAME' ? 200 : creation.nodeType === 'SECTION' ? 300 : 100;
-              const defaultH = creation.nodeType === 'FRAME' ? 150 : creation.nodeType === 'SECTION' ? 200 : 100;
-              store.updateNode(creation.nodeId, {
-                x: creation.startWorldX - pOx,
-                y: creation.startWorldY - pOy,
-                width: defaultW,
-                height: defaultH,
-              });
-            }
-          }
-        }
-        selection.select(creation.nodeId);
-        const createdNode = store.getNode(creation.nodeId);
-        if (createdNode && isContainer(createdNode)) {
-          applyContainerReparenting(store, creation.nodeId);
-        } else {
-          applyNodeReparenting(store, [creation.nodeId]);
-        }
-        setActiveTool('MOVE');
-        return;
-      }
-
-      // End hand tool panning
-      if (panRef.current) {
-        panRef.current = null;
-        setIsPanning(false);
-        return;
-      }
-
-      const drag = dragRef.current;
-      dragRef.current = null;
-
-      // Finalize box selection: select all nodes fully enclosed by the drag box
-      if (dragBox && drag && drag.nodeIds.length === 0) {
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (rect) {
-          // Convert screen-space drag box to world-space
-          const boxMinX = Math.min(dragBox.startX, dragBox.currentX);
-          const boxMinY = Math.min(dragBox.startY, dragBox.currentY);
-          const boxMaxX = Math.max(dragBox.startX, dragBox.currentX);
-          const boxMaxY = Math.max(dragBox.startY, dragBox.currentY);
-
-          const wMinX = (boxMinX - viewport.state.origin.x) / viewport.state.scale;
-          const wMinY = (boxMinY - viewport.state.origin.y) / viewport.state.scale;
-          const wMaxX = (boxMaxX - viewport.state.origin.x) / viewport.state.scale;
-          const wMaxY = (boxMaxY - viewport.state.origin.y) / viewport.state.scale;
-
-          // Only finalize if the box has meaningful size
-          if (boxMaxX - boxMinX > 2 || boxMaxY - boxMinY > 2) {
-            // Get the candidate nodes: root-level, or children of entered frame
-            const candidates = selection.enteredFrameId
-              ? (store.getNode(selection.enteredFrameId)?.children ?? []).map((id) => store.getNode(id)).filter(Boolean)
-              : store.getRootNodes();
-
-            if (!e.shiftKey) {
-              selection.clear();
-            }
-
-            for (const candidate of candidates) {
-              if (!candidate || !isGeometryNode(candidate)) continue;
-              const world = getWorldPosition(store, candidate);
-              const nodeMaxX = world.x + candidate.width;
-              const nodeMaxY = world.y + candidate.height;
-
-              // Check if the node is fully enclosed
-              if (world.x >= wMinX && world.y >= wMinY && nodeMaxX <= wMaxX && nodeMaxY <= wMaxY) {
-                selection.add(candidate.id);
-              }
-            }
-          }
-        }
-      }
-
-      setDragBox(null);
-
-      if (!drag) return;
-
-      // If we were dragging, apply reparenting and don't do click-to-select
-      if (drag.dragging) {
-        lastClickRef.current = null;
-
-        // Handle managed grid frame drop
-        const isManagedDrag = drag.nodeIds.length === 1 && isManagedSlide(store, drag.nodeIds[0]);
-        if (isManagedDrag && gridDropTarget) {
-          applyGridDrop(store, drag.nodeIds[0], gridDropTarget);
-          setGridDropTarget(null);
-          return;
-        }
-        setGridDropTarget(null);
-
-        const containerIds = drag.nodeIds.filter((id) => { const n = store.getNode(id); return n && isContainer(n); });
-        for (const cid of containerIds) applyContainerReparenting(store, cid);
-        applyNodeReparenting(store, drag.nodeIds);
-        return;
-      }
-
-      // Treat as click — do selection
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
-      if (dx * dx + dy * dy > 25) return;
-
-      const hitId = resolveHitNode(e.target as HTMLElement, selection.enteredFrameId);
-
-      if (hitId) {
-        // Skip shift+click toggle if we already toggled this node on mouse down
-        // (otherwise we'd double-toggle: add on down, remove on up)
-        const alreadyHandled = e.shiftKey && !drag.wasAlreadySelected;
-        if (!alreadyHandled) {
-          if (e.shiftKey) {
-            selection.toggle(hitId);
-          } else {
-            selection.select(hitId);
-          }
-        }
-      } else if (selection.enteredFrameId !== null) {
-        // Click outside entered frame → exit frame
-        selection.exitFrame();
-        selection.clear();
-      } else {
-        selection.clear();
-      }
-
-      // Manual double-click detection: check if this click is close in time and
-      // position to the previous one
-      const now = Date.now();
-      const last = lastClickRef.current;
-      if (
-        last
-        && now - last.time < 300
-        && Math.abs(e.clientX - last.clientX) < 5
-        && Math.abs(e.clientY - last.clientY) < 5
-      ) {
-        // Double-click detected — enter frame or edit text
-        lastClickRef.current = null;
-        if (effectiveTool === 'MOVE' && hitId) {
-          if (selection.isSelected(hitId)) {
-            const node = store.getNode(hitId);
-            if (node?.type === 'TEXT') {
-              textEditing.startEditing(hitId);
-            } else if (node?.type === 'FRAME' || node?.type === 'SECTION') {
-              selection.enterFrame(hitId);
-              const childId = resolveHitNode(e.target as HTMLElement, hitId);
-              selection.select(childId && childId !== hitId ? childId : hitId);
-            }
-          }
-        }
-      } else {
-        lastClickRef.current = { time: now, clientX: e.clientX, clientY: e.clientY };
-      }
     },
-    [selection, effectiveTool, store, setActiveTool, textEditing, dragBox, containerRef, viewport, drawColor, drawStrokeWeight, drawOpacity, gridDropTarget],
+    [bm, textEditing, selection],
   );
 
   // ── Comment pin drag handlers ──────────────────────────────────────────
@@ -1405,7 +980,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
 
   const handleCommentDragEnd = useCallback(
     (threadId: string, worldX: number, worldY: number) => {
-      const hitNodeId = findNodeAtWorldPoint(store, worldX, worldY);
+      const hitNodeId = findNodeAtWorldPoint(store, canvasId, worldX, worldY);
       if (hitNodeId) {
         const node = store.getNode(hitNodeId);
         if (node && isGeometryNode(node)) {
@@ -1413,7 +988,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
           commentsStore.updateAnchor(threadId, {
             worldX,
             worldY,
-            nodeId: hitNodeId,
+            nodeId: String(hitNodeId),
             nodeOffsetX: worldX - nodeWorldPos.x,
             nodeOffsetY: worldY - nodeWorldPos.y,
           });
@@ -1429,7 +1004,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       }
       setInteraction({ type: 'none' });
     },
-    [store, commentsStore, setInteraction],
+    [store, canvasId, commentsStore, setInteraction],
   );
 
   // Cursor style based on active tool
@@ -1439,7 +1014,6 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       case 'FRAME': return CURSORS.frame;
       case 'PEN': return CURSORS.pen;
       case 'PENCIL': return CURSORS.pencil;
-      case 'SECTION': return CURSORS.crosshair;
       case 'TEXT':
       case 'RECTANGLE':
       case 'ELLIPSE':
@@ -1452,7 +1026,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   })();
 
   // Pixel grid at 400%+ zoom
-  const { scale, origin } = viewport.state;
+  const { scale, origin } = viewportState;
   const showPixelGrid = scale >= 4;
   const pixelGridStyle: React.CSSProperties | undefined = showPixelGrid
     ? {
@@ -1472,59 +1046,55 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     <div
       ref={containerRef}
       className="fixed inset-0 overflow-hidden"
-      style={{ backgroundColor: `rgb(${pageBg.color.r}, ${pageBg.color.g}, ${pageBg.color.b})`, cursor: cursorStyle }}
+      style={{ backgroundColor: isDefaultPageBackground(pageBg) ? 'var(--color-fsCanvasDefaultFill)' : `rgb(${pageBg.color.r}, ${pageBg.color.g}, ${pageBg.color.b})`, cursor: cursorStyle }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerLeave={() => selection.setHovered(null)}
       onContextMenu={onContextMenu}
     >
-      <div
-        style={{
-          transformOrigin: '0 0',
-          transform,
-          position: 'absolute',
-          top: 0,
-          left: 0,
-        }}
-      >
-        <CanvasRenderer />
-        {gridDropTarget && <GridDropIndicator store={store} target={gridDropTarget} />}
-        <svg
-          ref={pencilOverlayRef}
-          className="absolute top-0 left-0 overflow-visible pointer-events-none"
-        />
-        <CommentPinLayer
-          commentsStore={commentsStore}
-          interaction={interaction}
-          selectedThreadId={selectedThreadId}
-          zoom={scale}
-          getNodePosition={getNodePosition}
-          onPinClick={(threadId) => {
-            setSelectedThreadId(threadId);
-            setInteraction({ type: 'viewing', threadId });
-          }}
-          onPinHoverStart={(threadId) => {
-            if (interaction.type !== 'viewing' && interaction.type !== 'dragging') {
-              setInteraction({ type: 'hovering', threadId });
-            }
-          }}
-          onPinHoverEnd={() => {
-            if (interaction.type === 'hovering') {
-              setInteraction({ type: 'none' });
-            }
-          }}
-          onDragStart={handleCommentDragStart}
-          onDragMove={handleCommentDragMove}
-          onDragEnd={handleCommentDragEnd}
-          screenToWorld={screenToWorld}
-          containerRef={containerRef}
-          nodeStoreSubscribe={store.subscribe}
-          nodeStoreGetSnapshot={store.getSnapshot}
-        />
-      </div>
+      <CanvasLayers
+        nodeLayer={
+          <>
+            <CanvasRenderer />
+            {gridDropTarget && <GridDropIndicator store={store} target={gridDropTarget} />}
+            <svg
+              ref={pencilOverlayRef}
+              className="absolute top-0 left-0 overflow-visible pointer-events-none"
+            />
+            <CommentPinLayer
+              commentsStore={commentsStore}
+              interaction={interaction}
+              selectedThreadId={selectedThreadId}
+              zoom={scale}
+              getNodePosition={getNodePosition}
+              onPinClick={(threadId) => {
+                setSelectedThreadId(threadId);
+                setInteraction({ type: 'viewing', threadId });
+              }}
+              onPinHoverStart={(threadId) => {
+                if (interaction.type !== 'viewing' && interaction.type !== 'dragging') {
+                  setInteraction({ type: 'hovering', threadId });
+                }
+              }}
+              onPinHoverEnd={() => {
+                if (interaction.type === 'hovering') {
+                  setInteraction({ type: 'none' });
+                }
+              }}
+              onDragStart={handleCommentDragStart}
+              onDragMove={handleCommentDragMove}
+              onDragEnd={handleCommentDragEnd}
+              screenToWorld={screenToWorld}
+              containerRef={containerRef}
+              nodeStoreSubscribe={nodeStoreSubscribe}
+              nodeStoreGetSnapshot={nodeStoreGetSnapshot}
+            />
+          </>
+        }
+        reactOverlay={<SelectionOverlay />}
+      />
       {showPixelGrid && <div style={pixelGridStyle} />}
-      <SelectionOverlay dragBox={dragBox} />
     </div>
   );
 }
@@ -1535,20 +1105,23 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
  * Figma-style hit resolution.
  *
  * Walk up from the click target collecting all `data-node-id` values into a
- * chain (innermost first → reversed to outermost first).
+ * chain (innermost first -> reversed to outermost first).
  *
- * - `enteredFrameId === null` → return the outermost (root-level) node
- * - `enteredFrameId` is set  → return the direct child of the entered frame,
+ * - `enteredFrameId === null` -> return the outermost (root-level) node
+ * - `enteredFrameId` is set  -> return the direct child of the entered frame,
  *   or the entered frame itself if the click lands directly on it.
  */
-function resolveHitNode(el: HTMLElement, enteredFrameId: string | null): string | null {
+function resolveHitNode(el: HTMLElement, enteredFrameId: NodeId | null): NodeId | null {
   // Collect all node IDs from innermost to outermost
-  const chain: string[] = [];
+  const chain: NodeId[] = [];
   let cur: HTMLElement | null = el;
   while (cur) {
-    const id = cur.dataset?.nodeId;
-    if (id && !chain.includes(id)) {
-      chain.push(id);
+    const raw = cur.dataset?.nodeId;
+    if (raw) {
+      const id = Number(raw) as NodeId;
+      if (!chain.includes(id)) {
+        chain.push(id);
+      }
     }
     cur = cur.parentElement;
   }
@@ -1579,99 +1152,11 @@ function resolveHitNode(el: HTMLElement, enteredFrameId: string | null): string 
   return enteredFrameId;
 }
 
-/**
- * Resolve the innermost (deepest) node under the pointer for hover outlines.
- * Unlike resolveHitNode which returns the root-level ancestor for selection,
- * this returns the closest node to the pointer so children inside frames/sections
- * get hover outlines too.
- */
-function resolveHoverNode(el: HTMLElement): string | null {
-  let cur: HTMLElement | null = el;
-  while (cur) {
-    const id = cur.dataset?.nodeId;
-    if (id) return id;
-    cur = cur.parentElement;
-  }
-  return null;
-}
-
-/**
- * Determine the parent frame for node creation in buzz.
- * Uses enteredFrameId (double-clicked into) or focusedFrameId (asset view).
- * Returns the parentId and a function to convert world coords to local coords.
- */
-function getCreationParent(
-  store: ReturnType<typeof useSceneGraph>,
-  enteredFrameId: string | null,
-  focusedFrameId: string | null,
-): { parentId: string | null; worldToLocal: (wx: number, wy: number) => { x: number; y: number } } {
-  const parentId = enteredFrameId ?? focusedFrameId;
-  if (!parentId) {
-    return { parentId: null, worldToLocal: (wx, wy) => ({ x: wx, y: wy }) };
-  }
-  const parent = store.getNode(parentId);
-  if (!parent || !isGeometryNode(parent)) {
-    return { parentId: null, worldToLocal: (wx, wy) => ({ x: wx, y: wy }) };
-  }
-  const parentWorld = getWorldPosition(store, parent);
-  return {
-    parentId,
-    worldToLocal: (wx, wy) => ({ x: wx - parentWorld.x, y: wy - parentWorld.y }),
-  };
-}
-
-interface Rect {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
-/** Compute the combined world-space bounding box of all selected nodes */
-function getSelectionBBox(
-  store: ReturnType<typeof useSceneGraph>,
-  selectedIds: Set<string>,
-): Rect | null {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  for (const id of selectedIds) {
-    const node = store.getNode(id);
-    if (!node || !isGeometryNode(node)) continue;
-    const pos = getWorldPosition(store, node);
-    minX = Math.min(minX, pos.x);
-    minY = Math.min(minY, pos.y);
-    maxX = Math.max(maxX, pos.x + node.width);
-    maxY = Math.max(maxY, pos.y + node.height);
-  }
-
-  if (!isFinite(minX)) return null;
-  return {
-    x: minX, y: minY, w: maxX - minX, h: maxY - minY,
-  };
-}
-
-function pointInRect(px: number, py: number, r: Rect): boolean {
-  return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
-}
-
-/** Collect IDs of all selected geometry nodes for dragging.
- *  Excludes nodes whose ancestor is also in the selection set
- *  (prevents double-moving children when parent+child are both selected). */
-function collectDraggableIds(
-  store: ReturnType<typeof useSceneGraph>,
-  selectedIds: Set<string>,
-): string[] {
-  const ids: string[] = [];
-  for (const id of selectedIds) {
-    const node = store.getNode(id);
-    if (!node || !isGeometryNode(node)) continue;
-    const hasSelectedAncestor = store.getAncestors(id).some((a) => selectedIds.has(a.id));
-    if (!hasSelectedAncestor) ids.push(id);
-  }
-  return ids;
+/** Get the children of a canvas as SceneNode[] */
+function getRootNodes(sg: ReturnType<typeof useSceneGraph>, canvasId: NodeId) {
+  const canvas = sg.getNode(canvasId);
+  if (!canvas) return [];
+  return canvas.children.map((id) => sg.getNode(id)).filter((n): n is SceneNode => n != null);
 }
 
 /** Vertical drop indicator line rendered in world-space */
@@ -1701,21 +1186,4 @@ function GridDropIndicator({
       }}
     />
   );
-}
-
-/** Parse a CSS hex color (#RRGGBB or #RGB) to {r, g, b} (0–255) */
-function parseHexColor(hex: string): { r: number; g: number; b: number } {
-  const h = hex.replace('#', '');
-  if (h.length === 3) {
-    return {
-      r: parseInt(h[0] + h[0], 16),
-      g: parseInt(h[1] + h[1], 16),
-      b: parseInt(h[2] + h[2], 16),
-    };
-  }
-  return {
-    r: parseInt(h.slice(0, 2), 16),
-    g: parseInt(h.slice(2, 4), 16),
-    b: parseInt(h.slice(4, 6), 16),
-  };
 }

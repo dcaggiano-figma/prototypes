@@ -1,26 +1,30 @@
 import { memo } from 'react';
 
-import { SLIDE_STYLE, type SceneGraphStore } from '../scene-graph/store';
-import type { FrameNode, SceneNode, SlideNode, TextNode } from '../types';
+import type { SceneGraph } from '@prototype/shared/canvas';
+import type {
+  EllipseNode,
+  FrameNode,
+  LineNode,
+  PolygonNode,
+  RectangleNode,
+  SceneNode,
+  SlideNode,
+  StarNode,
+  TextNode,
+  VectorNode,
+} from '@prototype/shared/canvas';
 import {
   colorToCSS,
   getFirstVisibleFill,
   getFirstVisibleStroke,
   nodeTransform,
   strokeStyles,
+  svgStrokeWidth,
 } from './render-helpers';
-import {
-  EllipseRenderer,
-  LineRenderer,
-  PolygonRenderer,
-  RectangleRenderer,
-  StarRenderer,
-  VectorRenderer,
-} from './canvas-renderer';
 
 interface ThumbnailRendererProps {
   frameNode: FrameNode | SlideNode
-  store: SceneGraphStore
+  store: SceneGraph
   /** Monotonic counter that increments on every store mutation — busts memo so thumbnails update when descendants change */
   storeVersion: number
 }
@@ -48,23 +52,23 @@ function ThumbnailNodeRenderer({
   store,
 }: {
   node: SceneNode
-  store: SceneGraphStore
+  store: SceneGraph
 }) {
   if (!node.visible) return null;
 
   switch (node.type) {
     case 'RECTANGLE':
-      return <RectangleRenderer node={node} />;
+      return <StaticRectangleRenderer node={node} />;
     case 'ELLIPSE':
-      return <EllipseRenderer node={node} />;
+      return <StaticEllipseRenderer node={node} />;
     case 'LINE':
-      return <LineRenderer node={node} />;
+      return <StaticLineRenderer node={node} />;
     case 'POLYGON':
-      return <PolygonRenderer node={node} />;
+      return <StaticPolygonRenderer node={node} />;
     case 'STAR':
-      return <StarRenderer node={node} />;
+      return <StaticStarRenderer node={node} />;
     case 'VECTOR':
-      return <VectorRenderer node={node} />;
+      return <StaticVectorRenderer node={node} />;
     case 'TEXT':
       return <StaticTextRenderer node={node as TextNode} />;
     case 'FRAME':
@@ -74,6 +78,202 @@ function ThumbnailNodeRenderer({
     default:
       return null;
   }
+}
+
+// ── Static shape renderers (no useRendering / useNodeRef) ──────────
+
+function StaticRectangleRenderer({ node }: { node: RectangleNode }) {
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        borderRadius: node.cornerRadius,
+        transform: nodeTransform(node.x, node.y, node.rotation),
+        backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
+      }}
+    />
+  );
+}
+
+function StaticEllipseRenderer({ node }: { node: EllipseNode }) {
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const rx = node.width / 2;
+  const ry = node.height / 2;
+  const weight = node.strokeWeight;
+  const inset = node.strokeAlign === 'INSIDE' ? weight : 0;
+
+  return (
+    <svg
+      style={{
+        position: 'absolute',
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        overflow: 'visible',
+        transform: nodeTransform(node.x, node.y, node.rotation),
+      }}
+    >
+      <ellipse
+        cx={rx}
+        cy={ry}
+        rx={rx - inset}
+        ry={ry - inset}
+        fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+        strokeWidth={weight}
+      />
+    </svg>
+  );
+}
+
+function StaticLineRenderer({ node }: { node: LineNode }) {
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const weight = node.strokeWeight;
+  const svgHeight = Math.max(node.height, weight * 2);
+
+  return (
+    <svg
+      style={{
+        position: 'absolute',
+        width: node.width,
+        height: svgHeight,
+        opacity: node.opacity,
+        overflow: 'visible',
+        transform: nodeTransform(node.x, node.y - svgHeight / 2, node.rotation),
+        transformOrigin: '0 50%',
+      }}
+    >
+      <line
+        x1={0}
+        y1={svgHeight / 2}
+        x2={node.width}
+        y2={svgHeight / 2}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'rgb(0,0,0)'}
+        strokeWidth={weight}
+      />
+    </svg>
+  );
+}
+
+function StaticPolygonRenderer({ node }: { node: PolygonNode }) {
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const cx = node.width / 2;
+  const cy = node.height / 2;
+  const rx = node.width / 2;
+  const ry = node.height / 2;
+
+  const pts: string[] = [];
+  for (let i = 0; i < node.sides; i++) {
+    const angle = (2 * Math.PI * i) / node.sides - Math.PI / 2;
+    pts.push(`${cx + rx * Math.cos(angle)},${cy + ry * Math.sin(angle)}`);
+  }
+
+  return (
+    <svg
+      style={{
+        position: 'absolute',
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        overflow: 'visible',
+        transform: nodeTransform(node.x, node.y, node.rotation),
+      }}
+    >
+      <polygon
+        points={pts.join(' ')}
+        fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+        strokeWidth={stroke ? svgStrokeWidth(node.strokeWeight, node.strokeAlign) : 0}
+        paintOrder={node.strokeAlign === 'OUTSIDE' ? 'stroke' : undefined}
+      />
+    </svg>
+  );
+}
+
+function StaticStarRenderer({ node }: { node: StarNode }) {
+  const fill = getFirstVisibleFill(node.fills);
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const cx = node.width / 2;
+  const cy = node.height / 2;
+  const outerRx = node.width / 2;
+  const outerRy = node.height / 2;
+  const innerRx = outerRx * node.innerRadius;
+  const innerRy = outerRy * node.innerRadius;
+
+  const pts: string[] = [];
+  for (let i = 0; i < node.points * 2; i++) {
+    const angle = (Math.PI * i) / node.points - Math.PI / 2;
+    const isOuter = i % 2 === 0;
+    const rxi = isOuter ? outerRx : innerRx;
+    const ryi = isOuter ? outerRy : innerRy;
+    pts.push(`${cx + rxi * Math.cos(angle)},${cy + ryi * Math.sin(angle)}`);
+  }
+
+  return (
+    <svg
+      style={{
+        position: 'absolute',
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        overflow: 'visible',
+        transform: nodeTransform(node.x, node.y, node.rotation),
+      }}
+    >
+      <polygon
+        points={pts.join(' ')}
+        fill={fill ? colorToCSS(fill.color, fill.opacity) : 'none'}
+        stroke={stroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+        strokeWidth={stroke ? svgStrokeWidth(node.strokeWeight, node.strokeAlign) : 0}
+        paintOrder={node.strokeAlign === 'OUTSIDE' ? 'stroke' : undefined}
+      />
+    </svg>
+  );
+}
+
+function StaticVectorRenderer({ node }: { node: VectorNode }) {
+  const stroke = getFirstVisibleStroke(node.strokes);
+  const fill = getFirstVisibleFill(node.fills);
+  const hasStroke = !!stroke;
+  const weight = node.strokeWeight;
+  const padding = hasStroke ? weight / 2 : 0;
+  const svgWidth = node.width + padding * 2;
+  const svgHeight = node.height + padding * 2;
+
+  return (
+    <svg
+      viewBox={`${-padding} ${-padding} ${svgWidth} ${svgHeight}`}
+      style={{
+        position: 'absolute',
+        width: svgWidth,
+        height: svgHeight,
+        opacity: node.opacity,
+        overflow: 'visible',
+        transform: nodeTransform(node.x - padding, node.y - padding, node.rotation),
+      }}
+    >
+      {node.paths.map((p, i) => (
+        <path
+          key={i}
+          d={p.d}
+          fill={p.fill ?? (fill ? colorToCSS(fill.color, fill.opacity) : 'none')}
+          stroke={hasStroke ? colorToCSS(stroke.color, stroke.opacity) : 'none'}
+          strokeWidth={hasStroke ? weight : undefined}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </svg>
+  );
 }
 
 /** Static text — no contentEditable, no ResizeObserver, no selection hooks */
@@ -111,7 +311,7 @@ function StaticFrameRenderer({
   store,
 }: {
   node: FrameNode
-  store: SceneGraphStore
+  store: SceneGraph
 }) {
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
@@ -130,7 +330,7 @@ function StaticFrameRenderer({
         overflow: node.clipsContent ? 'hidden' : undefined,
         transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
       }}
     >
       {childNodes.map((child) => (
@@ -146,7 +346,7 @@ function StaticSlideRenderer({
   store,
 }: {
   node: SlideNode
-  store: SceneGraphStore
+  store: SceneGraph
 }) {
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
@@ -165,8 +365,7 @@ function StaticSlideRenderer({
         overflow: node.clipsContent ? 'hidden' : undefined,
         transform: nodeTransform(node.x, node.y, node.rotation),
         backgroundColor: fill ? colorToCSS(fill.color, fill.opacity) : undefined,
-        ...strokeStyles(stroke),
-        boxShadow: SLIDE_STYLE.boxShadow,
+        ...strokeStyles(stroke, node.strokeWeight, node.strokeAlign),
       }}
     >
       {childNodes.map((child) => (

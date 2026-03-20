@@ -2,9 +2,9 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
 
-import type { Color, ConnectorLineShape } from '../types';
+import type { Color, ConnectorLineShape } from '@prototype/shared/canvas';
 
-export type ToolType = 'MOVE' | 'FRAME' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'PEN' | 'HAND' | 'COMMENT' | 'LINE' | 'POLYGON' | 'STAR' | 'STICKY_NOTE' | 'CONNECTOR'
+export type ToolType = 'MOVE' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'PEN' | 'HAND' | 'COMMENT' | 'LINE' | 'POLYGON' | 'STAR' | 'STICKY_NOTE' | 'CONNECTOR'
 
 export type MarkerSubType = 'marker' | 'highlighter' | 'tape';
 
@@ -45,6 +45,10 @@ export interface ToolAPI {
   connectorLineShape: ConnectorLineShape
   /** Set the active connector line shape */
   setConnectorLineShape(shape: ConnectorLineShape): void
+  /** Number of sides for the active polygon shape tool */
+  polygonSides: number
+  /** Set the polygon sides */
+  setPolygonSides(sides: number): void
 }
 
 const DEFAULT_STICKY_COLOR: Color = { r: 255, g: 226, b: 153 };
@@ -66,6 +70,7 @@ export function ToolProvider({ children }: { children: React.ReactNode }) {
   const [sectionFillColor, setSectionFillColor] = useState<Color>(DEFAULT_SECTION_COLOR);
   const [shapeColor, setShapeColor] = useState<Color>(DEFAULT_SHAPE_COLOR);
   const [connectorLineShape, setConnectorLineShape] = useState<ConnectorLineShape>('CURVE');
+  const [polygonSides, setPolygonSides] = useState(3);
 
   const setActiveTool = useCallback((tool: ToolType) => {
     setActiveToolState(tool);
@@ -106,8 +111,9 @@ export function ToolProvider({ children }: { children: React.ReactNode }) {
       sectionFillColor, setSectionFillColor,
       shapeColor, setShapeColor,
       connectorLineShape, setConnectorLineShape,
+      polygonSides, setPolygonSides,
     }),
-    [activeTool, effectiveTool, isSpacePanning, setActiveTool, stickyColor, markerColor, highlighterColor, markerSubType, sectionFillColor, shapeColor, connectorLineShape],
+    [activeTool, effectiveTool, isSpacePanning, setActiveTool, stickyColor, markerColor, highlighterColor, markerSubType, sectionFillColor, shapeColor, connectorLineShape, polygonSides],
   );
 
   return <ToolContext.Provider value={api}>{children}</ToolContext.Provider>;

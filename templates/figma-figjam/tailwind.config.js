@@ -13,6 +13,7 @@ export default {
       spacing: {
         /** Panel header row height (48px) */
         'panel-header': '48px',
+        '56px': '56px',
       },
     },
   },

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ButtonPrimitive, Input, Menu, Slider } from '@figma/fpl-components';
+import { ButtonPrimitive, Input, Slider } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon16ChevronDown } from '@figma/fpl-icons';
 
 // ---------------------------------------------------------------------------
@@ -24,7 +25,7 @@ export function DrawToolSecondaryToolbar({
   onStrokeWeightChange,
 }: DrawToolSecondaryToolbarProps) {
   const [strokeStyle, setStrokeStyle] = useState('solid');
-  const strokeStyleMenu = Menu.useMenu();
+  const strokeStyleMenu = MenuV2.useMenu();
 
   const handleWeightChange = (value: string) => {
     const num = Number(value);
@@ -79,23 +80,21 @@ export function DrawToolSecondaryToolbar({
 
       {/* Right section: Stroke style dropdown */}
       <div className="flex items-center p-2">
-        <Menu.Root manager={strokeStyleMenu.manager}>
-          <ButtonPrimitive
-            aria-label="Stroke style"
-            className="flex items-center gap-1 px-2 py-1 rounded hover:bg-bg-hover cursor-pointer w-[100px]"
-            {...strokeStyleMenu.getTriggerProps()}
-          >
-            <StrokeStylePreview style={strokeStyle} />
-            <Icon16ChevronDown />
-          </ButtonPrimitive>
-          <Menu.Container>
-            <Menu.RadioGroup title={<Menu.HiddenTitle>Stroke style</Menu.HiddenTitle>} value={strokeStyle} onChange={(value) => setStrokeStyle(value)}>
-              <Menu.RadioGroupItem value="solid">Solid</Menu.RadioGroupItem>
-              <Menu.RadioGroupItem value="dashed">Dashed</Menu.RadioGroupItem>
-              <Menu.RadioGroupItem value="dotted">Dotted</Menu.RadioGroupItem>
-            </Menu.RadioGroup>
-          </Menu.Container>
-        </Menu.Root>
+        <ButtonPrimitive
+          aria-label="Stroke style"
+          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-bg-hover cursor-pointer w-[100px]"
+          {...strokeStyleMenu.getTriggerProps()}
+        >
+          <StrokeStylePreview style={strokeStyle} />
+          <Icon16ChevronDown />
+        </ButtonPrimitive>
+        <MenuV2.Root manager={strokeStyleMenu.manager}>
+          <MenuV2.RadioGroup title="Stroke style" value={strokeStyle} onChange={(value) => setStrokeStyle(value)}>
+            <MenuV2.RadioGroupItem value="solid">Solid</MenuV2.RadioGroupItem>
+            <MenuV2.RadioGroupItem value="dashed">Dashed</MenuV2.RadioGroupItem>
+            <MenuV2.RadioGroupItem value="dotted">Dotted</MenuV2.RadioGroupItem>
+          </MenuV2.RadioGroup>
+        </MenuV2.Root>
       </div>
     </div>
   );

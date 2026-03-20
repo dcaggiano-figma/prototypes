@@ -25,7 +25,8 @@ import {
   readStoredTheme,
   type ThemeSetting,
 } from '../helpers/theme';
-import { ButtonPrimitive, IconButton, Menu } from '@figma/fpl-components';
+import { ButtonPrimitive, IconButton } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { showToast } from '../components/toast';
 import { CommentOverlay, ContextMenuRenderer, LeftSidebar, useComments, useContextMenu } from '@prototype/shared';
 import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
@@ -94,7 +95,7 @@ function EditorLayout() {
 }
 
 function EditorContent() {
-  const helpMenu = Menu.useMenu();
+  const helpMenu = MenuV2.useMenu();
   const featuresModal = PrototypeFeaturesModal();
   const contextMenu = useContextMenu();
   const [activeRailItem, setActiveRailItem] = useState('file');
@@ -288,26 +289,24 @@ function EditorContent() {
       {showLibrary && <LibraryWindow onClose={() => setShowLibrary(false)} />}
 
       {/* Context menu — always mounted, visibility managed by FPL */}
-      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} />
+      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} anchorRef={contextMenu.anchorRef} />
 
       {/* Floating Help Button */}
-      <Menu.Root manager={helpMenu.manager}>
-        <ButtonPrimitive aria-label="Help" className="bg-bg-elevated border-solid active:bg-bg-elevated-hover shadow-300 rounded-full p-1 absolute bottom-4 right-4 z-nav" {...helpMenu.getTriggerProps()}>
-          <Icon24Help />
-        </ButtonPrimitive>
-        <Menu.Container>
-          <Menu.Item onClick={() => showToast({
-            icon: Icon24Star,
-            message: 'This is a test toast!',
-            button: { label: 'Action', onClick: () => console.log('Action clicked') },
-          })}>
-            Render test toast
-          </Menu.Item>
-          <Menu.Item onClick={featuresModal.trigger}>
-            Prototype features
-          </Menu.Item>
-        </Menu.Container>
-      </Menu.Root>
+      <ButtonPrimitive aria-label="Help" className="bg-bg-elevated border-solid active:bg-bg-elevated-hover shadow-300 rounded-full p-1 absolute bottom-4 right-4 z-nav" {...helpMenu.getTriggerProps()}>
+        <Icon24Help />
+      </ButtonPrimitive>
+      <MenuV2.Root manager={helpMenu.manager}>
+        <MenuV2.Item onClick={() => showToast({
+          icon: Icon24Star,
+          message: 'This is a test toast!',
+          button: { label: 'Action', onClick: () => console.log('Action clicked') },
+        })}>
+          Render test toast
+        </MenuV2.Item>
+        <MenuV2.Item onClick={featuresModal.trigger}>
+          Prototype features
+        </MenuV2.Item>
+      </MenuV2.Root>
       {featuresModal.modal}
       <CommentOverlay
         interaction={interaction}

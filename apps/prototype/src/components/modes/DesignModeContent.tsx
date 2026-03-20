@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ButtonPrimitive, Checkbox, HiddenLabel, HiddenLegend, IconButton, Input, Label, ScrollContainer, SegmentedControl, Select, Tabs,
+  ButtonPrimitive, Checkbox, FormattedInput, HiddenLabel, HiddenLegend, IconButton, Input, Label, ScrollContainer, SegmentedControl, Select, Tabs,
 } from '@figma/fpl-components';
 import { SplitInput } from '@figma/fpl-components/beta';
 import {
@@ -58,30 +58,34 @@ import {
 
 import {
   alignNodes,
+  createPaint,
   distributeNodes,
+  useCanvasId,
   useNode,
   usePageBackground,
   useSceneGraph,
   useSelection,
-  useViewport,
+  useViewportState,
 } from '../../canvas';
 import type {
   AlignDirection,
   AppearanceNode,
+  Color,
   DistributeDirection,
   FrameNode,
   GeometryNode,
+  NodeId,
   Paint,
   PolygonNode,
   SceneNode,
   StarNode,
-  Stroke,
+  StrokeAlign,
   TextNode,
 } from '../../canvas';
 import { IconButtonGroup } from '../icon-button-group';
 import { PropertySection, PropertyRow, PlaceholderSection } from '@prototype/shared';
 import { NumericField, positiveFormatter, percentFormatter } from '../numeric-field';
-import { ColorSwatch, HexInput, OpacityInput, PercentSuffix, hexToRgb } from '../color-inputs';
+import { ColorSwatch, HexInput, OpacityInput } from '../color-inputs';
 
 const FONT_SIZE_PRESETS = ['10', '11', '12', '13', '14', '15', '16', '20', '24', '32', '36', '40', '48', '64', '96', '128'];
 
@@ -94,11 +98,11 @@ export function DesignModeContent() {
   );
 
   const { selectedIds } = useSelection();
-  const { state: { scale } } = useViewport();
+  const { state: { scale } } = useViewportState();
 
   const singleId = useMemo(() => {
     if (selectedIds.size !== 1) return null;
-    return selectedIds.values().next().value as string;
+    return selectedIds.values().next().value as NodeId;
   }, [selectedIds]);
 
   return (
@@ -145,7 +149,7 @@ export function DesignModeContent() {
 }
 
 /** Wrapper that subscribes to a single node via useNode */
-function NodePropertiesById({ nodeId }: { nodeId: string }) {
+function NodePropertiesById({ nodeId }: { nodeId: NodeId }) {
   const node = useNode(nodeId);
   if (!node) return null;
   return <NodeProperties node={node} />;
@@ -154,13 +158,12 @@ function NodePropertiesById({ nodeId }: { nodeId: string }) {
 // ── No-selection state ────────────────────────────────────────────────
 
 function NoSelectionState() {
-  const store = useSceneGraph();
-  const pageBg = usePageBackground();
+  const sg = useSceneGraph();
+  const canvasId = useCanvasId();
+  const pageBg = usePageBackground(canvasId);
 
-  const handleBgChange = (hex: string) => {
-    const color = hexToRgb(hex);
-    if (!color) return;
-    store.setPageBackground({ ...pageBg, color });
+  const handleBgChange = (color: Color) => {
+    sg.updateNode(canvasId, { backgroundColor: color });
   };
 
   return (
@@ -171,17 +174,14 @@ function NoSelectionState() {
         </div>
         <PropertyRow columns="1fr auto">
           <Input.Group columns="1fr 52px">
-            <Input.Root>
+            <FormattedInput.Root>
               <ColorSwatch color={pageBg.color} onChange={handleBgChange} />
               <HexInput color={pageBg.color} onChange={handleBgChange} />
-            </Input.Root>
-            <Input.Root>
-              <OpacityInput
-                value={pageBg.opacity}
-                onChange={(v) => store.setPageBackground({ ...pageBg, opacity: v / 100 })}
-              />
-              <PercentSuffix />
-            </Input.Root>
+            </FormattedInput.Root>
+            <OpacityInput
+              value={pageBg.opacity}
+              onChange={() => {}}
+            />
           </Input.Group>
           <IconButton aria-label="Toggle visibility">
             <Icon24Eye />
@@ -196,29 +196,43 @@ function NoSelectionState() {
 
 // ── Multi-selection properties ─────────────────────────────────────────
 
-function MultiSelectionProperties({ selectedIds }: { selectedIds: Set<string> }) {
-  const store = useSceneGraph();
+function MultiSelectionProperties({ selectedIds }: { selectedIds: ReadonlySet<NodeId> }) {
+  const sg = useSceneGraph();
 
-  // Subscribe to store changes so we re-render when nodes move/change
+  // Subscribe to scene graph changes so we re-render when nodes move/change
   const [, bump] = useState(0);
-  useEffect(() => store.subscribe(() => bump((n) => n + 1)), [store]);
+  useEffect(() => sg.addListener(() => bump((n) => n + 1)), [sg]);
 
-  // Collect node information
-  const geometryNodes: GeometryNode[] = [];
-  const appearanceNodes: AppearanceNode[] = [];
-  const nodesWithStrokes: (AppearanceNode | { type: 'LINE'; strokes: Stroke[]; id: string; opacity: number })[] = [];
+  const { geometryNodes, appearanceNodes, nodesWithStrokes } = useMemo(() => {
+    const nextGeometryNodes: GeometryNode[] = [];
+    const nextAppearanceNodes: AppearanceNode[] = [];
+    const nextNodesWithStrokes: (AppearanceNode | {
+      type: 'LINE';
+      strokes: Paint[];
+      strokeWeight: number;
+      strokeAlign: StrokeAlign;
+      id: NodeId;
+      opacity: number;
+    })[] = [];
 
-  for (const id of selectedIds) {
-    const node = store.getNode(id);
-    if (!node) continue;
-    if (isGeometryNode(node)) geometryNodes.push(node);
-    if (isAppearanceNode(node)) {
-      appearanceNodes.push(node);
-      nodesWithStrokes.push(node);
-    } else if (node.type === 'LINE') {
-      nodesWithStrokes.push(node);
+    for (const id of selectedIds) {
+      const node = sg.getNode(id);
+      if (!node) continue;
+      if (isGeometryNode(node)) nextGeometryNodes.push(node);
+      if (isAppearanceNode(node)) {
+        nextAppearanceNodes.push(node);
+        nextNodesWithStrokes.push(node);
+      } else if (node.type === 'LINE') {
+        nextNodesWithStrokes.push(node);
+      }
     }
-  }
+
+    return {
+      geometryNodes: nextGeometryNodes,
+      appearanceNodes: nextAppearanceNodes,
+      nodesWithStrokes: nextNodesWithStrokes,
+    };
+  }, [selectedIds, sg]);
 
   const allAreGeometry = geometryNodes.length === selectedIds.size;
   const allAreAppearance = appearanceNodes.length === selectedIds.size;
@@ -226,31 +240,29 @@ function MultiSelectionProperties({ selectedIds }: { selectedIds: Set<string> })
 
   const handleAlign = useCallback(
     (direction: AlignDirection) => {
-      alignNodes(store, selectedIds, direction);
+      alignNodes(sg, selectedIds, direction);
     },
-    [store, selectedIds],
+    [sg, selectedIds],
   );
 
   const handleDistribute = useCallback(
     (direction: DistributeDirection) => {
-      distributeNodes(store, selectedIds, direction);
+      distributeNodes(sg, selectedIds, direction);
     },
-    [store, selectedIds],
+    [sg, selectedIds],
   );
 
   // Multi-fill color change: apply to all appearance nodes
   const handleFillColorChange = useCallback(
-    (hex: string) => {
-      const color = hexToRgb(hex);
-      if (!color) return;
+    (color: Color) => {
       for (const node of appearanceNodes) {
         if (node.fills.length === 0) continue;
         const newFills = [...node.fills];
         newFills[0] = { ...newFills[0], color };
-        store.updateNode(node.id, { fills: newFills });
+        sg.updateNode(node.id, { fills: newFills });
       }
     },
-    [store, appearanceNodes],
+    [sg, appearanceNodes],
   );
 
   // Multi-fill opacity change
@@ -259,55 +271,47 @@ function MultiSelectionProperties({ selectedIds }: { selectedIds: Set<string> })
       for (const node of appearanceNodes) {
         if (node.fills.length === 0) continue;
         const newFills = [...node.fills];
-        newFills[0] = { ...newFills[0], opacity: value / 100 };
-        store.updateNode(node.id, { fills: newFills });
+        newFills[0] = { ...newFills[0], opacity: value };
+        sg.updateNode(node.id, { fills: newFills });
       }
     },
-    [store, appearanceNodes],
+    [sg, appearanceNodes],
   );
 
   // Multi-stroke color change
   const handleStrokeColorChange = useCallback(
-    (hex: string) => {
-      const color = hexToRgb(hex);
-      if (!color) return;
+    (color: Color) => {
       for (const node of nodesWithStrokes) {
-        const current = store.getNode(node.id);
+        const current = sg.getNode(node.id);
         if (!current) continue;
-        const strokes = 'strokes' in current ? (current as { strokes: Stroke[] }).strokes : [];
+        const strokes = 'strokes' in current ? (current as { strokes: Paint[] }).strokes : [];
         if (strokes.length === 0) continue;
         const newStrokes = [...strokes];
-        newStrokes[0] = { ...newStrokes[0], paint: { ...newStrokes[0].paint, color } };
-        store.updateNode(node.id, { strokes: newStrokes });
+        newStrokes[0] = { ...newStrokes[0], color };
+        sg.updateNode(node.id, { strokes: newStrokes });
       }
     },
-    [store, nodesWithStrokes],
+    [sg, nodesWithStrokes],
   );
 
   // Multi-stroke weight change
   const handleStrokeWeightChange = useCallback(
     (value: number) => {
       for (const node of nodesWithStrokes) {
-        const current = store.getNode(node.id);
-        if (!current) continue;
-        const strokes = 'strokes' in current ? (current as { strokes: Stroke[] }).strokes : [];
-        if (strokes.length === 0) continue;
-        const newStrokes = [...strokes];
-        newStrokes[0] = { ...newStrokes[0], weight: value };
-        store.updateNode(node.id, { strokes: newStrokes });
+        sg.updateNode(node.id, { strokeWeight: value });
       }
     },
-    [store, nodesWithStrokes],
+    [sg, nodesWithStrokes],
   );
 
   // Multi-opacity change
   const handleOpacityChange = useCallback(
     (value: number) => {
       for (const node of geometryNodes) {
-        store.updateNode(node.id, { opacity: value / 100 });
+        sg.updateNode(node.id, { opacity: value / 100 });
       }
     },
-    [store, geometryNodes],
+    [sg, geometryNodes],
   );
 
   // Use first node's values as representative
@@ -315,7 +319,7 @@ function MultiSelectionProperties({ selectedIds }: { selectedIds: Set<string> })
   const firstAppearance = appearanceNodes[0];
   const firstStrokeNode = nodesWithStrokes[0];
   const firstStroke = firstStrokeNode && 'strokes' in firstStrokeNode
-    ? (firstStrokeNode as { strokes: Stroke[] }).strokes[0]
+    ? (firstStrokeNode as { strokes: Paint[] }).strokes[0]
     : undefined;
 
   return (
@@ -395,17 +399,14 @@ function MultiSelectionProperties({ selectedIds }: { selectedIds: Set<string> })
         <PropertySection title="Fill">
           <PropertyRow columns="1fr auto">
             <Input.Group columns="1fr 52px">
-              <Input.Root>
+              <FormattedInput.Root>
                 <ColorSwatch color={firstAppearance.fills[0].color} onChange={handleFillColorChange} />
                 <HexInput color={firstAppearance.fills[0].color} onChange={handleFillColorChange} />
-              </Input.Root>
-              <Input.Root>
-                <OpacityInput
-                  value={firstAppearance.fills[0].opacity}
-                  onChange={handleFillOpacityChange}
-                />
-                <PercentSuffix />
-              </Input.Root>
+              </FormattedInput.Root>
+              <OpacityInput
+                value={firstAppearance.fills[0].opacity}
+                onChange={handleFillOpacityChange}
+              />
             </Input.Group>
             <div className="w-24px" />
           </PropertyRow>
@@ -413,19 +414,19 @@ function MultiSelectionProperties({ selectedIds }: { selectedIds: Set<string> })
       )}
 
       {/* Stroke section — shown when all have strokes */}
-      {allHaveStrokes && firstStroke && (
+      {allHaveStrokes && firstStroke && firstStrokeNode && (
         <PropertySection title="Stroke">
           <PropertyRow columns="1fr auto">
             <Input.Group columns="1fr 52px">
-              <Input.Root>
-                <ColorSwatch color={firstStroke.paint.color} onChange={handleStrokeColorChange} />
-                <HexInput color={firstStroke.paint.color} onChange={handleStrokeColorChange} />
-              </Input.Root>
+              <FormattedInput.Root>
+                <ColorSwatch color={firstStroke.color} onChange={handleStrokeColorChange} />
+                <HexInput color={firstStroke.color} onChange={handleStrokeColorChange} />
+              </FormattedInput.Root>
               <Input.Root>
                 <NumericField
                   label="Wt"
                   icon={<Icon24StrokeWeight />}
-                  value={firstStroke.weight}
+                  value={firstStrokeNode.strokeWeight}
                   onChange={handleStrokeWeightChange}
                   formatter={positiveFormatter}
                 />
@@ -476,23 +477,31 @@ function nodeTypeLabel(node: SceneNode): string {
     case 'ELLIPSE': return 'Ellipse';
     case 'FRAME': return 'Frame';
     case 'SECTION': return 'Section';
+    case 'GRID_SECTION': return 'Section';
     case 'TEXT': return 'Text';
     case 'LINE': return 'Line';
     case 'GROUP': return 'Group';
     case 'VECTOR': return 'Vector path';
     case 'POLYGON': return 'Polygon';
     case 'STAR': return 'Star';
+    case 'STICKY_NOTE': return 'Sticky note';
+    case 'CONNECTOR': return 'Connector';
+    case 'SLIDE': return 'Slide';
+    case 'DOCUMENT': return 'Document';
+    case 'CANVAS': return 'Canvas';
+    case 'SHAPE_WITH_TEXT': return 'Shape';
+    default: return 'Layer';
   }
 }
 
 function PositionSection({ node }: { node: GeometryNode }) {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
 
   const updateField = useCallback(
     (field: string, value: number) => {
-      store.updateNode(node.id, { [field]: value });
+      sg.updateNode(node.id, { [field]: value });
     },
-    [store, node.id],
+    [sg, node.id],
   );
 
   return (
@@ -534,7 +543,7 @@ function PositionSection({ node }: { node: GeometryNode }) {
 }
 
 function TextLayoutSection({ node }: { node: TextNode }) {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
 
   const handleW = useCallback(
     (v: number) => {
@@ -542,9 +551,9 @@ function TextLayoutSection({ node }: { node: TextNode }) {
       if (node.textAutoResize === 'WIDTH_AND_HEIGHT') {
         updates.textAutoResize = 'HEIGHT';
       }
-      store.updateNode(node.id, updates);
+      sg.updateNode(node.id, updates);
     },
-    [store, node.id, node.textAutoResize],
+    [sg, node.id, node.textAutoResize],
   );
 
   const handleH = useCallback(
@@ -553,9 +562,9 @@ function TextLayoutSection({ node }: { node: TextNode }) {
       if (node.textAutoResize !== 'NONE') {
         updates.textAutoResize = 'NONE';
       }
-      store.updateNode(node.id, updates);
+      sg.updateNode(node.id, updates);
     },
-    [store, node.id, node.textAutoResize],
+    [sg, node.id, node.textAutoResize],
   );
 
   const wDisabled = node.textAutoResize === 'WIDTH_AND_HEIGHT';
@@ -571,7 +580,7 @@ function TextLayoutSection({ node }: { node: TextNode }) {
       <PropertyRow columns="1fr 24px">
         <SegmentedControl.Root
           value={node.textAutoResize}
-          onChange={(v) => store.updateNode(node.id, { textAutoResize: v as TextNode['textAutoResize'] })}
+          onChange={(v) => sg.updateNode(node.id, { textAutoResize: v as TextNode['textAutoResize'] })}
           legend={<HiddenLegend>Resizing</HiddenLegend>}
         >
           <SegmentedControl.Option value="WIDTH_AND_HEIGHT" icon={<Icon24TextResizeWidth />} aria-label="Auto width" />
@@ -604,13 +613,13 @@ function TextLayoutSection({ node }: { node: TextNode }) {
 }
 
 function TypographySection({ node }: { node: TextNode }) {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
 
   const updateField = useCallback(
     (field: string, value: number | string) => {
-      store.updateNode(node.id, { [field]: value });
+      sg.updateNode(node.id, { [field]: value });
     },
-    [store, node.id],
+    [sg, node.id],
   );
 
   return (
@@ -710,7 +719,7 @@ function TypographySection({ node }: { node: TextNode }) {
 }
 
 function LayoutSection({ node }: { node: GeometryNode }) {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
   const [constrained, setConstrained] = useState(false);
   const aspectRatio = node.width / node.height;
   const isFrame = node.type === 'FRAME';
@@ -719,15 +728,15 @@ function LayoutSection({ node }: { node: GeometryNode }) {
     (field: string, value: number) => {
       if (constrained) {
         if (field === 'width') {
-          store.updateNode(node.id, { width: value, height: value / aspectRatio });
+          sg.updateNode(node.id, { width: value, height: value / aspectRatio });
         } else {
-          store.updateNode(node.id, { height: value, width: value * aspectRatio });
+          sg.updateNode(node.id, { height: value, width: value * aspectRatio });
         }
       } else {
-        store.updateNode(node.id, { [field]: value });
+        sg.updateNode(node.id, { [field]: value });
       }
     },
-    [store, node.id, constrained, aspectRatio],
+    [sg, node.id, constrained, aspectRatio],
   );
 
   return (
@@ -767,13 +776,13 @@ function LayoutSection({ node }: { node: GeometryNode }) {
 }
 
 function FrameLayoutRows({ node }: { node: FrameNode }) {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
 
   return (
     <PropertyRow columns="1fr 24px">
       <SegmentedControl.Root
         value={node.layoutMode}
-        onChange={(v) => store.updateNode(node.id, { layoutMode: v as FrameNode['layoutMode'] })}
+        onChange={(v) => sg.updateNode(node.id, { layoutMode: v as FrameNode['layoutMode'] })}
         legend={<HiddenLegend>Layout direction</HiddenLegend>}
       >
         <SegmentedControl.Option value="NONE" icon={<Icon24AlLayoutGridNone />} aria-label="No auto layout" />
@@ -787,7 +796,7 @@ function FrameLayoutRows({ node }: { node: FrameNode }) {
 }
 
 function FrameSpacingRows({ node }: { node: FrameNode }) {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
 
   return (
     <>
@@ -795,14 +804,14 @@ function FrameSpacingRows({ node }: { node: FrameNode }) {
         <NumericField
           label="Horizontal padding"
           value={node.paddingLeft}
-          onChange={(v) => store.updateNode(node.id, { paddingLeft: v, paddingRight: v })}
+          onChange={(v) => sg.updateNode(node.id, { paddingLeft: v, paddingRight: v })}
           formatter={positiveFormatter}
           icon={<Icon24AlSpacingHorizontal />}
         />
         <NumericField
           label="Vertical padding"
           value={node.paddingTop}
-          onChange={(v) => store.updateNode(node.id, { paddingTop: v, paddingBottom: v })}
+          onChange={(v) => sg.updateNode(node.id, { paddingTop: v, paddingBottom: v })}
           formatter={positiveFormatter}
           icon={<Icon24AlSpacingVertical />}
         />
@@ -811,7 +820,7 @@ function FrameSpacingRows({ node }: { node: FrameNode }) {
       <PropertyRow columns="auto 1fr 24px">
         <Checkbox
           checked={node.clipsContent}
-          onChange={(checked) => store.updateNode(node.id, { clipsContent: checked })}
+          onChange={(checked) => sg.updateNode(node.id, { clipsContent: checked })}
           label={<Label>Clip content</Label>}
           variant="muted"
         />
@@ -823,7 +832,7 @@ function FrameSpacingRows({ node }: { node: FrameNode }) {
 }
 
 function AppearanceSection({ node }: { node: GeometryNode }) {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
 
   return (
     <PropertySection
@@ -840,7 +849,7 @@ function AppearanceSection({ node }: { node: GeometryNode }) {
           label="Opacity"
           icon={<Icon24Opacity />}
           value={Math.round(node.opacity * 100)}
-          onChange={(v) => store.updateNode(node.id, { opacity: v / 100 })}
+          onChange={(v) => sg.updateNode(node.id, { opacity: v / 100 })}
           formatter={percentFormatter}
         />
         {isAppearanceNode(node) ? (
@@ -848,7 +857,7 @@ function AppearanceSection({ node }: { node: GeometryNode }) {
             label="Corner radius"
             icon={<Icon24Corners />}
             value={node.cornerRadius}
-            onChange={(v) => store.updateNode(node.id, { cornerRadius: v })}
+            onChange={(v) => sg.updateNode(node.id, { cornerRadius: v })}
             formatter={positiveFormatter}
           />
         ) : (
@@ -866,7 +875,7 @@ function AppearanceSection({ node }: { node: GeometryNode }) {
             label="Sides"
             icon={<Icon24CountPolygon />}
             value={(node as PolygonNode).sides}
-            onChange={(v) => store.updateNode(node.id, { sides: Math.max(3, Math.round(v)) })}
+            onChange={(v) => sg.updateNode(node.id, { sides: Math.max(3, Math.round(v)) })}
             formatter={positiveFormatter}
           />
           <div />
@@ -878,14 +887,14 @@ function AppearanceSection({ node }: { node: GeometryNode }) {
             label="Points"
             icon={<Icon24CountStar />}
             value={(node as StarNode).points}
-            onChange={(v) => store.updateNode(node.id, { points: Math.max(3, Math.round(v)) })}
+            onChange={(v) => sg.updateNode(node.id, { points: Math.max(3, Math.round(v)) })}
             formatter={positiveFormatter}
           />
           <NumericField
             label="Inner radius"
             icon={<Icon24Angle />}
             value={Math.round((node as StarNode).innerRadius * 1000) / 10}
-            onChange={(v) => store.updateNode(node.id, { innerRadius: v / 100 })}
+            onChange={(v) => sg.updateNode(node.id, { innerRadius: v / 100 })}
             formatter={percentFormatter}
           />
           <div />
@@ -896,47 +905,45 @@ function AppearanceSection({ node }: { node: GeometryNode }) {
 }
 
 function FillSection({ node }: { node: AppearanceNode }) {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
 
   const handleColorChange = useCallback(
-    (index: number, hex: string) => {
-      const color = hexToRgb(hex);
-      if (!color) return;
+    (index: number, color: Color) => {
       const newFills = [...node.fills];
       newFills[index] = { ...newFills[index], color };
-      store.updateNode(node.id, { fills: newFills });
+      sg.updateNode(node.id, { fills: newFills });
     },
-    [store, node.id, node.fills],
+    [sg, node.id, node.fills],
   );
 
   const handleOpacityChange = useCallback(
     (index: number, value: number) => {
       const newFills = [...node.fills];
-      newFills[index] = { ...newFills[index], opacity: value / 100 };
-      store.updateNode(node.id, { fills: newFills });
+      newFills[index] = { ...newFills[index], opacity: value };
+      sg.updateNode(node.id, { fills: newFills });
     },
-    [store, node.id, node.fills],
+    [sg, node.id, node.fills],
   );
 
   const toggleVisibility = useCallback(
     (index: number) => {
       const newFills = [...node.fills];
       newFills[index] = { ...newFills[index], visible: !newFills[index].visible };
-      store.updateNode(node.id, { fills: newFills });
+      sg.updateNode(node.id, { fills: newFills });
     },
-    [store, node.id, node.fills],
+    [sg, node.id, node.fills],
   );
 
   const addFill = useCallback(() => {
-    const newFill: Paint = { type: 'SOLID', color: { r: 196, g: 196, b: 196 }, opacity: 1, visible: true };
-    store.updateNode(node.id, { fills: [...node.fills, newFill] });
-  }, [store, node.id, node.fills]);
+    const newFill = createPaint({ type: 'SOLID', color: { r: 196, g: 196, b: 196 }, opacity: 1, visible: true });
+    sg.updateNode(node.id, { fills: [...node.fills, newFill] });
+  }, [sg, node.id, node.fills]);
 
   const removeFill = useCallback(
     (index: number) => {
-      store.updateNode(node.id, { fills: node.fills.filter((_, i) => i !== index) });
+      sg.updateNode(node.id, { fills: node.fills.filter((_, i) => i !== index) });
     },
-    [store, node.id, node.fills],
+    [sg, node.id, node.fills],
   );
 
   if (node.fills.length === 0) return <PlaceholderSection title="Fill" actions onAdd={addFill} />;
@@ -956,17 +963,14 @@ function FillSection({ node }: { node: AppearanceNode }) {
         return (
           <PropertyRow key={index} columns="1fr auto auto" style={{ opacity: fill.visible ? 1 : 0.4 }}>
             <Input.Group columns="1fr 52px">
-              <Input.Root>
-                <ColorSwatch color={fill.color} onChange={(hex) => handleColorChange(index, hex)} />
-                <HexInput color={fill.color} onChange={(hex) => handleColorChange(index, hex)} />
-              </Input.Root>
-              <Input.Root>
-                <OpacityInput
-                  value={fill.opacity}
-                  onChange={(value) => handleOpacityChange(index, value)}
-                />
-                <PercentSuffix />
-              </Input.Root>
+              <FormattedInput.Root>
+                <ColorSwatch color={fill.color} onChange={(color) => handleColorChange(index, color)} />
+                <HexInput color={fill.color} onChange={(color) => handleColorChange(index, color)} />
+              </FormattedInput.Root>
+              <OpacityInput
+                value={fill.opacity}
+                onChange={(value) => handleOpacityChange(index, value)}
+              />
             </Input.Group>
             <IconButton aria-label="Toggle visibility" onClick={() => toggleVisibility(index)}>
               {fill.visible ? <Icon24Eye /> : <Icon24Hidden />}
@@ -982,63 +986,46 @@ function FillSection({ node }: { node: AppearanceNode }) {
 }
 
 function StrokeSection({ node }: { node: AppearanceNode }) {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
   const stroke = node.strokes[0];
 
   const addStroke = useCallback(() => {
-    const newStroke: Stroke = {
-      paint: { type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true },
-      weight: 1,
-      position: 'CENTER',
-    };
-    store.updateNode(node.id, { strokes: [...node.strokes, newStroke] });
-  }, [store, node.id, node.strokes]);
+    const newStroke = createPaint({ type: 'SOLID', color: { r: 0, g: 0, b: 0 }, opacity: 1, visible: true });
+    sg.updateNode(node.id, { strokes: [...node.strokes, newStroke] });
+  }, [sg, node.id, node.strokes]);
 
   const removeStroke = useCallback(() => {
-    store.updateNode(node.id, { strokes: node.strokes.slice(1) });
-  }, [store, node.id, node.strokes]);
+    sg.updateNode(node.id, { strokes: node.strokes.slice(1) });
+  }, [sg, node.id, node.strokes]);
 
   const handleColorChange = useCallback(
-    (hex: string) => {
-      const color = hexToRgb(hex);
-      if (!color) return;
+    (color: Color) => {
       const newStrokes = [...node.strokes];
-      newStrokes[0] = {
-        ...newStrokes[0],
-        paint: { ...newStrokes[0].paint, color },
-      };
-      store.updateNode(node.id, { strokes: newStrokes });
+      newStrokes[0] = { ...newStrokes[0], color };
+      sg.updateNode(node.id, { strokes: newStrokes });
     },
-    [store, node.id, node.strokes],
+    [sg, node.id, node.strokes],
   );
 
   const handleWeightChange = useCallback(
     (value: number) => {
-      const newStrokes = [...node.strokes];
-      newStrokes[0] = { ...newStrokes[0], weight: value };
-      store.updateNode(node.id, { strokes: newStrokes });
+      sg.updateNode(node.id, { strokeWeight: value });
     },
-    [store, node.id, node.strokes],
+    [sg, node.id],
   );
 
-  const handlePositionChange = useCallback(
+  const handleAlignChange = useCallback(
     (value: string) => {
-      const pos = value as Stroke['position'];
-      const newStrokes = [...node.strokes];
-      newStrokes[0] = { ...newStrokes[0], position: pos };
-      store.updateNode(node.id, { strokes: newStrokes });
+      sg.updateNode(node.id, { strokeAlign: value as StrokeAlign });
     },
-    [store, node.id, node.strokes],
+    [sg, node.id],
   );
 
   const toggleVisibility = useCallback(() => {
     const newStrokes = [...node.strokes];
-    newStrokes[0] = {
-      ...newStrokes[0],
-      paint: { ...newStrokes[0].paint, visible: !newStrokes[0].paint.visible },
-    };
-    store.updateNode(node.id, { strokes: newStrokes });
-  }, [store, node.id, node.strokes]);
+    newStrokes[0] = { ...newStrokes[0], visible: !newStrokes[0].visible };
+    sg.updateNode(node.id, { strokes: newStrokes });
+  }, [sg, node.id, node.strokes]);
 
   if (!stroke) {
     return (
@@ -1061,36 +1048,30 @@ function StrokeSection({ node }: { node: AppearanceNode }) {
         </>
       )}
     >
-      <PropertyRow columns="1fr 24px 24px" style={{ opacity: stroke.paint.visible ? 1 : 0.4 }}>
+      <PropertyRow columns="1fr 24px 24px" style={{ opacity: stroke.visible ? 1 : 0.4 }}>
         <Input.Group columns="1fr 52px">
-          <Input.Root>
-            <ColorSwatch color={stroke.paint.color} onChange={handleColorChange} />
-            <HexInput color={stroke.paint.color} onChange={handleColorChange} />
-          </Input.Root>
-          <Input.Root>
-            <OpacityInput
-              value={stroke.paint.opacity}
-              onChange={(v) => {
-                const newStrokes = [...node.strokes];
-                newStrokes[0] = {
-                  ...newStrokes[0],
-                  paint: { ...newStrokes[0].paint, opacity: v / 100 },
-                };
-                store.updateNode(node.id, { strokes: newStrokes });
-              }}
-            />
-            <PercentSuffix />
-          </Input.Root>
+          <FormattedInput.Root>
+            <ColorSwatch color={stroke.color} onChange={handleColorChange} />
+            <HexInput color={stroke.color} onChange={handleColorChange} />
+          </FormattedInput.Root>
+          <OpacityInput
+            value={stroke.opacity}
+            onChange={(v) => {
+              const newStrokes = [...node.strokes];
+              newStrokes[0] = { ...newStrokes[0], opacity: v };
+              sg.updateNode(node.id, { strokes: newStrokes });
+            }}
+          />
         </Input.Group>
         <IconButton aria-label="Toggle visibility" onClick={toggleVisibility}>
-          {stroke.paint.visible ? <Icon24Eye /> : <Icon24Hidden />}
+          {stroke.visible ? <Icon24Eye /> : <Icon24Hidden />}
         </IconButton>
         <IconButton aria-label="Remove stroke" onClick={removeStroke}>
           <Icon24Minus />
         </IconButton>
       </PropertyRow>
-      <PropertyRow columns="1fr 1fr 24px 24px" style={{ opacity: stroke.paint.visible ? 1 : 0.4 }}>
-        <Select.Root value={stroke.position} onChange={(v) => v && handlePositionChange(v)}>
+      <PropertyRow columns="1fr 1fr 24px 24px" style={{ opacity: stroke.visible ? 1 : 0.4 }}>
+        <Select.Root value={node.strokeAlign} onChange={(v) => v && handleAlignChange(v)}>
           <Select.Trigger label={<HiddenLabel>Stroke position</HiddenLabel>} width="fill" />
           <Select.Container>
             <Select.Option value="INSIDE">Inside</Select.Option>
@@ -1101,7 +1082,7 @@ function StrokeSection({ node }: { node: AppearanceNode }) {
         <NumericField
           label="Wt"
           icon={<Icon24StrokeWeight />}
-          value={stroke.weight}
+          value={node.strokeWeight}
           onChange={handleWeightChange}
           formatter={positiveFormatter}
         />

@@ -24,7 +24,7 @@ import {
   Icon24FigjamLineLarge,
   Icon24ShapeCylinderLarge,
 } from '@figma/fpl-icons';
-import { useActiveTool, useSelection, useSceneGraph } from '../canvas';
+import { useActiveTool, useSelection, useSceneGraph, createPaint } from '../canvas';
 import type { ToolType, Color, ConnectorLineShape } from '../canvas';
 import { MarkerIllustration, HighlighterIllustration, TapeIllustration } from './toolbar-illustrations';
 import { StickyToolButton } from './StickyToolButton';
@@ -51,6 +51,14 @@ interface ShapeOption {
 // ---------------------------------------------------------------------------
 // Shape & connector options for secondary toolbar
 // ---------------------------------------------------------------------------
+
+/** Map polygon shape option IDs to their side count */
+const POLYGON_SIDES_MAP: Record<string, number> = {
+  'shape-diamond': 4,
+  'shape-triangle': 3,
+  'shape-inv-triangle': 3,
+  'shape-cylinder': 3,
+};
 
 /** Map connector option IDs to ConnectorLineShape */
 const CONNECTOR_SHAPE_MAP: Record<string, ConnectorLineShape> = {
@@ -109,6 +117,7 @@ export function FigJamToolbar() {
     highlighterColor, setHighlighterColor,
     markerSubType, setMarkerSubType,
     setConnectorLineShape,
+    setPolygonSides,
   } = useActiveTool();
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -120,7 +129,7 @@ export function FigJamToolbar() {
   const activePenColor = markerSubType === 'highlighter' ? highlighterColor : markerColor;
   const setActivePenColor = markerSubType === 'highlighter' ? setHighlighterColor : setMarkerColor;
   const selection = useSelection();
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
   const [activeRaised, setActiveRaised] = useState<RaisedTool | null>(null);
   const [activeShapeOption, setActiveShapeOption] = useState('shape-rect');
 
@@ -174,6 +183,9 @@ export function FigJamToolbar() {
     // Set connector line shape when a connector option is selected
     const connectorShape = CONNECTOR_SHAPE_MAP[optionId];
     if (connectorShape) setConnectorLineShape(connectorShape);
+    // Set polygon sides when a polygon shape is selected
+    const sides = POLYGON_SIDES_MAP[optionId];
+    if (sides != null) setPolygonSides(sides);
   };
 
   // Handle direct shape clicks from the ShapesToolButton
@@ -204,10 +216,10 @@ export function FigJamToolbar() {
             setStickyColor(stickyColorEntry.rgb);
             // Update any selected STICKY_NOTE nodes
             for (const nodeId of selection.selectedIds) {
-              const node = store.getNode(nodeId);
+              const node = sg.getNode(nodeId);
               if (node?.type === 'STICKY_NOTE') {
-                store.updateNode(nodeId, {
-                  fills: [{ type: 'SOLID', color: stickyColorEntry.rgb, opacity: 1, visible: true }],
+                sg.updateNode(nodeId, {
+                  fills: [createPaint({ type: 'SOLID', color: stickyColorEntry.rgb, opacity: 1, visible: true })],
                 });
               }
             }
@@ -343,7 +355,7 @@ function ShapesSecondaryToolbar({
 }) {
   const { shapeColor, setShapeColor } = useActiveTool();
   const selection = useSelection();
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
   const [showColors, setShowColors] = useState(false);
   const colorPopoverRef = useRef<HTMLDivElement>(null);
   const colorTriggerRef = useRef<HTMLButtonElement>(null);
@@ -374,10 +386,10 @@ function ShapesSecondaryToolbar({
     setShapeColor(entry.rgb);
     // Also update any selected shape nodes
     for (const nodeId of selection.selectedIds) {
-      const node = store.getNode(nodeId);
+      const node = sg.getNode(nodeId);
       if (node && 'fills' in node) {
-        store.updateNode(nodeId, {
-          fills: [{ type: 'SOLID', color: entry.rgb, opacity: 1, visible: true }],
+        sg.updateNode(nodeId, {
+          fills: [createPaint({ type: 'SOLID', color: entry.rgb, opacity: 1, visible: true })],
         });
       }
     }

@@ -18,7 +18,8 @@ import type { Mode } from '../components/menuTypes';
 import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
 import { useAppTheme } from '@prototype/shared';
 import { DEFAULT_MODE, MODE_TO_BRAND } from '../helpers/theme';
-import { IconButton, Menu } from '@figma/fpl-components';
+import { IconButton } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { showToast } from '../components/toast';
 import { CommentOverlay, ContextMenuRenderer, LeftSidebar, useComments, useContextMenu } from '@prototype/shared';
 import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
@@ -88,7 +89,7 @@ function EditorLayout() {
 }
 
 function EditorContent() {
-  const helpMenu = Menu.useMenu();
+  const helpMenu = MenuV2.useMenu();
   const featuresModal = PrototypeFeaturesModal();
   const contextMenu = useContextMenu();
   const [activeRailItem, setActiveRailItem] = useState('file');
@@ -164,12 +165,15 @@ function EditorContent() {
     }
   }, [activeMode]);
 
-  // CMD+K opens QuickActions
+  // CMD+K / CMD+P opens QuickActions, CMD+O blocked
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'k' && e.metaKey) {
+      if ((e.key === 'k' || e.key === 'p') && e.metaKey) {
         e.preventDefault();
         setIsActionsOpen(true);
+      }
+      if (e.key === 'o' && e.metaKey) {
+        e.preventDefault();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
@@ -272,23 +276,21 @@ function EditorContent() {
       {showPatternLibrary && <PatternLibraryWindow onClose={() => setShowPatternLibrary(false)} />}
 
       {/* Context menu — always mounted, visibility managed by FPL */}
-      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} />
+      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} anchorRef={contextMenu.anchorRef} />
 
       {/* Floating Help Button */}
-      <Menu.Root manager={helpMenu.manager}>
-        <Menu.Container>
-          <Menu.Item onClick={() => showToast({
+      <MenuV2.Root manager={helpMenu.manager}>
+          <MenuV2.Item onClick={() => showToast({
             icon: Icon24Star,
             message: 'This is a test toast!',
             button: { label: 'Action', onClick: () => console.log('Action clicked') },
           })}>
             Render test toast
-          </Menu.Item>
-          <Menu.Item onClick={featuresModal.trigger}>
+          </MenuV2.Item>
+          <MenuV2.Item onClick={featuresModal.trigger}>
             Prototype features
-          </Menu.Item>
-        </Menu.Container>
-      </Menu.Root>
+          </MenuV2.Item>
+      </MenuV2.Root>
       {featuresModal.modal}
       <CommentOverlay
         interaction={interaction}

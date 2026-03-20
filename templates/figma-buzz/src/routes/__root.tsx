@@ -15,6 +15,7 @@ import {
 } from '@figma/fpl-icons';
 import { RightPanel } from '../components/RightPanel';
 import { Canvas, useViewport } from '../canvas';
+import type { NodeId } from '../canvas';
 import { CanvasOverlay } from '../components/CanvasOverlay';
 import type { Mode } from '../components/menuTypes';
 import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
@@ -120,12 +121,13 @@ function EditorContent() {
   const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => readStoredTheme());
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'asset' | 'grid'>('asset');
-  const [focusedFrameId, setFocusedFrameId] = useState<string | null>(null);
+  const [focusedFrameId, setFocusedFrameId] = useState<NodeId | null>(null);
   const [isAnimatingViewMode, setIsAnimatingViewMode] = useState(false);
+  const [isAnimatingModeChange, setIsAnimatingModeChange] = useState(false);
 
   const viewModeCtx = useMemo<ViewModeAPI>(
-    () => ({ viewMode, setViewMode, focusedFrameId, setFocusedFrameId, isAnimatingViewMode, setIsAnimatingViewMode }),
-    [viewMode, focusedFrameId, isAnimatingViewMode],
+    () => ({ viewMode, setViewMode, focusedFrameId, setFocusedFrameId, isAnimatingViewMode, setIsAnimatingViewMode, isAnimatingModeChange, setIsAnimatingModeChange }),
+    [viewMode, focusedFrameId, isAnimatingViewMode, isAnimatingModeChange],
   );
 
   // Minimize UI state
@@ -284,7 +286,7 @@ function EditorContent() {
       {showRightPanel && isMinimized && <MinimizedRightPanel activeMode={activeMode} />}
 
       {/* Context menu — always mounted, visibility managed by FPL */}
-      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} />
+      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} anchorRef={contextMenu.anchorRef} />
 
       {featuresModal.modal}
       <CommentOverlay

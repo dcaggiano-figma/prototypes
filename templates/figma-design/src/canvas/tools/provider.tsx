@@ -1,8 +1,9 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
+import type { Color, ConnectorLineShape } from '@prototype/shared/canvas';
 
-export type ToolType = 'MOVE' | 'FRAME' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'PEN' | 'PENCIL' | 'HAND' | 'COMMENT' | 'LINE' | 'POLYGON' | 'STAR'
+export type ToolType = 'MOVE' | 'FRAME' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'PEN' | 'PENCIL' | 'HAND' | 'COMMENT' | 'LINE' | 'POLYGON' | 'STAR' | 'STICKY_NOTE' | 'CONNECTOR'
 
 export interface ToolAPI {
   /** Currently active tool */
@@ -22,6 +23,15 @@ export interface ToolAPI {
   /** Draw tool state — opacity 0–100 */
   drawOpacity: number
   setDrawOpacity(opacity: number): void
+  /** Active sticky note color for creation */
+  stickyColor: Color
+  setStickyColor(color: Color): void
+  /** Active shape fill color for creation */
+  shapeColor: Color
+  setShapeColor(color: Color): void
+  /** Active connector line shape for creation */
+  connectorLineShape: ConnectorLineShape
+  setConnectorLineShape(shape: ConnectorLineShape): void
 }
 
 const ToolContext = createContext<ToolAPI | null>(null);
@@ -35,6 +45,9 @@ export function ToolProvider({ children }: { children: React.ReactNode }) {
   const [drawColor, setDrawColor] = useState('#000000');
   const [drawStrokeWeight, setDrawStrokeWeight] = useState(2);
   const [drawOpacity, setDrawOpacity] = useState(100);
+  const [stickyColor, setStickyColor] = useState<Color>({ r: 255, g: 226, b: 153 });
+  const [shapeColor, setShapeColor] = useState<Color>({ r: 217, g: 217, b: 217 });
+  const [connectorLineShape, setConnectorLineShape] = useState<ConnectorLineShape>('CURVE');
 
   const setActiveTool = useCallback((tool: ToolType) => {
     setActiveToolState(tool);
@@ -71,8 +84,11 @@ export function ToolProvider({ children }: { children: React.ReactNode }) {
       drawColor, setDrawColor,
       drawStrokeWeight, setDrawStrokeWeight,
       drawOpacity, setDrawOpacity,
+      stickyColor, setStickyColor,
+      shapeColor, setShapeColor,
+      connectorLineShape, setConnectorLineShape,
     }),
-    [activeTool, effectiveTool, isSpacePanning, setActiveTool, drawColor, drawStrokeWeight, drawOpacity],
+    [activeTool, effectiveTool, isSpacePanning, setActiveTool, drawColor, drawStrokeWeight, drawOpacity, stickyColor, shapeColor, connectorLineShape],
   );
 
   return <ToolContext.Provider value={api}>{children}</ToolContext.Provider>;

@@ -1,10 +1,12 @@
-import type { Color, Paint, Stroke } from '../types';
+import type { Color, Paint, StrokeAlign } from '@prototype/shared/canvas';
 
 /** Build a GPU-composited transform for node positioning (avoids layout thrash) */
 export function nodeTransform(x: number, y: number, rotation: number): string {
   if (rotation) return `translate(${x}px, ${y}px) rotate(${rotation}deg)`;
   return `translate(${x}px, ${y}px)`;
 }
+
+export { nodePosition } from '@prototype/shared/canvas';
 
 export function colorToCSS(color: Color, opacity: number): string {
   if (opacity >= 1) return `rgb(${color.r}, ${color.g}, ${color.b})`;
@@ -19,37 +21,37 @@ export function getFirstVisibleFill(fills: Paint[]): Paint | undefined {
   return undefined;
 }
 
-export function getFirstVisibleStroke(strokes: Stroke[]): Stroke | undefined {
+export function getFirstVisibleStroke(strokes: Paint[]): Paint | undefined {
   for (const s of strokes) {
-    if (s.paint.visible) return s;
+    if (s.visible) return s;
   }
   return undefined;
 }
 
-/** SVG stroke width adjusted for position (OUTSIDE/INSIDE double to compensate for clipping) */
-export function svgStrokeWidth(stroke: Stroke): number {
-  return stroke.position === 'CENTER' ? stroke.weight : stroke.weight * 2;
+/** SVG stroke width adjusted for alignment (OUTSIDE/INSIDE double to compensate for clipping) */
+export function svgStrokeWidth(weight: number, align: StrokeAlign): number {
+  return align === 'CENTER' ? weight : weight * 2;
 }
 
-export function strokeStyles(stroke: Stroke | undefined): React.CSSProperties {
+export function strokeStyles(stroke: Paint | undefined, weight: number, align: StrokeAlign): React.CSSProperties {
   if (!stroke) return {};
 
-  const color = colorToCSS(stroke.paint.color, stroke.paint.opacity);
+  const color = colorToCSS(stroke.color, stroke.opacity);
 
-  if (stroke.position === 'INSIDE') {
+  if (align === 'INSIDE') {
     return {
-      boxShadow: `inset 0 0 0 ${stroke.weight}px ${color}`,
+      boxShadow: `inset 0 0 0 ${weight}px ${color}`,
     };
   }
 
-  if (stroke.position === 'OUTSIDE') {
+  if (align === 'OUTSIDE') {
     return {
-      boxShadow: `0 0 0 ${stroke.weight}px ${color}`,
+      boxShadow: `0 0 0 ${weight}px ${color}`,
     };
   }
 
   // CENTER — half inside, half outside (matches Figma behavior)
-  const half = stroke.weight / 2;
+  const half = weight / 2;
   return {
     boxShadow: `inset 0 0 0 ${half}px ${color}, 0 0 0 ${half}px ${color}`,
   };

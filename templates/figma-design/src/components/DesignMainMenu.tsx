@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { IconButton, Menu } from '@figma/fpl-components';
+import { IconButton } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon24FigmaLarge, Icon24SearchLarge } from '@figma/fpl-icons';
 import type { MenuItemDef } from './menuTypes';
 import { renderMenuItems } from './menuTypes';
@@ -14,7 +15,7 @@ interface DesignMainMenuProps {
 }
 
 export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize, onOpenPatternLibrary }: DesignMainMenuProps) {
-  const mainMenu = Menu.useMenu();
+  const mainMenu = MenuV2.useMenu();
 
   // Consolidated preferences state
   const [prefs, setPrefs] = useState({
@@ -442,13 +443,13 @@ export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onT
   ];
 
   return (
-    <Menu.Root manager={mainMenu.manager}>
+    <>
       <IconButton size="lg" aria-label="Main menu" {...mainMenu.getTriggerProps()}>
         <Icon24FigmaLarge />
       </IconButton>
-      <Menu.Container>
+      <MenuV2.Root manager={mainMenu.manager}>
         {renderMenuItems(menuItems)}
-      </Menu.Container>
-    </Menu.Root>
+      </MenuV2.Root>
+    </>
   );
 }

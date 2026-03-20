@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
-import { Button, ButtonGroup, ButtonPrimitive, Collapse, IconButton, Input, InputPrimitive, Menu } from '@figma/fpl-components';
+import { Button, ButtonGroup, ButtonPrimitive, Collapse, IconButton, Input, InputPrimitive } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { useMode } from '../ModeContext';
 import {
   Icon16ChevronDown,
@@ -20,21 +21,21 @@ import {
   Icon24Template,
 } from '@figma/fpl-icons';
 
-import { useSceneGraph, useSelection } from '../../canvas';
-import type { FrameNode, SlideNode } from '../../canvas/types';
-import type { SceneNode, VectorNode } from '../../canvas';
+import { useCanvasId, useSceneGraph, useSelection } from '../../canvas';
+import type { FrameNode, SlideNode, SceneNode, VectorNode, NodeId } from '../../canvas';
 import { useMinimizeUI } from '../MinimizeUIContext';
 import { useViewMode } from '../ViewModeContext';
 import { NavListThumbnail, ThumbnailPreview } from '@prototype/shared';
 import { colorToCSS, getFirstVisibleFill } from '../../canvas/components/render-helpers';
 import { ThumbnailRenderer } from '../../canvas/components/thumbnail-renderer';
-import { createSlideAfterFocused } from '../../canvas/scene-graph/grid-manager';
+import { createSlideAfterFocused } from '../../canvas/scene-graph/grid';
 
 
 export function FilePanel() {
   const mode = useMode();
   const { toggleMinimize, fileName, setFileName } = useMinimizeUI();
   const store = useSceneGraph();
+  const canvasId = useCanvasId();
   const { selectedIds, select } = useSelection();
   const { viewMode, focusedFrameId, setFocusedFrameId } = useViewMode();
 
@@ -46,7 +47,7 @@ export function FilePanel() {
   // File color profile
   const [colorProfile, setColorProfile] = useState<'srgb' | 'p3'>('srgb');
 
-  const fileMenu = Menu.useMenu();
+  const fileMenu = MenuV2.useMenu();
 
   useEffect(() => {
     if (isEditingFileName) {
@@ -90,81 +91,69 @@ export function FilePanel() {
             />
           ) : (
             <>
-              <Menu.Root manager={fileMenu.manager}>
-                <ButtonGroup aria-label="File actions">
-                  <Button variant="ghost" onClick={startEditingFileName}>
-                    <span className="text-bodyLg text-text truncate">{fileName}</span>
-                  </Button>
-                  <ButtonGroup.Trigger
-                    aria-label="File options"
-                    {...fileMenu.getTriggerProps()}
-                  >
-                    <Icon16ChevronDown />
-                  </ButtonGroup.Trigger>
-                </ButtonGroup>
-                <Menu.Container>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => console.log('version-history')}>
-                      Show version history
-                    </Menu.Item>
-                    <Menu.SubMenu>
-                      <Menu.SubTrigger>Library</Menu.SubTrigger>
-                      <Menu.SubContainer>
-                        <Menu.Group>
-                          <Menu.Item onClick={() => console.log('publish-library')}>Publish library…</Menu.Item>
-                          <Menu.Item onClick={() => console.log('connect-components')}>Connect components to code</Menu.Item>
-                          <Menu.Item onClick={() => console.log('export-to-make')}>Export to Figma Make</Menu.Item>
-                          <Menu.Item onClick={() => console.log('library-analytics')}>Library analytics</Menu.Item>
-                        </Menu.Group>
-                      </Menu.SubContainer>
-                    </Menu.SubMenu>
-                    <Menu.Item onClick={() => console.log('export')}>
-                      Export…
-                      <Menu.ItemTrail><Menu.Shortcut>⌥⌘E</Menu.Shortcut></Menu.ItemTrail>
-                    </Menu.Item>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.SubMenu>
-                      <Menu.SubTrigger>Add to sidebar</Menu.SubTrigger>
-                      <Menu.SubContainer>
-                        <Menu.Group>
-                          <Menu.Item onClick={() => console.log('starred')}>Starred</Menu.Item>
-                        </Menu.Group>
-                      </Menu.SubContainer>
-                    </Menu.SubMenu>
-                    <Menu.Item onClick={() => console.log('pin-to-workspace')}>Pin to workspace</Menu.Item>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => console.log('create-branch')}>Create branch…</Menu.Item>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.SubMenu>
-                      <Menu.SubTrigger>File color profile</Menu.SubTrigger>
-                      <Menu.SubContainer>
-                        <Menu.RadioGroup
-                          title={<Menu.HiddenTitle>File color profile</Menu.HiddenTitle>}
-                          value={colorProfile}
-                          onChange={(value) => setColorProfile(value as 'srgb' | 'p3')}
-                        >
-                          <Menu.RadioGroupItem value="srgb">Assign to sRGB</Menu.RadioGroupItem>
-                          <Menu.RadioGroupItem value="p3">Assign to Display P3</Menu.RadioGroupItem>
-                        </Menu.RadioGroup>
-                      </Menu.SubContainer>
-                    </Menu.SubMenu>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => console.log('duplicate')}>Duplicate</Menu.Item>
-                    <Menu.Item onClick={() => console.log('rename')}>Rename</Menu.Item>
-                    <Menu.Item onClick={() => console.log('copy')}>Copy</Menu.Item>
-                    <Menu.Item onClick={() => console.log('go-to-project')}>Go to project</Menu.Item>
-                    <Menu.Item onClick={() => console.log('move-file')}>Move file…</Menu.Item>
-                    <Menu.Item onClick={() => console.log('move-to-trash')}>Move to trash</Menu.Item>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => console.log('restore-thumbnail')}>Restore default thumbnail</Menu.Item>
-                  </Menu.Group>
-                </Menu.Container>
-              </Menu.Root>
+              <ButtonGroup aria-label="File actions">
+                <Button variant="ghost" onClick={startEditingFileName}>
+                  <span className="text-bodyLg text-text truncate">{fileName}</span>
+                </Button>
+                <ButtonGroup.Trigger
+                  {...fileMenu.getTriggerProps() as React.ComponentProps<typeof ButtonGroup.Trigger>}
+                  aria-label="File options"
+                >
+                  <Icon16ChevronDown />
+                </ButtonGroup.Trigger>
+              </ButtonGroup>
+              <MenuV2.Root manager={fileMenu.manager}>
+                <MenuV2.Group>
+                  <MenuV2.Item onClick={() => console.log('version-history')}>
+                    Show version history
+                  </MenuV2.Item>
+                  <MenuV2.SubMenu title="Library">
+                    <MenuV2.Group>
+                      <MenuV2.Item onClick={() => console.log('publish-library')}>Publish library…</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('connect-components')}>Connect components to code</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('export-to-make')}>Export to Figma Make</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('library-analytics')}>Library analytics</MenuV2.Item>
+                    </MenuV2.Group>
+                  </MenuV2.SubMenu>
+                  <MenuV2.Item onClick={() => console.log('export')} trail={<MenuV2.Shortcut>⌥⌘E</MenuV2.Shortcut>}>
+                    Export…
+                  </MenuV2.Item>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.SubMenu title="Add to sidebar">
+                    <MenuV2.Group>
+                      <MenuV2.Item onClick={() => console.log('starred')}>Starred</MenuV2.Item>
+                    </MenuV2.Group>
+                  </MenuV2.SubMenu>
+                  <MenuV2.Item onClick={() => console.log('pin-to-workspace')}>Pin to workspace</MenuV2.Item>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.Item onClick={() => console.log('create-branch')}>Create branch…</MenuV2.Item>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.SubMenu title="File color profile">
+                    <MenuV2.RadioGroup
+                      title="File color profile"
+                      value={colorProfile}
+                      onChange={(value) => setColorProfile(value as 'srgb' | 'p3')}
+                    >
+                      <MenuV2.RadioGroupItem value="srgb">Assign to sRGB</MenuV2.RadioGroupItem>
+                      <MenuV2.RadioGroupItem value="p3">Assign to Display P3</MenuV2.RadioGroupItem>
+                    </MenuV2.RadioGroup>
+                  </MenuV2.SubMenu>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.Item onClick={() => console.log('duplicate')}>Duplicate</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('rename')}>Rename</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('copy')}>Copy</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('go-to-project')}>Go to project</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('move-file')}>Move file…</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('move-to-trash')}>Move to trash</MenuV2.Item>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.Item onClick={() => console.log('restore-thumbnail')}>Restore default thumbnail</MenuV2.Item>
+                </MenuV2.Group>
+              </MenuV2.Root>
             </>
           )}
           </div>
@@ -174,7 +163,7 @@ export function FilePanel() {
         </div>
         <span className="px-2 text-bodyMd text-text-secondary truncate">Drafts</span>
         <div className="grid grid-cols-1 items-center px-2 pt-2"><ButtonGroup aria-label="File actions" variant="secondary"><Button variant="secondary" width='fill' iconPrefix={<Icon24Template />}>New slide</Button><IconButton aria-label="Add slide" variant="secondary" onClick={() => {
-            const newId = createSlideAfterFocused(store, focusedFrameId);
+            const newId = createSlideAfterFocused(store, canvasId, focusedFrameId);
             if (newId && viewMode === 'asset') setFocusedFrameId(newId);
           }}><Icon24Plus /></IconButton></ButtonGroup></div>
       </div>
@@ -185,11 +174,15 @@ export function FilePanel() {
         <div className="flex-1 min-h-0 overflow-y-auto">
           <SectionList
             store={store}
+            canvasId={canvasId}
             selectedIds={selectedIds}
             onSelectFrame={(frameId) => {
               select(frameId);
               if (viewMode === 'asset') {
-                setFocusedFrameId(frameId);
+                const node = store.getNode(frameId);
+                if (node && node.type === 'SLIDE') {
+                  setFocusedFrameId(frameId);
+                }
               }
             }}
             onSelectSection={(sectionId) => select(sectionId)}
@@ -218,22 +211,24 @@ export function FilePanel() {
 
 interface SectionListProps {
   store: ReturnType<typeof useSceneGraph>
-  selectedIds: Set<string>
-  onSelectFrame: (frameId: string) => void
-  onSelectSection: (sectionId: string) => void
+  canvasId: NodeId
+  selectedIds: ReadonlySet<NodeId>
+  onSelectFrame: (frameId: NodeId) => void
+  onSelectSection: (sectionId: NodeId) => void
 }
 
-function SectionList({ store, selectedIds, onSelectFrame, onSelectSection }: SectionListProps) {
+function SectionList({ store, canvasId, selectedIds, onSelectFrame, onSelectSection }: SectionListProps) {
   // Derive sections from scene graph
-  const [sections, setSections] = useState<Array<{ id: string; name: string; children: SceneNode[] }>>([]);
+  const [sections, setSections] = useState<Array<{ id: NodeId; name: string; children: SceneNode[] }>>([]);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [storeVersion, setStoreVersion] = useState(0);
 
   const refreshSections = useCallback(() => {
     setStoreVersion((v) => v + 1);
-    const roots = store.getRootNodes();
+    const canvas = store.getNode(canvasId);
+    const roots = canvas ? canvas.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[] : [];
     const secs = roots
-      .filter((n) => n.type === 'SECTION')
+      .filter((n) => n.type === 'SECTION' || n.type === 'GRID_SECTION')
       .map((s) => ({
         id: s.id,
         name: s.name,
@@ -249,11 +244,11 @@ function SectionList({ store, selectedIds, onSelectFrame, onSelectSection }: Sec
       }
       return next;
     });
-  }, [store]);
+  }, [store, canvasId]);
 
   useEffect(() => {
     refreshSections();
-    return store.subscribe(refreshSections);
+    return store.addListener(refreshSections);
   }, [store, refreshSections]);
 
   // Compute a running offset so numbering is continuous across sections
@@ -341,19 +336,20 @@ function FrameThumbnailPreview({ frameNode, store, storeVersion }: { frameNode: 
 
 function LayersTree() {
   const store = useSceneGraph();
+  const canvasId = useCanvasId();
   const { selectedIds, select, toggle } = useSelection();
   const { focusedFrameId } = useViewMode();
-  const [layers, setLayers] = useState<Array<{ node: SceneNode; depth: number }>>(() => collectLayersReversed(store, focusedFrameId));
+  const [layers, setLayers] = useState<Array<{ node: SceneNode; depth: number }>>(() => collectLayersReversed(store, canvasId, focusedFrameId));
 
   // Re-walk when store or focused frame changes
   const refreshLayers = useCallback(() => {
-    setLayers(collectLayersReversed(store, focusedFrameId));
-  }, [store, focusedFrameId]);
+    setLayers(collectLayersReversed(store, canvasId, focusedFrameId));
+  }, [store, canvasId, focusedFrameId]);
 
   // Subscribe to store changes and refresh when focused frame changes
   useEffect(() => {
     refreshLayers();
-    return store.subscribe(refreshLayers);
+    return store.addListener(refreshLayers);
   }, [store, refreshLayers]);
 
   return (
@@ -381,8 +377,8 @@ interface LayerRowProps {
   node: SceneNode
   depth: number
   selected: boolean
-  onSelect: (id: string) => void
-  onToggle: (id: string) => void
+  onSelect: (id: NodeId) => void
+  onToggle: (id: NodeId) => void
   store: ReturnType<typeof useSceneGraph>
 }
 
@@ -464,8 +460,7 @@ function LayerRow({
             ref={inputRef}
             className="flex-1 min-w-0 bg-bg text-text text-bodyMd px-1 py-0 rounded border border-border-brand outline-none"
             aria-label="Rename layer"
-            value={node.name}
-            onChange={() => {}}
+            defaultValue={node.name}
             onBlur={commitRename}
             onKeyDown={handleKeyDown}
           />
@@ -494,7 +489,8 @@ function LayerRow({
  */
 function collectLayersReversed(
   store: ReturnType<typeof useSceneGraph>,
-  focusedFrameId: string | null,
+  canvasId: NodeId,
+  focusedFrameId: NodeId | null,
 ): Array<{ node: SceneNode; depth: number }> {
   const result: Array<{ node: SceneNode; depth: number }> = [];
 
@@ -515,7 +511,8 @@ function collectLayersReversed(
       }
     }
   } else {
-    const roots = store.getRootNodes();
+    const canvas = store.getNode(canvasId);
+    const roots = canvas ? canvas.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[] : [];
     for (let i = roots.length - 1; i >= 0; i--) {
       visitReversed(roots[i], 0);
     }

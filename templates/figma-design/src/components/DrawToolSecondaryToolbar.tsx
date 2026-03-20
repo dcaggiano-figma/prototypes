@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { ButtonPrimitive, Input, Menu, Slider } from '@figma/fpl-components';
+import { useEffect, useRef, useState } from 'react';
+import { ButtonPrimitive, Input, Slider } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon16ChevronDown } from '@figma/fpl-icons';
 
 // ---------------------------------------------------------------------------
@@ -24,7 +25,7 @@ export function DrawToolSecondaryToolbar({
   onStrokeWeightChange,
 }: DrawToolSecondaryToolbarProps) {
   const [strokeStyle, setStrokeStyle] = useState('solid');
-  const strokeStyleMenu = Menu.useMenu();
+  const strokeStyleMenu = MenuV2.useMenu();
 
   const handleWeightChange = (value: string) => {
     const num = Number(value);
@@ -47,13 +48,7 @@ export function DrawToolSecondaryToolbar({
             style={{ backgroundColor: color }}
           />
           {/* eslint-disable-next-line react/forbid-elements -- native color picker, no FPL equivalent */}
-          <input
-            type="color"
-            aria-label="Stroke color"
-            className="absolute inset-0 opacity-0 cursor-pointer"
-            value={color}
-            onChange={(e) => onColorChange(e.target.value)}
-          />
+          <DrawColorInput color={color} onColorChange={onColorChange} />
         </label>
 
         {/* Stroke weight input + slider */}
@@ -79,25 +74,49 @@ export function DrawToolSecondaryToolbar({
 
       {/* Right section: Stroke style dropdown */}
       <div className="flex items-center p-2">
-        <Menu.Root manager={strokeStyleMenu.manager}>
-          <ButtonPrimitive
-            aria-label="Stroke style"
-            className="flex items-center gap-1 px-2 py-1 rounded hover:bg-bg-hover cursor-pointer w-[100px]"
-            {...strokeStyleMenu.getTriggerProps()}
-          >
-            <StrokeStylePreview style={strokeStyle} />
-            <Icon16ChevronDown />
-          </ButtonPrimitive>
-          <Menu.Container>
-            <Menu.RadioGroup title={<Menu.HiddenTitle>Stroke style</Menu.HiddenTitle>} value={strokeStyle} onChange={(value) => setStrokeStyle(value)}>
-              <Menu.RadioGroupItem value="solid">Solid</Menu.RadioGroupItem>
-              <Menu.RadioGroupItem value="dashed">Dashed</Menu.RadioGroupItem>
-              <Menu.RadioGroupItem value="dotted">Dotted</Menu.RadioGroupItem>
-            </Menu.RadioGroup>
-          </Menu.Container>
-        </Menu.Root>
+        <ButtonPrimitive
+          aria-label="Stroke style"
+          className="flex items-center gap-1 px-2 py-1 rounded hover:bg-bg-hover cursor-pointer w-[100px]"
+          {...strokeStyleMenu.getTriggerProps()}
+        >
+          <StrokeStylePreview style={strokeStyle} />
+          <Icon16ChevronDown />
+        </ButtonPrimitive>
+        <MenuV2.Root manager={strokeStyleMenu.manager}>
+          <MenuV2.RadioGroup title="Stroke style" value={strokeStyle} onChange={(value) => setStrokeStyle(value)}>
+            <MenuV2.RadioGroupItem value="solid">Solid</MenuV2.RadioGroupItem>
+            <MenuV2.RadioGroupItem value="dashed">Dashed</MenuV2.RadioGroupItem>
+            <MenuV2.RadioGroupItem value="dotted">Dotted</MenuV2.RadioGroupItem>
+          </MenuV2.RadioGroup>
+        </MenuV2.Root>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Uncontrolled color input (avoids closing the native picker on re-render)
+// ---------------------------------------------------------------------------
+
+function DrawColorInput({ color, onColorChange }: { color: string; onColorChange: (c: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current && inputRef.current.value !== color) {
+      inputRef.current.value = color;
+    }
+  }, [color]);
+
+  return (
+    // eslint-disable-next-line react/forbid-elements -- native color picker; replace with FPL ColorArea when available
+    <input
+      ref={inputRef}
+      type="color"
+      aria-label="Stroke color"
+      className="absolute inset-0 opacity-0 cursor-pointer"
+      defaultValue={color}
+      onChange={(e) => onColorChange(e.target.value)}
+    />
   );
 }
 

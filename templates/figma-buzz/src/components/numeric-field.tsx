@@ -1,15 +1,28 @@
-import { useCallback } from 'react';
-import { NumberFormatter, ScrubbableInput } from '@figma/fpl-components';
+import { ScrubbableInput, type Formatter } from '@figma/fpl-components';
 
-export const defaultFormatter = new NumberFormatter({ maximumFractionDigits: 2 });
-export const positiveFormatter = new NumberFormatter({ min: 0, maximumFractionDigits: 2 });
-export const percentFormatter = new NumberFormatter({ min: 0, max: 100, maximumFractionDigits: 0 });
+import {
+  PixelFormatter,
+  PositivePixelFormatter,
+  PercentageFormatter,
+  OpacityFormatter,
+  type MixedNumberFormatter,
+} from '@prototype/shared/canvas';
+import type { Mixed } from '@prototype/shared/scene-graph';
+
+export const defaultFormatter = new PixelFormatter();
+export const positiveFormatter = new PositivePixelFormatter();
+export const percentFormatter = new PercentageFormatter();
+export const opacityFormatter = new OpacityFormatter();
+
+export interface NumericFieldChangeOpts {
+  commit: boolean
+}
 
 export interface NumericFieldProps {
   label: string
-  value: number
-  onChange: (value: number) => void
-  formatter?: NumberFormatter
+  value: number | Mixed
+  onChange: (value: number, opts: NumericFieldChangeOpts) => void
+  formatter?: MixedNumberFormatter | Formatter.IncrementFormatter<number | Mixed, number>
   /** Override the default text icon with a custom React node */
   icon?: React.ReactNode
   /** Disable the input */
@@ -30,13 +43,6 @@ export function NumericField({
 }: NumericFieldProps) {
   const fmt = formatter ?? defaultFormatter;
 
-  const handleChange = useCallback(
-    (v: number) => {
-      onChange(v);
-    },
-    [onChange],
-  );
-
   return (
     <ScrubbableInput.Root>
       <ScrubbableInput.Icon>
@@ -46,7 +52,7 @@ export function NumericField({
         aria-label={label}
         value={value}
         formatter={fmt}
-        onChange={handleChange}
+        onChange={(v, opts) => onChange(v, { commit: opts.commit })}
         disabled={disabled}
       />
     </ScrubbableInput.Root>

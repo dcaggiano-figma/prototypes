@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
-import { Menu, ButtonGroup, ButtonPrimitive, IconButton } from '@figma/fpl-components';
+import { ButtonGroup, ButtonPrimitive, IconButton } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon16ChevronDown } from '@figma/fpl-icons';
 import type { SubTool } from './types';
 
@@ -15,7 +16,7 @@ interface ToolButtonProps {
 }
 
 export function ToolButton({ id, Icon, label, activeTool, selectedSubToolId, subTools, onSelectTool }: ToolButtonProps) {
-  const { getTriggerProps, manager } = Menu.useMenu({ initialPosition: 'top-start' });
+  const { getTriggerProps, manager } = MenuV2.useMenu();
 
   // Determine if this button group owns the active tool
   const activeSubTool = subTools?.find((st) => st.id === activeTool);
@@ -47,7 +48,7 @@ export function ToolButton({ id, Icon, label, activeTool, selectedSubToolId, sub
 
   if (subTools) {
     return (
-      <Menu.Root manager={manager}>
+      <>
         <ButtonGroup aria-label={label}>
           <div className="rounded-md overflow-hidden">
             <IconButton
@@ -66,24 +67,25 @@ export function ToolButton({ id, Icon, label, activeTool, selectedSubToolId, sub
             <Icon16ChevronDown />
           </ButtonPrimitive>
         </ButtonGroup>
-        <Menu.Container>
-          <Menu.RadioGroup
-            title={<Menu.Title className="sr-only">{label}</Menu.Title>}
+        <MenuV2.Root manager={manager}>
+          <MenuV2.RadioGroup
+            title={label}
             value={activeTool}
             onChange={onSelectTool}
           >
             {subTools.map((st) => (
-              <Menu.RadioGroupItem key={st.id} value={st.id}>
-                <Menu.ItemLead><st.Icon /></Menu.ItemLead>
+              <MenuV2.RadioGroupItem
+                key={st.id}
+                value={st.id}
+                lead={<st.Icon />}
+                trail={st.shortcut ? <MenuV2.Shortcut>{st.shortcut}</MenuV2.Shortcut> : undefined}
+              >
                 {st.label}
-                {st.shortcut && (
-                  <Menu.ItemTrail><Menu.Shortcut>{st.shortcut}</Menu.Shortcut></Menu.ItemTrail>
-                )}
-              </Menu.RadioGroupItem>
+              </MenuV2.RadioGroupItem>
             ))}
-          </Menu.RadioGroup>
-        </Menu.Container>
-      </Menu.Root>
+          </MenuV2.RadioGroup>
+        </MenuV2.Root>
+      </>
     );
   }
 

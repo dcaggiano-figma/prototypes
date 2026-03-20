@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
-import { Button, ButtonGroup, ButtonPrimitive, Collapse, IconButton, Input, InputPrimitive, Menu } from '@figma/fpl-components';
+import { Button, ButtonGroup, ButtonPrimitive, Collapse, IconButton, Input, InputPrimitive } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { NavList } from '@prototype/shared';
 
 import {
@@ -20,8 +21,8 @@ import {
   Icon24SidebarOpen,
 } from '@figma/fpl-icons';
 
-import { useSceneGraph, useSelection } from '../../canvas';
-import type { SceneNode, VectorNode } from '../../canvas';
+import { useSceneGraph, useCanvasId, useSelection } from '../../canvas';
+import type { SceneNode, VectorNode, NodeId } from '../../canvas';
 import { useMinimizeUI } from '../MinimizeUIContext';
 
 interface Page {
@@ -48,7 +49,7 @@ export function FilePanel() {
   // File color profile
   const [colorProfile, setColorProfile] = useState<'srgb' | 'p3'>('srgb');
 
-  const fileMenu = Menu.useMenu();
+  const fileMenu = MenuV2.useMenu();
 
   useEffect(() => {
     if (isEditingFileName) {
@@ -91,81 +92,69 @@ export function FilePanel() {
             />
           ) : (
             <>
-              <Menu.Root manager={fileMenu.manager}>
-                <ButtonGroup aria-label="File actions">
-                  <Button variant="ghost" onClick={startEditingFileName}>
-                    <span className="text-bodyLg text-text truncate">{fileName}</span>
-                  </Button>
-                  <ButtonGroup.Trigger
-                    aria-label="File options"
-                    {...fileMenu.getTriggerProps()}
-                  >
-                    <Icon16ChevronDown />
-                  </ButtonGroup.Trigger>
-                </ButtonGroup>
-                <Menu.Container>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => console.log('version-history')}>
-                      Show version history
-                    </Menu.Item>
-                    <Menu.SubMenu>
-                      <Menu.SubTrigger>Library</Menu.SubTrigger>
-                      <Menu.SubContainer>
-                        <Menu.Group>
-                          <Menu.Item onClick={() => console.log('publish-library')}>Publish library…</Menu.Item>
-                          <Menu.Item onClick={() => console.log('connect-components')}>Connect components to code</Menu.Item>
-                          <Menu.Item onClick={() => console.log('export-to-make')}>Export to Figma Make</Menu.Item>
-                          <Menu.Item onClick={() => console.log('library-analytics')}>Library analytics</Menu.Item>
-                        </Menu.Group>
-                      </Menu.SubContainer>
-                    </Menu.SubMenu>
-                    <Menu.Item onClick={() => console.log('export')}>
-                      Export…
-                      <Menu.ItemTrail><Menu.Shortcut>⌥⌘E</Menu.Shortcut></Menu.ItemTrail>
-                    </Menu.Item>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.SubMenu>
-                      <Menu.SubTrigger>Add to sidebar</Menu.SubTrigger>
-                      <Menu.SubContainer>
-                        <Menu.Group>
-                          <Menu.Item onClick={() => console.log('starred')}>Starred</Menu.Item>
-                        </Menu.Group>
-                      </Menu.SubContainer>
-                    </Menu.SubMenu>
-                    <Menu.Item onClick={() => console.log('pin-to-workspace')}>Pin to workspace</Menu.Item>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => console.log('create-branch')}>Create branch…</Menu.Item>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.SubMenu>
-                      <Menu.SubTrigger>File color profile</Menu.SubTrigger>
-                      <Menu.SubContainer>
-                        <Menu.RadioGroup
-                          title={<Menu.HiddenTitle>File color profile</Menu.HiddenTitle>}
-                          value={colorProfile}
-                          onChange={(value) => setColorProfile(value as 'srgb' | 'p3')}
-                        >
-                          <Menu.RadioGroupItem value="srgb">Assign to sRGB</Menu.RadioGroupItem>
-                          <Menu.RadioGroupItem value="p3">Assign to Display P3</Menu.RadioGroupItem>
-                        </Menu.RadioGroup>
-                      </Menu.SubContainer>
-                    </Menu.SubMenu>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => console.log('duplicate')}>Duplicate</Menu.Item>
-                    <Menu.Item onClick={() => console.log('rename')}>Rename</Menu.Item>
-                    <Menu.Item onClick={() => console.log('copy')}>Copy</Menu.Item>
-                    <Menu.Item onClick={() => console.log('go-to-project')}>Go to project</Menu.Item>
-                    <Menu.Item onClick={() => console.log('move-file')}>Move file…</Menu.Item>
-                    <Menu.Item onClick={() => console.log('move-to-trash')}>Move to trash</Menu.Item>
-                  </Menu.Group>
-                  <Menu.Group>
-                    <Menu.Item onClick={() => console.log('restore-thumbnail')}>Restore default thumbnail</Menu.Item>
-                  </Menu.Group>
-                </Menu.Container>
-              </Menu.Root>
+              <ButtonGroup aria-label="File actions">
+                <Button variant="ghost" onClick={startEditingFileName}>
+                  <span className="text-bodyLg text-text truncate">{fileName}</span>
+                </Button>
+                <ButtonGroup.Trigger
+                  {...fileMenu.getTriggerProps() as React.ComponentProps<typeof ButtonGroup.Trigger>}
+                  aria-label="File options"
+                >
+                  <Icon16ChevronDown />
+                </ButtonGroup.Trigger>
+              </ButtonGroup>
+              <MenuV2.Root manager={fileMenu.manager}>
+                <MenuV2.Group>
+                  <MenuV2.Item onClick={() => console.log('version-history')}>
+                    Show version history
+                  </MenuV2.Item>
+                  <MenuV2.SubMenu title="Library">
+                    <MenuV2.Group>
+                      <MenuV2.Item onClick={() => console.log('publish-library')}>Publish library…</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('connect-components')}>Connect components to code</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('export-to-make')}>Export to Figma Make</MenuV2.Item>
+                      <MenuV2.Item onClick={() => console.log('library-analytics')}>Library analytics</MenuV2.Item>
+                    </MenuV2.Group>
+                  </MenuV2.SubMenu>
+                  <MenuV2.Item onClick={() => console.log('export')} trail={<MenuV2.Shortcut>⌥⌘E</MenuV2.Shortcut>}>
+                    Export…
+                  </MenuV2.Item>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.SubMenu title="Add to sidebar">
+                    <MenuV2.Group>
+                      <MenuV2.Item onClick={() => console.log('starred')}>Starred</MenuV2.Item>
+                    </MenuV2.Group>
+                  </MenuV2.SubMenu>
+                  <MenuV2.Item onClick={() => console.log('pin-to-workspace')}>Pin to workspace</MenuV2.Item>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.Item onClick={() => console.log('create-branch')}>Create branch…</MenuV2.Item>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.SubMenu title="File color profile">
+                    <MenuV2.RadioGroup
+                      title="File color profile"
+                      value={colorProfile}
+                      onChange={(value) => setColorProfile(value as 'srgb' | 'p3')}
+                    >
+                      <MenuV2.RadioGroupItem value="srgb">Assign to sRGB</MenuV2.RadioGroupItem>
+                      <MenuV2.RadioGroupItem value="p3">Assign to Display P3</MenuV2.RadioGroupItem>
+                    </MenuV2.RadioGroup>
+                  </MenuV2.SubMenu>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.Item onClick={() => console.log('duplicate')}>Duplicate</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('rename')}>Rename</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('copy')}>Copy</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('go-to-project')}>Go to project</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('move-file')}>Move file…</MenuV2.Item>
+                  <MenuV2.Item onClick={() => console.log('move-to-trash')}>Move to trash</MenuV2.Item>
+                </MenuV2.Group>
+                <MenuV2.Group>
+                  <MenuV2.Item onClick={() => console.log('restore-thumbnail')}>Restore default thumbnail</MenuV2.Item>
+                </MenuV2.Group>
+              </MenuV2.Root>
             </>
           )}
           <span className="px-2 text-bodyMd text-text-secondary truncate">Drafts</span>
@@ -229,17 +218,18 @@ export function FilePanel() {
 // ── Layers tree ─────────────────────────────────────────────────────
 
 function LayersTree() {
-  const store = useSceneGraph();
+  const sg = useSceneGraph();
+  const canvasId = useCanvasId();
   const { selectedIds, select, toggle } = useSelection();
-  const [layers, setLayers] = useState<Array<{ node: SceneNode; depth: number }>>(() => collectLayersReversed(store));
+  const [layers, setLayers] = useState<Array<{ node: SceneNode; depth: number }>>(() => collectLayersReversed(sg, canvasId));
 
-  // Re-walk when store changes
+  // Re-walk when scene graph changes
   const refreshLayers = useCallback(() => {
-    setLayers(collectLayersReversed(store));
-  }, [store]);
+    setLayers(collectLayersReversed(sg, canvasId));
+  }, [sg, canvasId]);
 
-  // Subscribe to store changes
-  useEffect(() => store.subscribe(refreshLayers), [store, refreshLayers]);
+  // Subscribe to scene graph changes
+  useEffect(() => sg.addListener(refreshLayers), [sg, refreshLayers]);
 
   return (
     <div className="overflow-y-auto flex-1 min-h-0">
@@ -252,7 +242,7 @@ function LayersTree() {
             selected={selectedIds.has(node.id)}
             onSelect={select}
             onToggle={toggle}
-            store={store}
+            sg={sg}
           />
         ))}
       </div>
@@ -266,13 +256,13 @@ interface LayerRowProps {
   node: SceneNode
   depth: number
   selected: boolean
-  onSelect: (id: string) => void
-  onToggle: (id: string) => void
-  store: ReturnType<typeof useSceneGraph>
+  onSelect: (id: NodeId) => void
+  onToggle: (id: NodeId) => void
+  sg: ReturnType<typeof useSceneGraph>
 }
 
 function LayerRow({
-  node, depth, selected, onSelect, onToggle, store,
+  node, depth, selected, onSelect, onToggle, sg,
 }: LayerRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -299,10 +289,10 @@ function LayerRow({
   const commitRename = useCallback(() => {
     const value = inputRef.current?.value.trim();
     if (value && value !== node.name) {
-      store.updateNode(node.id, { name: value });
+      sg.updateNode(node.id, { name: value });
     }
     setIsEditing(false);
-  }, [store, node.id, node.name]);
+  }, [sg, node.id, node.name]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -315,9 +305,9 @@ function LayerRow({
   const toggleVisibility = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      store.updateNode(node.id, { visible: !node.visible });
+      sg.updateNode(node.id, { visible: !node.visible });
     },
-    [store, node.id, node.visible],
+    [sg, node.id, node.visible],
   );
 
   return (
@@ -349,8 +339,7 @@ function LayerRow({
             ref={inputRef}
             className="flex-1 min-w-0 bg-bg text-text text-bodyMd px-1 py-0 rounded border border-border-brand outline-none"
             aria-label="Rename layer"
-            value={node.name}
-            onChange={() => {}}
+            defaultValue={node.name}
             onBlur={commitRename}
             onKeyDown={handleKeyDown}
           />
@@ -377,7 +366,8 @@ function LayerRow({
  * Collect layers in reverse z-order: topmost node first, matching Figma convention.
  */
 function collectLayersReversed(
-  store: ReturnType<typeof useSceneGraph>,
+  sg: ReturnType<typeof useSceneGraph>,
+  canvasId: NodeId,
 ): Array<{ node: SceneNode; depth: number }> {
   const result: Array<{ node: SceneNode; depth: number }> = [];
 
@@ -385,15 +375,18 @@ function collectLayersReversed(
     result.push({ node, depth });
     // Visit children in reverse order so highest z-index appears first
     for (let i = node.children.length - 1; i >= 0; i--) {
-      const child = store.getNode(node.children[i]);
+      const child = sg.getNode(node.children[i]);
       if (child) visitReversed(child, depth + 1);
     }
   }
 
-  // Root nodes in reverse order
-  const roots = store.getRootNodes();
-  for (let i = roots.length - 1; i >= 0; i--) {
-    visitReversed(roots[i], 0);
+  // Root nodes (children of canvas) in reverse order
+  const canvas = sg.getNode(canvasId);
+  if (!canvas) return result;
+  const rootIds = canvas.children;
+  for (let i = rootIds.length - 1; i >= 0; i--) {
+    const root = sg.getNode(rootIds[i]);
+    if (root) visitReversed(root, 0);
   }
 
   return result;

@@ -6,12 +6,12 @@ import {
   useLocation,
 } from '@tanstack/react-router';
 import {
-  Menu,
   IconButton,
   Button,
   ButtonPrimitive,
   Input,
 } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import {
   Icon16ChevronDown,
   Icon24ChevronRightLarge,
@@ -57,7 +57,7 @@ const SECONDARY_NAV = [
 
 function Shell() {
   const [theme, setTheme] = useAppTheme();
-  const { getTriggerProps, manager } = Menu.useMenu();
+  const { getTriggerProps, manager } = MenuV2.useMenu();
   const location = useLocation();
 
   const allNavItems = [...PRIMARY_NAV, ...SECONDARY_NAV];
@@ -68,63 +68,44 @@ function Shell() {
       {/* Sidebar */}
       <aside className="w-[240px] bg-bg border-r border-border flex flex-col shrink-0">
         <div className="p-8px border-b border-border flex items-center justify-between">
-          <Menu.Root manager={manager}>
-            <ButtonPrimitive {...getTriggerProps()} className="flex items-center gap-1 p-1 py-1 rounded-md hover:bg-bg-transparent active:bg-bg-transparent-secondary">
+          <ButtonPrimitive {...getTriggerProps()} className="flex items-center gap-1 p-1 py-1 rounded-md hover:bg-bg-transparent active:bg-bg-transparent-secondary">
               <span className="mr-1"><Avatar size="md" src="./assets/avatar.jpg" /></span>
               <span className="text-bodyLg text-text">Kelly Shin</span>
               <Icon16ChevronDown />
             </ButtonPrimitive>
-            <Menu.Container>
+          <MenuV2.Root manager={manager}>
               <div className="flex flex-col items-center justify-center px-2 pt-2 pb-3 w-[200px]">
                 <span className="mb-2"><Avatar size="xlg" src="./assets/avatar.jpg" /></span>
                 <span className="text-bodyMd text-text">Kelly Shin</span>
                 <span className="text-bodyMd text-text-secondary">dylan@figma.com</span>
               </div>
-              <Menu.Group>
-                <Menu.Item onClick={() => console.log('clicked')}>
-                  <Menu.ItemLead>
-                    <Icon24Settings />
-                  </Menu.ItemLead>
+              <MenuV2.Group>
+                <MenuV2.Item onClick={() => console.log('clicked')} lead={<Icon24Settings />}>
                   <span>Settings</span>
-                </Menu.Item>
-                <Menu.SubMenu>
-                  <Menu.SubTrigger>
-                    <Menu.ItemLead>
-                      <Icon24Template />
-                    </Menu.ItemLead>
-                    <span>Theme</span>
-                  </Menu.SubTrigger>
-                  <Menu.SubContainer>
-                    <Menu.RadioGroup
-                      title={<Menu.HiddenTitle>Theme</Menu.HiddenTitle>}
+                </MenuV2.Item>
+                <MenuV2.SubMenu title="Theme" titleLead={<Icon24Template />}>
+                    <MenuV2.RadioGroup
+                      title="Theme"
                       value={theme}
                       onChange={(value) => setTheme(value as ThemeSetting)}
                     >
-                      <Menu.RadioGroupItem value="light">Light</Menu.RadioGroupItem>
-                      <Menu.RadioGroupItem value="dark">Dark</Menu.RadioGroupItem>
-                      <Menu.RadioGroupItem value="system">System</Menu.RadioGroupItem>
-                    </Menu.RadioGroup>
-                  </Menu.SubContainer>
-                </Menu.SubMenu>
-              </Menu.Group>
-              <Menu.Group>
-                <Menu.Item onClick={() => console.log('clicked')}>
-                  <Menu.ItemLead>
-                    <Icon24Plus />
-                  </Menu.ItemLead>
+                      <MenuV2.RadioGroupItem value="light">Light</MenuV2.RadioGroupItem>
+                      <MenuV2.RadioGroupItem value="dark">Dark</MenuV2.RadioGroupItem>
+                      <MenuV2.RadioGroupItem value="system">System</MenuV2.RadioGroupItem>
+                    </MenuV2.RadioGroup>
+                  </MenuV2.SubMenu>
+              </MenuV2.Group>
+              <MenuV2.Group>
+                <MenuV2.Item onClick={() => console.log('clicked')} lead={<Icon24Plus />}>
                   <span>Add account</span>
-                </Menu.Item>
-              </Menu.Group>
-              <Menu.Group>
-                <Menu.Item onClick={() => console.log('clicked')}>
-                  <Menu.ItemLead>
-                    <Icon24Signout />
-                  </Menu.ItemLead>
+                </MenuV2.Item>
+              </MenuV2.Group>
+              <MenuV2.Group>
+                <MenuV2.Item onClick={() => console.log('clicked')} lead={<Icon24Signout />}>
                   <span>Log out</span>
-                </Menu.Item>
-              </Menu.Group>
-            </Menu.Container>
-          </Menu.Root>
+                </MenuV2.Item>
+              </MenuV2.Group>
+          </MenuV2.Root>
           <IconButton size="lg" aria-label="Notifications">
             <Icon24NotificationBell />
           </IconButton>

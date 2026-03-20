@@ -1,12 +1,13 @@
 import { createContext, useContext } from 'react';
+import type { NodeId } from '../canvas';
 
 export type ViewMode = 'asset' | 'grid';
 
 export interface ViewModeAPI {
   viewMode: ViewMode
   setViewMode: (mode: ViewMode) => void
-  focusedFrameId: string | null
-  setFocusedFrameId: (id: string | null) => void
+  focusedFrameId: NodeId | null
+  setFocusedFrameId: (id: NodeId | null) => void
   /** True while the viewport is animating between view modes */
   isAnimatingViewMode: boolean
   setIsAnimatingViewMode: (v: boolean) => void

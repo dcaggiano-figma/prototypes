@@ -217,7 +217,7 @@ export function useAiConversation(): AiConversationState {
       store.setWorking(false);
       abortRef.current = null;
     }
-  }, [store]);
+  }, [genId, store]);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();

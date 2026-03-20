@@ -1,52 +1,53 @@
 import type { ReactNode } from 'react';
-import { Menu } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import type { MenuItemDef } from './types';
 
 export function renderMenuItems(items: MenuItemDef[]): ReactNode {
   return items.map((item, i) => {
     switch (item.type) {
       case 'separator':
-        return <Menu.Separator key={`sep-${String(i)}`} />;
+        return <MenuV2.Separator key={`sep-${String(i)}`} />;
       case 'title':
-        return <Menu.Title key={item.id}>{item.label}</Menu.Title>;
+        return <MenuV2.Group key={item.id} title={item.label}>{null}</MenuV2.Group>;
       case 'checkbox':
         return (
-          <Menu.CheckboxItem key={item.id} checked={item.checked} onChange={item.onChange}>
+          <MenuV2.CheckboxItem key={item.id} checked={item.checked} onChange={item.onChange}>
             {item.label}
-          </Menu.CheckboxItem>
+          </MenuV2.CheckboxItem>
         );
       case 'radiogroup':
         return (
-          <Menu.RadioGroup
+          <MenuV2.RadioGroup
             key={item.id}
             value={item.value}
             onChange={item.onChange}
-            title={item.title ? <Menu.Title>{item.title}</Menu.Title> : <Menu.HiddenTitle>{item.id}</Menu.HiddenTitle>}
+            aria-label={item.title ?? item.id}
           >
             {item.options.map((opt) => (
-              <Menu.RadioGroupItem key={opt.id} value={opt.id}>
+              <MenuV2.RadioGroupItem key={opt.id} value={opt.id}>
                 {opt.label}
-              </Menu.RadioGroupItem>
+              </MenuV2.RadioGroupItem>
             ))}
-          </Menu.RadioGroup>
+          </MenuV2.RadioGroup>
         );
       case 'submenu':
         return (
-          <Menu.SubMenu key={item.id}>
-            <Menu.SubTrigger>{item.label}</Menu.SubTrigger>
-            <Menu.SubContainer>{renderMenuItems(item.children)}</Menu.SubContainer>
-          </Menu.SubMenu>
+          <MenuV2.SubMenu key={item.id} title={item.label}>
+            {renderMenuItems(item.children)}
+          </MenuV2.SubMenu>
         );
       case 'item': {
         const Icon = item.icon;
         return (
-          <Menu.Item key={item.id} disabled={item.disabled} onClick={item.onClick}>
-            {Icon && <Menu.ItemLead><Icon /></Menu.ItemLead>}
+          <MenuV2.Item
+            key={item.id}
+            disabled={item.disabled}
+            onClick={item.onClick}
+            lead={Icon ? <Icon /> : undefined}
+            trail={item.shortcut ? <MenuV2.Shortcut>{item.shortcut}</MenuV2.Shortcut> : undefined}
+          >
             {item.label}
-            {item.shortcut && (
-              <Menu.ItemTrail><Menu.Shortcut>{item.shortcut}</Menu.Shortcut></Menu.ItemTrail>
-            )}
-          </Menu.Item>
+          </MenuV2.Item>
         );
       }
     }

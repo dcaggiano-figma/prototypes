@@ -47,7 +47,7 @@ export function CanvasOverlay({ activeMode, onModeChange, isActionsOpen, onActio
       {/* Toolbar area — positioned at bottom center */}
       <div ref={bottomContainerRef} className="absolute bottom-12px left-1/2 -translate-x-1/2 z-nav pointer-events-auto w-full px-3">
         <ToastContainer />
-        {activeMode === 'slide' && <SpeakerNotes />}
+        <SpeakerNotes />
         <div>{/* Toolbar stack — future secondary toolbars go here */}
           <Toolbar activeMode={activeMode} onModeChange={onModeChange} isActionsOpen={isActionsOpen} onActionsOpenChange={onActionsOpenChange} />
         </div>

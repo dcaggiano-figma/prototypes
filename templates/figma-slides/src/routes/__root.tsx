@@ -12,7 +12,7 @@ import {
 } from '@figma/fpl-icons';
 import { IconButton } from '@figma/fpl-components';
 import { RightPanel } from '../components/RightPanel';
-import { Canvas, useViewport } from '../canvas';
+import { Canvas, useViewport, type NodeId } from '../canvas';
 import { CanvasOverlay } from '../components/CanvasOverlay';
 import type { Mode } from '../components/menuTypes';
 import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
@@ -108,7 +108,7 @@ function EditorContent() {
   const [themeSetting, setThemeSetting] = useState<ThemeSetting>(() => readStoredTheme());
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'asset' | 'grid'>('asset');
-  const [focusedFrameId, setFocusedFrameId] = useState<string | null>(null);
+  const [focusedFrameId, setFocusedFrameId] = useState<NodeId | null>(null);
   const [isAnimatingViewMode, setIsAnimatingViewMode] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
 
@@ -251,7 +251,7 @@ function EditorContent() {
       {showRightPanel && !isMinimized && <RightPanel activeMode={activeMode} />}
 
       {/* Buzz mode floating UI */}
-      {activeMode === 'slide' && !isMinimized && (
+      {(activeMode === 'slide' || activeMode === 'design') && !isMinimized && (
         <div className="absolute bottom-3 right-56px z-nav pointer-events-auto flex items-center gap-2">
           <ViewSwitcher value={viewMode} onChange={(v) => setViewMode(v)} />
           <ZoomControls />
@@ -266,7 +266,7 @@ function EditorContent() {
       {showRightPanel && isMinimized && <MinimizedRightPanel activeMode={activeMode} />}
 
       {/* Context menu — always mounted, visibility managed by FPL */}
-      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} />
+      <ContextMenuRenderer manager={contextMenu.manager} items={contextMenuItems} anchorRef={contextMenu.anchorRef} />
 
       {featuresModal.modal}
       <CommentOverlay

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Button, ButtonPrimitive, InputPrimitive, Menu } from '@figma/fpl-components';
+import { Button, ButtonPrimitive, InputPrimitive } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon16ChevronDown, Icon24Plus } from '@figma/fpl-icons';
 import { useMinimizeUI } from './MinimizeUIContext';
 
@@ -9,7 +10,7 @@ import { useMinimizeUI } from './MinimizeUIContext';
  */
 export function FloatingFileHeader() {
   const { fileName, setFileName } = useMinimizeUI();
-  const fileMenu = Menu.useMenu();
+  const fileMenu = MenuV2.useMenu();
   const [isRenaming, setIsRenaming] = useState(false);
   const [draft, setDraft] = useState(fileName);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -74,25 +75,23 @@ export function FloatingFileHeader() {
             </ButtonPrimitive>
 
             {/* Dropdown chevron */}
-            <Menu.Root manager={fileMenu.manager}>
-              <ButtonPrimitive
-                aria-label="File options"
-                className="p-2px rounded-sm text-icon-tertiary hover:bg-bg-hover hover:text-icon"
-                {...fileMenu.getTriggerProps()}
-              >
-                <Icon16ChevronDown />
-              </ButtonPrimitive>
-              <Menu.Container>
-                <Menu.Group>
-                  <Menu.Item onClick={startRename}>Rename</Menu.Item>
-                  <Menu.Item onClick={() => {}}>Duplicate</Menu.Item>
-                  <Menu.Item onClick={() => {}}>Move to project…</Menu.Item>
-                </Menu.Group>
-                <Menu.Group>
-                  <Menu.Item onClick={() => {}}>Delete</Menu.Item>
-                </Menu.Group>
-              </Menu.Container>
-            </Menu.Root>
+            <ButtonPrimitive
+              aria-label="File options"
+              className="p-2px rounded-sm text-icon-tertiary hover:bg-bg-hover hover:text-icon"
+              {...fileMenu.getTriggerProps()}
+            >
+              <Icon16ChevronDown />
+            </ButtonPrimitive>
+            <MenuV2.Root manager={fileMenu.manager}>
+              <MenuV2.Group>
+                <MenuV2.Item onClick={startRename}>Rename</MenuV2.Item>
+                <MenuV2.Item onClick={() => {}}>Duplicate</MenuV2.Item>
+                <MenuV2.Item onClick={() => {}}>Move to project…</MenuV2.Item>
+              </MenuV2.Group>
+              <MenuV2.Group>
+                <MenuV2.Item onClick={() => {}}>Delete</MenuV2.Item>
+              </MenuV2.Group>
+            </MenuV2.Root>
           </div>
         )}
 

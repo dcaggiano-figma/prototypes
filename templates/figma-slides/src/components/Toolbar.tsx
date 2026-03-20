@@ -8,10 +8,6 @@ import {
   Icon24TextLarge,
   Icon24CommentLarge,
   Icon24Design,
-  Icon24Frame,
-  Icon24Section,
-  Icon24Make,
-  Icon24Slice,
   Icon24Rectangle,
   Icon24Line,
   Icon24Arrow,
@@ -22,9 +18,6 @@ import {
   Icon24Pen,
   Icon24Pencil,
   Icon24HandLarge,
-  Icon24SectionLarge,
-  Icon24MakeLarge,
-  Icon24SliceLarge,
   Icon24LineLarge,
   Icon24ArrowLarge,
   Icon24EllipseLarge,
@@ -58,7 +51,6 @@ function mapToolId(id: string): ToolType {
     case 'star': return 'STAR';
     case 'pen': return 'PEN';
     case 'pencil': return 'PENCIL';
-    case 'section': return 'SECTION';
     case 'comment': return 'COMMENT';
     default: return 'MOVE';
   }
@@ -102,12 +94,6 @@ function getToolbarConfigs(): ToolbarConfigs {
     Icon: Icon24FrameLarge,
     label: 'Frame',
     id: 'frame',
-    subTools: [
-      { id: 'frame', label: 'Frame', Icon: Icon24Frame, LargeIcon: Icon24FrameLarge, shortcut: 'F' },
-      { id: 'section', label: 'Section', Icon: Icon24Section, LargeIcon: Icon24SectionLarge, shortcut: '⇧S' },
-      { id: 'make', label: 'Make', Icon: Icon24Make, LargeIcon: Icon24MakeLarge, shortcut: 'E' },
-      { id: 'slice', label: 'Slice', Icon: Icon24Slice, LargeIcon: Icon24SliceLarge, shortcut: 'S' },
-    ],
   };
 
   const shapeTool: ToolConfig = {
@@ -224,8 +210,6 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
   useAction('tool.line', useCallback(() => { setActiveTool('line'); setProviderTool('LINE'); }, [setProviderTool]));
   useAction('tool.polygon', useCallback(() => { setActiveTool('polygon'); setProviderTool('POLYGON'); }, [setProviderTool]));
   useAction('tool.star', useCallback(() => { setActiveTool('star'); setProviderTool('STAR'); }, [setProviderTool]));
-  useAction('tool.section', useCallback(() => { setActiveTool('section'); setProviderTool('SECTION'); }, [setProviderTool]));
-
   const [phase, setPhase] = useState<'idle' | 'sliding' | 'resizing'>('idle');
   const [measured, setMeasured] = useState(false);
   const [rowHeight, setRowHeight] = useState(0);

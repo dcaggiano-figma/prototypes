@@ -2,9 +2,9 @@ import { ButtonPrimitive, Button } from '@figma/fpl-components';
 import { Icon24SidebarOpen, Icon24Plus } from '@figma/fpl-icons';
 import clsx from 'clsx';
 import { useMinimizeUI } from './MinimizeUIContext';
-import { useSceneGraph, useSelection } from '../canvas';
+import { useCanvasId, useSceneGraph, useSelection } from '../canvas';
 import { useViewMode } from './ViewModeContext';
-import { createSlideAfterFocused } from '../canvas/scene-graph/grid-manager';
+import { createSlideAfterFocused } from '../canvas/scene-graph/grid';
 
 /**
  * Top-left floating header shown in minimized UI mode or grid view.
@@ -13,6 +13,7 @@ import { createSlideAfterFocused } from '../canvas/scene-graph/grid-manager';
 export function FloatingFileHeader() {
   const { isMinimized, toggleMinimize, fileName } = useMinimizeUI();
   const store = useSceneGraph();
+  const canvasId = useCanvasId();
   const { selectedIds, select } = useSelection();
   const { viewMode, setFocusedFrameId } = useViewMode();
 
@@ -20,7 +21,7 @@ export function FloatingFileHeader() {
   const selectedSlideId = selectedIds.size > 0 ? [...selectedIds][0] : null;
 
   const handleNewSlide = () => {
-    const newId = createSlideAfterFocused(store, selectedSlideId);
+    const newId = createSlideAfterFocused(store, canvasId, selectedSlideId);
     if (newId) {
       select(newId);
       if (viewMode === 'asset') setFocusedFrameId(newId);

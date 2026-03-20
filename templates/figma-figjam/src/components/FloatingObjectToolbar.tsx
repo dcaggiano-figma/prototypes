@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { ButtonPrimitive, HiddenLabel, IconButton, Menu } from '@figma/fpl-components';
+import { ButtonPrimitive, IconButton } from '@figma/fpl-components';
+import { MenuV2 } from '@figma/fpl-components/beta';
 import {
   Icon16ChevronDown,
   Icon24Bold,
@@ -36,9 +37,10 @@ import {
   Icon24StrokeCircleArrow,
   Icon24StrokeDiamondArrow,
 } from '@figma/fpl-icons';
-import { useSelection, useSceneGraph, useViewport, useActiveTool, isShapeWithText, isTextCapableNode, isConnectorNode, alignNodes, distributeNodes, wrapInSection } from '../canvas';
-import type { AppearanceNode, ConnectorCap, ConnectorLineShape, ConnectorNode, ShapeWithTextNode, TextCapableNode } from '../canvas';
-import { isGeometryNode, getWorldPosition } from '../canvas/scene-graph/world-position';
+import { useSelection, useSceneGraph, useCanvasId, useViewportState, useActiveTool, isShapeWithText, isTextCapableNode, isConnectorNode, alignNodes, distributeNodes, wrapInSection, getTypeDefaults, createPaint } from '../canvas';
+import type { AppearanceNode, ConnectorCap, ConnectorLineShape, ConnectorNode, LineNode } from '../canvas';
+import { isGeometryNode, getWorldPosition, isConnectorNode as isConnectorType, resolveEndpointPosition } from '@prototype/shared/canvas';
+import type { FigJamTextCapableNode } from '../canvas/text-types';
 import { STICKY_COLORS } from './FigJamToolbar';
 
 const FONT_FAMILY_PRESETS = [
@@ -81,14 +83,14 @@ function getFontSizeLabel(size: number): string {
  */
 export function FloatingObjectToolbar() {
   const selection = useSelection();
-  const store = useSceneGraph();
-  const viewport = useViewport();
+  const sg = useSceneGraph();
+  const { state: viewportState } = useViewportState();
   const { setStickyColor, activeTool, sectionFillColor } = useActiveTool();
-  const { manager: fontMenuManager, getTriggerProps: getFontTriggerProps } = Menu.useMenu();
-  const { manager: sizeMenuManager, getTriggerProps: getSizeTriggerProps } = Menu.useMenu();
-  // Subscribe to store changes so toolbar updates when node properties change
+  const { manager: fontMenuManager, getTriggerProps: getFontTriggerProps } = MenuV2.useMenu();
+  const { manager: sizeMenuManager, getTriggerProps: getSizeTriggerProps } = MenuV2.useMenu();
+  // Subscribe to scene graph changes so toolbar updates when node properties change
   const [, bump] = useState(0);
-  useEffect(() => store.subscribe(() => bump((n) => n + 1)), [store]);
+  useEffect(() => sg.addListener(() => bump((n) => n + 1)), [sg]);
   const [showColors, setShowColors] = useState(false);
   const colorPopoverRef = useRef<HTMLDivElement>(null);
   const colorTriggerRef = useRef<HTMLButtonElement>(null);
@@ -137,7 +139,7 @@ export function FloatingObjectToolbar() {
         swatchBg={sectionSwatchBg}
         swatchColor={sectionFillColor}
         selection={selection}
-        store={store}
+        sg={sg}
         isToolPreview
       />
     );
@@ -145,21 +147,56 @@ export function FloatingObjectToolbar() {
 
   if (selection.selectedIds.size === 0 || selection.isDragging) return null;
 
-  // Compute the bounding box of selected nodes in screen space
+  // Compute the bounding box of selected nodes in screen space.
+  // Uses viewportState (reactive) so the toolbar repositions during zoom/pan.
+  const { scale, origin } = viewportState;
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
 
   for (const id of selection.selectedIds) {
-    const node = store.getNode(id);
+    const node = sg.getNode(id);
     if (!node || !isGeometryNode(node)) continue;
-    const worldPos = getWorldPosition(store, node);
-    const topLeft = viewport.worldToScreen(worldPos.x, worldPos.y);
-    const topRight = viewport.worldToScreen(worldPos.x + node.width, worldPos.y);
 
-    minX = Math.min(minX, topLeft.x);
-    minY = Math.min(minY, topLeft.y);
-    maxX = Math.max(maxX, topRight.x);
+    // For connectors, derive bounds from resolved endpoints (which track connected nodes)
+    if (isConnectorType(node)) {
+      const startPt = resolveEndpointPosition(sg, node.startEndpoint);
+      const endPt = resolveEndpointPosition(sg, node.endEndpoint);
+      if (startPt && endPt) {
+        const sx1 = startPt.x * scale + origin.x;
+        const sy1 = startPt.y * scale + origin.y;
+        const sx2 = endPt.x * scale + origin.x;
+        const sy2 = endPt.y * scale + origin.y;
+        minX = Math.min(minX, sx1, sx2);
+        minY = Math.min(minY, sy1, sy2);
+        maxX = Math.max(maxX, sx1, sx2);
+      }
+      continue;
+    }
+
+    const worldPos = getWorldPosition(sg, node);
+
+    if (node.type === 'LINE') {
+      const rad = (node.rotation ?? 0) * Math.PI / 180;
+      const endWX = worldPos.x + node.width * Math.cos(rad);
+      const endWY = worldPos.y + node.width * Math.sin(rad);
+      const sx1x = worldPos.x * scale + origin.x;
+      const sx1y = worldPos.y * scale + origin.y;
+      const sx2x = endWX * scale + origin.x;
+      const sx2y = endWY * scale + origin.y;
+      minX = Math.min(minX, sx1x, sx2x);
+      minY = Math.min(minY, sx1y, sx2y);
+      maxX = Math.max(maxX, sx1x, sx2x);
+      continue;
+    }
+
+    const topLeftX = worldPos.x * scale + origin.x;
+    const topLeftY = worldPos.y * scale + origin.y;
+    const topRightX = (worldPos.x + node.width) * scale + origin.x;
+
+    minX = Math.min(minX, topLeftX);
+    minY = Math.min(minY, topLeftY);
+    maxX = Math.max(maxX, topRightX);
   }
 
   if (!isFinite(minX)) return null;
@@ -168,7 +205,7 @@ export function FloatingObjectToolbar() {
 
   // Get fill color of first selected node for the swatch
   const firstId = selection.selectedIds.values().next().value;
-  const firstNode = firstId ? store.getNode(firstId) : undefined;
+  const firstNode = firstId ? sg.getNode(firstId) : undefined;
   const swatchColor = firstNode && 'fills' in firstNode
     ? (firstNode as AppearanceNode).fills?.[0]?.color
     : undefined;
@@ -181,7 +218,7 @@ export function FloatingObjectToolbar() {
     const firstType = firstNode?.type;
     if (!firstType) return false;
     for (const id of selection.selectedIds) {
-      if (store.getNode(id)?.type !== firstType) return false;
+      if (sg.getNode(id)?.type !== firstType) return false;
     }
     return true;
   })();
@@ -193,8 +230,9 @@ export function FloatingObjectToolbar() {
   const isTextCapable = isStickySelected || isShapeSelected || isTextSelected;
   const isSectionSelected = firstNode?.type === 'SECTION';
   const isConnectorSelected = firstNode ? isConnectorNode(firstNode) : false;
+  const isLineSelected = firstNode?.type === 'LINE';
 
-  const topY = minY - 48;
+  const topY = minY - 64;
 
   // Render mixed-type multi-selection toolbar
   if (isMultiSelect && !allSameType) {
@@ -203,7 +241,7 @@ export function FloatingObjectToolbar() {
         centerX={centerX}
         topY={topY}
         selection={selection}
-        store={store}
+        sg={sg}
       />
     );
   }
@@ -216,7 +254,20 @@ export function FloatingObjectToolbar() {
         topY={topY}
         node={firstNode as ConnectorNode}
         selection={selection}
-        store={store}
+        sg={sg}
+      />
+    );
+  }
+
+  // Render line-specific toolbar (same as connector minus shape section)
+  if (isLineSelected && firstNode) {
+    return (
+      <LineToolbar
+        centerX={centerX}
+        topY={topY}
+        node={firstNode as LineNode}
+        selection={selection}
+        sg={sg}
       />
     );
   }
@@ -230,7 +281,7 @@ export function FloatingObjectToolbar() {
         swatchBg={swatchBg}
         swatchColor={swatchColor}
         selection={selection}
-        store={store}
+        sg={sg}
       />
     );
   }
@@ -245,21 +296,18 @@ export function FloatingObjectToolbar() {
       c.rgb.g === swatchColor.g &&
       c.rgb.b === swatchColor.b,
   )?.id;
-  const currentFontFamily = isTextCapable
-    ? (firstNode as TextCapableNode).fontFamily
-    : 'Inter';
-  const currentFontSize = isTextCapable
-    ? (firstNode as TextCapableNode).fontSize
-    : 16;
+  const textCapableNode = firstNode && isTextCapableNode(firstNode) ? firstNode as FigJamTextCapableNode : undefined;
+  const currentFontFamily = textCapableNode?.fontFamily ?? 'Inter';
+  const currentFontSize = textCapableNode?.fontSize ?? 16;
   const currentAlign = isShapeSelected
-    ? (firstNode as ShapeWithTextNode).textAlignHorizontal
+    ? (firstNode as FigJamTextCapableNode).textAlignHorizontal
     : 'CENTER';
 
   const handleFontFamilyChange = (value: string) => {
     for (const id of selection.selectedIds) {
-      const node = store.getNode(id);
+      const node = sg.getNode(id);
       if (node && isTextCapableNode(node)) {
-        store.updateNode(id, { fontFamily: value });
+        sg.updateNode(id, { fontFamily: value });
       }
     }
   };
@@ -267,14 +315,14 @@ export function FloatingObjectToolbar() {
   const handleFontSizeChange = (value: string) => {
     const size = Number(value);
     for (const id of selection.selectedIds) {
-      const node = store.getNode(id);
+      const node = sg.getNode(id);
       if (node && isTextCapableNode(node)) {
         const updates: Record<string, unknown> = { fontSize: size };
         // TEXT nodes use absolute lineHeight (px), so scale it with fontSize
         if (node.type === 'TEXT') {
           updates.lineHeight = Math.round(size * 1.25);
         }
-        store.updateNode(id, updates);
+        sg.updateNode(id, updates);
       }
     }
   };
@@ -286,10 +334,10 @@ export function FloatingObjectToolbar() {
     if (isStickySelected) setStickyColor(entry.rgb);
     // Apply fill to all selected nodes that have fills
     for (const id of selection.selectedIds) {
-      const node = store.getNode(id);
+      const node = sg.getNode(id);
       if (node && 'fills' in node) {
-        store.updateNode(id, {
-          fills: [{ type: 'SOLID', color: entry.rgb, opacity: 1, visible: true }],
+        sg.updateNode(id, {
+          fills: [createPaint({ type: 'SOLID', color: entry.rgb, opacity: 1, visible: true })],
         });
       }
     }
@@ -297,9 +345,9 @@ export function FloatingObjectToolbar() {
 
   const handleAlignChange = (align: 'LEFT' | 'CENTER' | 'RIGHT') => {
     for (const id of selection.selectedIds) {
-      const node = store.getNode(id);
+      const node = sg.getNode(id);
       if (node && isShapeWithText(node)) {
-        store.updateNode(id, { textAlignHorizontal: align });
+        sg.updateNode(id, { textAlignHorizontal: align });
       }
     }
     setShowAlign(false);
@@ -374,21 +422,19 @@ export function FloatingObjectToolbar() {
               <span style={{ fontFamily: FONT_FAMILY_PRESETS.find((p) => p.value === currentFontFamily)?.fontFamily }} className="w-3 text-center">Aa</span>
               <Icon16ChevronDown />
             </ButtonPrimitive>
-            <Menu.Root manager={fontMenuManager}>
-              <Menu.Container>
-                <Menu.RadioGroup
-                  title={<HiddenLabel>Font</HiddenLabel>}
-                  value={currentFontFamily}
-                  onChange={handleFontFamilyChange}
-                >
-                  {FONT_FAMILY_PRESETS.map(({ value, label, fontFamily }) => (
-                    <Menu.RadioGroupItem key={value} value={value}>
-                      <span style={{ fontFamily }}>{label}</span>
-                    </Menu.RadioGroupItem>
-                  ))}
-                </Menu.RadioGroup>
-              </Menu.Container>
-            </Menu.Root>
+            <MenuV2.Root manager={fontMenuManager}>
+              <MenuV2.RadioGroup
+                title="Font"
+                value={currentFontFamily}
+                onChange={handleFontFamilyChange}
+              >
+                {FONT_FAMILY_PRESETS.map(({ value, label, fontFamily }) => (
+                  <MenuV2.RadioGroupItem key={value} value={value}>
+                    <span style={{ fontFamily }}>{label}</span>
+                  </MenuV2.RadioGroupItem>
+                ))}
+              </MenuV2.RadioGroup>
+            </MenuV2.Root>
           </>
         ) : (
           <ButtonPrimitive className="flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap">
@@ -408,21 +454,19 @@ export function FloatingObjectToolbar() {
               <span className="w-[120px]">{getFontSizeLabel(currentFontSize)}</span>
               <Icon16ChevronDown />
             </ButtonPrimitive>
-            <Menu.Root manager={sizeMenuManager}>
-              <Menu.Container>
-                <Menu.RadioGroup
-                  title={<HiddenLabel>Font size</HiddenLabel>}
-                  value={String(currentFontSize)}
-                  onChange={handleFontSizeChange}
-                >
-                  {FONT_SIZE_PRESETS.map(({ value, label }) => (
-                    <Menu.RadioGroupItem key={value} value={value}>
-                      {label}
-                    </Menu.RadioGroupItem>
-                  ))}
-                </Menu.RadioGroup>
-              </Menu.Container>
-            </Menu.Root>
+            <MenuV2.Root manager={sizeMenuManager}>
+              <MenuV2.RadioGroup
+                title="Font size"
+                value={String(currentFontSize)}
+                onChange={handleFontSizeChange}
+              >
+                {FONT_SIZE_PRESETS.map(({ value, label }) => (
+                  <MenuV2.RadioGroupItem key={value} value={value}>
+                    {label}
+                  </MenuV2.RadioGroupItem>
+                ))}
+              </MenuV2.RadioGroup>
+            </MenuV2.Root>
           </>
         ) : (
           <ButtonPrimitive className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap">
@@ -508,7 +552,7 @@ interface SectionToolbarProps {
   swatchBg: string
   swatchColor: { r: number; g: number; b: number } | undefined
   selection: ReturnType<typeof useSelection>
-  store: ReturnType<typeof useSceneGraph>
+  sg: ReturnType<typeof useSceneGraph>
   /** True when showing as a pre-creation toolbar (section tool active, nothing placed) */
   isToolPreview?: boolean
 }
@@ -524,13 +568,14 @@ function SectionToolbar({
   swatchBg,
   swatchColor,
   selection,
-  store,
+  sg,
   isToolPreview,
 }: SectionToolbarProps) {
+  const canvasId = useCanvasId();
   const { setSectionFillColor } = useActiveTool();
-  const { manager: alignMenuManager, getTriggerProps: getAlignTriggerProps } = Menu.useMenu();
-  const { manager: lockMenuManager, getTriggerProps: getLockTriggerProps } = Menu.useMenu();
-  const { manager: layoutMenuManager, getTriggerProps: getLayoutTriggerProps } = Menu.useMenu();
+  const { manager: alignMenuManager, getTriggerProps: getAlignTriggerProps } = MenuV2.useMenu();
+  const { manager: lockMenuManager, getTriggerProps: getLockTriggerProps } = MenuV2.useMenu();
+  const { manager: layoutMenuManager, getTriggerProps: getLayoutTriggerProps } = MenuV2.useMenu();
   const [showColors, setShowColors] = useState(false);
   const colorPopoverRef = useRef<HTMLDivElement>(null);
   const colorTriggerRef = useRef<HTMLButtonElement>(null);
@@ -565,10 +610,10 @@ function SectionToolbar({
     setSectionFillColor(entry.rgb);
     // Also update any selected sections
     for (const id of selection.selectedIds) {
-      const node = store.getNode(id);
+      const node = sg.getNode(id);
       if (node?.type === 'SECTION') {
-        store.updateNode(id, {
-          fills: [{ type: 'SOLID', color: entry.rgb, opacity: 1, visible: true }],
+        sg.updateNode(id, {
+          fills: [createPaint({ type: 'SOLID', color: entry.rgb, opacity: 1, visible: true })],
         });
       }
     }
@@ -576,25 +621,29 @@ function SectionToolbar({
 
   const handleDuplicate = () => {
     for (const id of selection.selectedIds) {
-      const node = store.getNode(id);
+      const node = sg.getNode(id);
       if (!node || !isGeometryNode(node)) continue;
-      store.createNode(node.type, {
+      const props: Record<string, unknown> = {
         ...node,
-        id: undefined,
         name: `${node.name} copy`,
         x: node.x + 20,
         y: node.y + 20,
-        parentId: null,
-        children: [],
+      };
+      delete props.id;
+      delete props.children;
+      delete props.parentId;
+      sg.createNode(node.type, canvasId, {
+        ...getTypeDefaults(node.type),
+        ...props,
       });
     }
   };
 
   const handleToggleVisibility = () => {
     for (const id of selection.selectedIds) {
-      const node = store.getNode(id);
+      const node = sg.getNode(id);
       if (!node) continue;
-      store.updateNode(id, { visible: !node.visible });
+      sg.updateNode(id, { visible: !node.visible });
     }
   };
 
@@ -669,13 +718,11 @@ function SectionToolbar({
           </svg>
           <Icon16ChevronDown />
         </ButtonPrimitive>
-        <Menu.Root manager={alignMenuManager}>
-          <Menu.Container>
-            <Menu.Item onClick={() => {}}>Align left</Menu.Item>
-            <Menu.Item onClick={() => {}}>Align center</Menu.Item>
-            <Menu.Item onClick={() => {}}>Align right</Menu.Item>
-          </Menu.Container>
-        </Menu.Root>
+        <MenuV2.Root manager={alignMenuManager}>
+          <MenuV2.Item onClick={() => {}}>Align left</MenuV2.Item>
+          <MenuV2.Item onClick={() => {}}>Align center</MenuV2.Item>
+          <MenuV2.Item onClick={() => {}}>Align right</MenuV2.Item>
+        </MenuV2.Root>
 
         {!isToolPreview && (
           <>
@@ -699,20 +746,18 @@ function SectionToolbar({
               <Icon24LockOpen />
               <Icon16ChevronDown />
             </ButtonPrimitive>
-            <Menu.Root manager={lockMenuManager}>
-              <Menu.Container>
-                <Menu.Item onClick={() => {
-                  for (const id of selection.selectedIds) {
-                    store.updateNode(id, { locked: true });
-                  }
-                }}>Lock</Menu.Item>
-                <Menu.Item onClick={() => {
-                  for (const id of selection.selectedIds) {
-                    store.updateNode(id, { locked: false });
-                  }
-                }}>Unlock</Menu.Item>
-              </Menu.Container>
-            </Menu.Root>
+            <MenuV2.Root manager={lockMenuManager}>
+              <MenuV2.Item onClick={() => {
+                for (const id of selection.selectedIds) {
+                  sg.updateNode(id, { locked: true });
+                }
+              }}>Lock</MenuV2.Item>
+              <MenuV2.Item onClick={() => {
+                for (const id of selection.selectedIds) {
+                  sg.updateNode(id, { locked: false });
+                }
+              }}>Unlock</MenuV2.Item>
+            </MenuV2.Root>
 
             <div className="w-px h-5 bg-border" />
 
@@ -724,13 +769,11 @@ function SectionToolbar({
               <Icon24AlLayoutGrid />
               <Icon16ChevronDown />
             </ButtonPrimitive>
-            <Menu.Root manager={layoutMenuManager}>
-              <Menu.Container>
-                <Menu.Item onClick={() => {}}>Auto layout</Menu.Item>
-                <Menu.Item onClick={() => {}}>Grid layout</Menu.Item>
-                <Menu.Item onClick={() => {}}>No layout</Menu.Item>
-              </Menu.Container>
-            </Menu.Root>
+            <MenuV2.Root manager={layoutMenuManager}>
+              <MenuV2.Item onClick={() => {}}>Auto layout</MenuV2.Item>
+              <MenuV2.Item onClick={() => {}}>Grid layout</MenuV2.Item>
+              <MenuV2.Item onClick={() => {}}>No layout</MenuV2.Item>
+            </MenuV2.Root>
           </>
         )}
       </div>
@@ -744,7 +787,7 @@ interface MixedSelectionToolbarProps {
   centerX: number;
   topY: number;
   selection: ReturnType<typeof useSelection>;
-  store: ReturnType<typeof useSceneGraph>;
+  sg: ReturnType<typeof useSceneGraph>;
 }
 
 /**
@@ -752,8 +795,9 @@ interface MixedSelectionToolbarProps {
  * Shows alignment trigger, distribute, and wrap-in-section buttons.
  * Clicking the alignment button opens a popover with 6 alignment options.
  */
-function MixedSelectionToolbar({ centerX, topY, selection, store }: MixedSelectionToolbarProps) {
-  const { manager: distributeMenuManager, getTriggerProps: getDistributeTriggerProps } = Menu.useMenu();
+function MixedSelectionToolbar({ centerX, topY, selection, sg }: MixedSelectionToolbarProps) {
+  const canvasId = useCanvasId();
+  const { manager: distributeMenuManager, getTriggerProps: getDistributeTriggerProps } = MenuV2.useMenu();
   const [showAlign, setShowAlign] = useState(false);
   const alignPopoverRef = useRef<HTMLDivElement>(null);
   const alignTriggerRef = useRef<HTMLButtonElement>(null);
@@ -786,27 +830,27 @@ function MixedSelectionToolbar({ centerX, topY, selection, store }: MixedSelecti
           className="flex items-center gap-1 bg-bg rounded-lg shadow-300 p-1"
         >
           <IconButton size="lg" aria-label="Align left" variant="ghost"
-            onClick={() => alignNodes(store, selection.selectedIds, 'left')}>
+            onClick={() => alignNodes(sg, selection.selectedIds, 'left')}>
             <Icon24LayoutAlignLeft />
           </IconButton>
           <IconButton size="lg" aria-label="Align horizontal center" variant="ghost"
-            onClick={() => alignNodes(store, selection.selectedIds, 'center-h')}>
+            onClick={() => alignNodes(sg, selection.selectedIds, 'center-h')}>
             <Icon24LayoutAlignHorizontalCenter />
           </IconButton>
           <IconButton size="lg" aria-label="Align right" variant="ghost"
-            onClick={() => alignNodes(store, selection.selectedIds, 'right')}>
+            onClick={() => alignNodes(sg, selection.selectedIds, 'right')}>
             <Icon24LayoutAlignRight />
           </IconButton>
           <IconButton size="lg" aria-label="Align top" variant="ghost"
-            onClick={() => alignNodes(store, selection.selectedIds, 'top')}>
+            onClick={() => alignNodes(sg, selection.selectedIds, 'top')}>
             <Icon24LayoutAlignTop />
           </IconButton>
           <IconButton size="lg" aria-label="Align vertical center" variant="ghost"
-            onClick={() => alignNodes(store, selection.selectedIds, 'center-v')}>
+            onClick={() => alignNodes(sg, selection.selectedIds, 'center-v')}>
             <Icon24LayoutAlignVerticalCenter />
           </IconButton>
           <IconButton size="lg" aria-label="Align bottom" variant="ghost"
-            onClick={() => alignNodes(store, selection.selectedIds, 'bottom')}>
+            onClick={() => alignNodes(sg, selection.selectedIds, 'bottom')}>
             <Icon24LayoutAlignBottom />
           </IconButton>
         </div>
@@ -840,21 +884,19 @@ function MixedSelectionToolbar({ centerX, topY, selection, store }: MixedSelecti
           <Icon24LayoutDistributeHorizontalSpacing />
           <Icon16ChevronDown />
         </ButtonPrimitive>
-        <Menu.Root manager={distributeMenuManager}>
-          <Menu.Container>
-            <Menu.Item onClick={() => distributeNodes(store, selection.selectedIds, 'horizontal')}>
-              Distribute horizontal spacing
-            </Menu.Item>
-            <Menu.Item onClick={() => distributeNodes(store, selection.selectedIds, 'vertical')}>
-              Distribute vertical spacing
-            </Menu.Item>
-          </Menu.Container>
-        </Menu.Root>
+        <MenuV2.Root manager={distributeMenuManager}>
+          <MenuV2.Item onClick={() => distributeNodes(sg, selection.selectedIds, 'horizontal')}>
+            Distribute horizontal spacing
+          </MenuV2.Item>
+          <MenuV2.Item onClick={() => distributeNodes(sg, selection.selectedIds, 'vertical')}>
+            Distribute vertical spacing
+          </MenuV2.Item>
+        </MenuV2.Root>
 
         <div className="w-px h-5 bg-border" />
 
         <IconButton size="lg" aria-label="Wrap in section" variant="ghost"
-          onClick={() => wrapInSection(store, selection)}>
+          onClick={() => wrapInSection(sg, selection.selectedIds, canvasId, (id) => selection.select(id))}>
           <Icon24Section />
         </IconButton>
       </div>
@@ -918,17 +960,17 @@ interface ConnectorToolbarProps {
   topY: number
   node: ConnectorNode
   selection: ReturnType<typeof useSelection>
-  store: ReturnType<typeof useSceneGraph>
+  sg: ReturnType<typeof useSceneGraph>
 }
 
-function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorToolbarProps) {
+function ConnectorToolbar({ centerX, topY, node, selection, sg }: ConnectorToolbarProps) {
   const color = usePopover();
   const lineStyle = usePopover();
   const startCap = usePopover();
   const connShape = usePopover();
   const endCap = usePopover();
 
-  const strokeColor = node.strokes[0]?.paint?.color;
+  const strokeColor = node.strokes[0]?.color;
   const swatchBg = strokeColor
     ? `rgb(${strokeColor.r}, ${strokeColor.g}, ${strokeColor.b})`
     : 'rgb(100, 100, 100)';
@@ -940,8 +982,8 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
       c.rgb.b === strokeColor.b,
   )?.id;
 
-  const strokeWeight = node.strokes[0]?.weight ?? 2;
-  const dashPattern = node.strokes[0]?.dashPattern;
+  const strokeWeight = node.strokeWeight ?? 2;
+  const dashPattern = node.strokeDashPattern;
   const isDashed = dashPattern != null && dashPattern.length > 0;
 
   // ── Handlers ──
@@ -950,14 +992,13 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
     const entry = CONNECTOR_COLORS.find((c) => c.id === colorId);
     if (!entry) return;
     for (const id of selection.selectedIds) {
-      const n = store.getNode(id);
+      const n = sg.getNode(id);
       if (n && isConnectorNode(n)) {
         const connector = n as ConnectorNode;
-        store.updateNode(id, {
-          strokes: [{
-            ...connector.strokes[0],
-            paint: { type: 'SOLID', color: entry.rgb, opacity: 1, visible: true },
-          }],
+        sg.updateNode(id, {
+          strokes: connector.strokes.map((s, i) =>
+            i === 0 ? { ...s, color: entry.rgb, opacity: 1 } : s,
+          ),
         });
       }
     }
@@ -965,42 +1006,36 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
 
   const handleWeightChange = (weight: number) => {
     for (const id of selection.selectedIds) {
-      const n = store.getNode(id);
+      const n = sg.getNode(id);
       if (n && isConnectorNode(n)) {
-        const connector = n as ConnectorNode;
-        store.updateNode(id, {
-          strokes: [{ ...connector.strokes[0], weight }],
-        });
+        sg.updateNode(id, { strokeWeight: weight });
       }
     }
   };
 
   const handleDashChange = (dash: number[] | undefined) => {
     for (const id of selection.selectedIds) {
-      const n = store.getNode(id);
+      const n = sg.getNode(id);
       if (n && isConnectorNode(n)) {
-        const connector = n as ConnectorNode;
-        store.updateNode(id, {
-          strokes: [{ ...connector.strokes[0], dashPattern: dash }],
-        });
+        sg.updateNode(id, { strokeDashPattern: dash ?? [] });
       }
     }
   };
 
   const handleCapChange = (endpoint: 'startCap' | 'endCap', cap: ConnectorCap) => {
     for (const id of selection.selectedIds) {
-      const n = store.getNode(id);
+      const n = sg.getNode(id);
       if (n && isConnectorNode(n)) {
-        store.updateNode(id, { [endpoint]: cap });
+        sg.updateNode(id, { [endpoint]: cap });
       }
     }
   };
 
   const handleLineShapeChange = (shape: ConnectorLineShape) => {
     for (const id of selection.selectedIds) {
-      const n = store.getNode(id);
+      const n = sg.getNode(id);
       if (n && isConnectorNode(n)) {
-        store.updateNode(id, { lineShape: shape });
+        sg.updateNode(id, { lineShape: shape });
       }
     }
   };
@@ -1229,6 +1264,308 @@ function ConnectorToolbar({ centerX, topY, node, selection, store }: ConnectorTo
         </div>
 
         {/* ── 5. End cap ── */}
+        <div className="relative flex items-center p-1 border-l border-border">
+          <ButtonPrimitive
+            ref={endCap.triggerRef}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              endCap.open && 'bg-bg-secondary',
+            )}
+            onClick={() => endCap.setOpen((v) => !v)}
+          >
+            <span className="rotate-180"><CurrentEndCapIcon /></span>
+            <Icon16ChevronDown />
+          </ButtonPrimitive>
+
+          {endCap.open && (
+            <div
+              ref={endCap.popoverRef}
+              data-preferred-theme="dark"
+              data-editor-theme="whiteboard"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1"
+            >
+              {CAP_OPTIONS.map(({ cap, Icon, label }) => (
+                <ButtonPrimitive
+                  key={cap}
+                  aria-label={label}
+                  aria-pressed={node.endCap === cap}
+                  onClick={() => handleCapChange('endCap', cap)}
+                  className={clsx(
+                    'flex items-center justify-center w-32px h-32px rounded-md',
+                    node.endCap === cap
+                      ? 'bg-bg-brand text-text-onbrand'
+                      : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                  )}
+                >
+                  <span className="rotate-180"><Icon /></span>
+                </ButtonPrimitive>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Line Toolbar ─────────────────────────────────────────────────────
+
+interface LineToolbarProps {
+  centerX: number
+  topY: number
+  node: LineNode
+  selection: ReturnType<typeof useSelection>
+  sg: ReturnType<typeof useSceneGraph>
+}
+
+function LineToolbar({ centerX, topY, node, selection, sg }: LineToolbarProps) {
+  const color = usePopover();
+  const lineStyle = usePopover();
+  const startCap = usePopover();
+  const endCap = usePopover();
+
+  const strokeColor = node.strokes[0]?.color;
+  const swatchBg = strokeColor
+    ? `rgb(${strokeColor.r}, ${strokeColor.g}, ${strokeColor.b})`
+    : 'rgb(100, 100, 100)';
+  const activeColorId = CONNECTOR_COLORS.find(
+    (c) =>
+      strokeColor &&
+      c.rgb.r === strokeColor.r &&
+      c.rgb.g === strokeColor.g &&
+      c.rgb.b === strokeColor.b,
+  )?.id;
+
+  const strokeWeight = node.strokeWeight ?? 2;
+  const dashPattern = node.strokeDashPattern;
+  const isDashed = dashPattern != null && dashPattern.length > 0;
+
+  // ── Handlers ──
+
+  const handleColorChange = (colorId: string) => {
+    const entry = CONNECTOR_COLORS.find((c) => c.id === colorId);
+    if (!entry) return;
+    for (const id of selection.selectedIds) {
+      const n = sg.getNode(id);
+      if (n && n.type === 'LINE') {
+        sg.updateNode(id, {
+          strokes: (n as LineNode).strokes.map((s, i) =>
+            i === 0 ? { ...s, color: entry.rgb, opacity: 1 } : s,
+          ),
+        });
+      }
+    }
+  };
+
+  const handleWeightChange = (weight: number) => {
+    for (const id of selection.selectedIds) {
+      const n = sg.getNode(id);
+      if (n && n.type === 'LINE') {
+        sg.updateNode(id, { strokeWeight: weight });
+      }
+    }
+  };
+
+  const handleDashChange = (dash: number[] | undefined) => {
+    for (const id of selection.selectedIds) {
+      const n = sg.getNode(id);
+      if (n && n.type === 'LINE') {
+        sg.updateNode(id, { strokeDashPattern: dash ?? [] });
+      }
+    }
+  };
+
+  const handleCapChange = (endpoint: 'startCap' | 'endCap', cap: ConnectorCap) => {
+    for (const id of selection.selectedIds) {
+      const n = sg.getNode(id);
+      if (n && n.type === 'LINE') {
+        sg.updateNode(id, { [endpoint]: cap });
+      }
+    }
+  };
+
+  // ── Current cap icons for triggers ──
+
+  const CurrentStartCapIcon = CAP_OPTIONS.find((o) => o.cap === node.startCap)?.Icon ?? Icon24StrokeSolid;
+  const CurrentEndCapIcon = CAP_OPTIONS.find((o) => o.cap === node.endCap)?.Icon ?? Icon24StrokeSolid;
+
+  return (
+    <div
+      className="fixed z-nav pointer-events-auto"
+      style={{
+        left: centerX,
+        top: topY,
+        transform: 'translateX(-50%)',
+      }}
+    >
+      <div
+        data-preferred-theme="dark"
+        className="flex items-center bg-bg rounded-lg shadow-300"
+      >
+        {/* ── 1. Color swatch ── */}
+        <div className="relative p-1 flex items-center">
+          <ButtonPrimitive
+            ref={color.triggerRef}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed',
+              color.open && 'bg-bg-secondary',
+            )}
+            onClick={() => color.setOpen((v) => !v)}
+          >
+            <div
+              className="w-3 h-3 rounded-full border border-solid border-border"
+              style={{ backgroundColor: swatchBg }}
+            />
+            <Icon16ChevronDown />
+          </ButtonPrimitive>
+
+          {color.open && (
+            <div
+              ref={color.popoverRef}
+              data-preferred-theme="dark"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-2 gap-2"
+            >
+              {CONNECTOR_COLORS.map((c) => (
+                <ButtonPrimitive
+                  key={c.id}
+                  aria-label={c.label}
+                  aria-pressed={activeColorId === c.id}
+                  onClick={() => handleColorChange(c.id)}
+                  className={clsx(
+                    'rounded-full w-4 h-4 shrink-0',
+                    activeColorId === c.id
+                      ? 'ring-2 ring-border-selected ring-offset-2 ring-offset-bg'
+                      : '',
+                  )}
+                  style={{ backgroundColor: c.css }}
+                >
+                  <span className="sr-only">{c.label}</span>
+                </ButtonPrimitive>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── 2. Line style (thickness + dash) ── */}
+        <div className="relative flex items-center p-1 border-l border-border">
+          <ButtonPrimitive
+            ref={lineStyle.triggerRef}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              lineStyle.open && 'bg-bg-secondary',
+            )}
+            onClick={() => lineStyle.setOpen((v) => !v)}
+          >
+            <Icon24StrokeWeight />
+            <Icon16ChevronDown />
+          </ButtonPrimitive>
+
+          {lineStyle.open && (
+            <div
+              ref={lineStyle.popoverRef}
+              data-preferred-theme="dark"
+              data-editor-theme="whiteboard"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1"
+            >
+              <ButtonPrimitive
+                aria-label="Thin stroke"
+                aria-pressed={strokeWeight <= 2}
+                onClick={() => handleWeightChange(2)}
+                className={clsx(
+                  'flex items-center justify-center w-32px h-32px rounded-md',
+                  strokeWeight <= 2
+                    ? 'bg-bg-brand text-text-onbrand'
+                    : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                )}
+              >
+                <Icon24FigjamStroke />
+              </ButtonPrimitive>
+              <ButtonPrimitive
+                aria-label="Thick stroke"
+                aria-pressed={strokeWeight > 2}
+                onClick={() => handleWeightChange(4)}
+                className={clsx(
+                  'flex items-center justify-center w-32px h-32px rounded-md',
+                  strokeWeight > 2
+                    ? 'bg-bg-brand text-text-onbrand'
+                    : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                )}
+              >
+                <Icon24FigjamStrokeThick />
+              </ButtonPrimitive>
+              <div className="w-px h-5 bg-border" />
+              <ButtonPrimitive
+                aria-label="Solid line"
+                aria-pressed={!isDashed}
+                onClick={() => handleDashChange(undefined)}
+                className={clsx(
+                  'flex items-center justify-center w-32px h-32px rounded-md',
+                  !isDashed
+                    ? 'bg-bg-brand text-text-onbrand'
+                    : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                )}
+              >
+                <Icon24StrokeSolid />
+              </ButtonPrimitive>
+              <ButtonPrimitive
+                aria-label="Dashed line"
+                aria-pressed={isDashed}
+                onClick={() => handleDashChange([8, 6])}
+                className={clsx(
+                  'flex items-center justify-center w-32px h-32px rounded-md',
+                  isDashed
+                    ? 'bg-bg-brand text-text-onbrand'
+                    : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                )}
+              >
+                <Icon24StrokeDashed />
+              </ButtonPrimitive>
+            </div>
+          )}
+        </div>
+
+        {/* ── 3. Start cap ── */}
+        <div className="relative flex items-center p-1 border-l border-border">
+          <ButtonPrimitive
+            ref={startCap.triggerRef}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2 h-5 hover:bg-bg-hover active:bg-bg-pressed text-text',
+              startCap.open && 'bg-bg-secondary',
+            )}
+            onClick={() => startCap.setOpen((v) => !v)}
+          >
+            <span><CurrentStartCapIcon /></span>
+            <Icon16ChevronDown />
+          </ButtonPrimitive>
+
+          {startCap.open && (
+            <div
+              ref={startCap.popoverRef}
+              data-preferred-theme="dark"
+              data-editor-theme="whiteboard"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center bg-bg rounded-lg shadow-300 p-1 gap-1"
+            >
+              {CAP_OPTIONS.map(({ cap, Icon, label }) => (
+                <ButtonPrimitive
+                  key={cap}
+                  aria-label={label}
+                  aria-pressed={node.startCap === cap}
+                  onClick={() => handleCapChange('startCap', cap)}
+                  className={clsx(
+                    'flex items-center justify-center w-32px h-32px rounded-md',
+                    node.startCap === cap
+                      ? 'bg-bg-brand text-text-onbrand'
+                      : 'hover:bg-bg-hover active:bg-bg-pressed text-text',
+                  )}
+                >
+                  <span><Icon /></span>
+                </ButtonPrimitive>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── 4. End cap ── */}
         <div className="relative flex items-center p-1 border-l border-border">
           <ButtonPrimitive
             ref={endCap.triggerRef}

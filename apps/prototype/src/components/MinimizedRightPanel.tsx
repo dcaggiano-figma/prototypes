@@ -5,7 +5,7 @@ import { DesignModeContent, DevModeContent, DrawModeContent, CommentsPanelConten
 import type { Mode } from './menuTypes';
 import { UserAvatar } from '@prototype/shared';
 
-import { useViewport } from '../canvas';
+import { useViewportState } from '../canvas';
 
 interface MinimizedRightPanelProps {
   activeMode: Mode;
@@ -51,7 +51,7 @@ function FloatingFullPanel({ activeMode, isCommentMode }: { activeMode: Mode; is
 
 /** Compact floating header strip (no selection) */
 function FloatingCompactHeader() {
-  const { state: { scale } } = useViewport();
+  const { state: { scale } } = useViewportState();
 
   return (
     <div className="absolute top-12px right-12px z-nav pointer-events-auto">

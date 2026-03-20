@@ -1,254 +1,184 @@
 # Architecture
 
-Detailed system architecture for Protofig.
+Canonical architecture for the shared canvas system used by `apps/prototype`
+and the canvas-based templates.
 
-## Component tree
+## Core principles
 
-```tsx
-<Providers>                    // ← all state lives here
-  <ThemeProvider>              //    FPL theme (light/dark, brand)
-  <SceneGraphProvider>         //    scene graph store + API
-  <SelectionProvider>          //    selected node IDs
-  <ViewportProvider>           //    affine transform, zoom, pan
-  <ToolProvider>               //    active tool state
+- Shared document model: node types, scene graph, selection semantics, undo,
+  viewport math, behavior infrastructure, rendering infrastructure, connectors,
+  and grid utilities live in `packages/shared`.
+- Template-local composition: each template chooses its tool chains, renderers,
+  visual treatments, and product-specific wrappers without forking shared
+  foundations.
+- No product branching in shared code: shared modules can understand all node
+  types, but they should not switch on template or product identity.
+- Cross-template interoperability matters: new persistent node concepts belong
+  in shared so copy/paste and document operations work everywhere.
 
-  <App>                        // ← CSS grid, ZERO state, never rerenders
-    <LeftSidebar>
-      <FileHeader />           //    "Untitled" / "Drafts"
-      <PagesPanel />           //    page list
-      <LayersPanel />          //    node tree
-    </LeftSidebar>
+## High-level structure
 
-    <CanvasArea>
-      <CanvasViewport>         //    applies affine transform
-        <CanvasRenderer />     //    renders scene graph as DOM
-      </CanvasViewport>
-      <SelectionOverlay />     //    2D canvas for outlines/handles
-    </CanvasArea>
+The system has four major layers:
 
-    <RightSidebar>
-      <SidebarHeader />        //    Design/Prototype tabs, zoom %
-      <NodeHeader />           //    node type + name
-      <PositionSection />
-      <LayoutSection />
-      <AppearanceSection />
-      <FillSection />
-      <StrokeSection />
-      <EffectsSection />
-      <ExportSection />
-    </RightSidebar>
+1. `packages/shared/src/scene-graph/`
+   Pure TypeScript document model and undo/redo primitives.
+2. `packages/shared/src/canvas/`
+   React bindings, viewport, selection APIs, rendering infrastructure,
+   behaviors, connectors, grid utilities, and editing helpers.
+3. Template-local canvas code
+   Tool chains, node renderers, template-specific behaviors, and product UI.
+4. App shell
+   Sidebars, toolbars, panels, routing, and other product surfaces.
 
-    <BottomToolbar />          //    tool icons
-  </App>
+## Providers and ownership
 
-  <Layers>                     //    fullscreen overlay portal targets
-    <Toolbar slot="dynamic" /> //    floating UI (tooltips, menus)
-    <HelpMenu slot="fixed" />
-  </Layers>
-```
+The exact provider tree differs slightly by template, but the ownership model is
+consistent:
 
-## Data flow
+- `SceneGraphProvider` owns the `SceneGraph` instance and active canvas/page.
+- `UndoManagerProvider` records scene-graph mutations through the shared commit
+  model.
+- `ViewportProvider` owns a stable `Viewport` instance and exposes both
+  imperative access (`useViewport()`) and reactive state (`useViewportState()`).
+- `SelectionProvider` exposes selection APIs, but the selection state itself
+  lives on the active `CanvasNode` inside the scene graph.
+- Text-editing, label-editing, connector endpoint drag, and tool providers sit
+  alongside these shared foundations where needed.
+- Rendering is coordinated through the shared rendering infrastructure, usually
+  via a template-local render bridge that wires the current scene graph and
+  viewport into the shared render loop.
 
-```
-User interaction
-       │
-       ▼
-┌──────────────┐     dispatch()     ┌──────────────┐
-│  Event       │ ──────────────────>│  Store        │
-│  Handlers    │                    │  (SceneGraph, │
-│  (canvas,    │                    │   Selection,  │
-│   panels)    │                    │   Viewport)   │
-└──────────────┘                    └──────┬───────┘
-                                          │
-                                   context value
-                                          │
-                                          ▼
-                                  ┌───────────────┐
-                                  │  Subscribers   │
-                                  │  (Canvas,      │
-                                  │   Layers,      │
-                                  │   Properties)  │
-                                  └───────────────┘
-```
+The important rule is that React providers expose and coordinate model objects;
+they are not alternate sources of truth for document state.
 
-All state mutations go through the store API. Components subscribe via
-context and rerender only when the slice of state they care about changes.
+## Scene graph
 
-## CSS grid layout
+The document model is a flat `Map<NodeId, SceneNode>` plus tree references via
+`parentId` and `children`. The hierarchy is:
 
-```css
-.app {
-  display: grid;
-  grid-template-columns: 240px 1fr 260px;
-  grid-template-rows: 1fr 48px;
-  grid-template-areas:
-    "left   canvas  right"
-    "left   toolbar right";
-  height: 100vh;
-  overflow: hidden;
-}
-```
+`DOCUMENT -> CANVAS -> scene nodes`
 
-Sidebars are fixed-width. Canvas takes remaining space. Toolbar sits at the
-bottom of the canvas area. Sidebars span the full height.
+Every persistent canvas object is a shared node type. The current union includes
+document/page nodes, shape primitives, text, groups, connectors, sticky notes,
+slides, and grid sections.
 
-Refined layout (toolbar floats over canvas):
+Selection is stored on each `CanvasNode` as an immutable `Selection` object.
+This keeps selection semantics inside the document model, which lets undo/redo,
+copy/paste, and shared selection utilities operate consistently.
 
-```css
-.app {
-  display: grid;
-  grid-template-columns: 240px 1fr 260px;
-  grid-template-rows: 1fr;
-  grid-template-areas: "left canvas right";
-  height: 100vh;
-  overflow: hidden;
-}
-```
+## Viewport
 
-The toolbar is `position: fixed` at the bottom-center, floating over the
-canvas area.
+Viewport state is owned by a stable `Viewport` class instance, not mirrored as
+independent React state.
 
-## Viewport transform
+Key properties:
 
-The viewport is an affine transform matrix that maps world coordinates to
-screen coordinates.
+- single source of truth for pan and zoom
+- `worldToScreen()` and `screenToWorld()` conversions
+- subscription API for reactive UI
+- dirty tracking for render-loop coordination
 
-```
-Screen = Matrix * World
+`useViewport()` is for imperative access. `useViewportState()` is for reactive
+subscribers that need rerenders.
 
-Matrix = | sx  0  tx |     sx, sy = scale (zoom)
-         | 0   sy ty |     tx, ty = translate (pan)
-         | 0   0  1  |
+## Rendering
 
-worldToScreen(wx, wy):
-  sx = wx * scale + tx
-  sy = wy * scale + ty
+Rendering uses a shared 3-layer model coordinated by a render loop:
 
-screenToWorld(sx, sy):
-  wx = (sx - tx) / scale
-  wy = (sy - ty) / scale
-```
+1. Node layer
+   DOM/SVG nodes that represent the document itself.
+2. Canvas overlay layer
+   Screen-space `<canvas>` for selection outlines, dimension labels, drag
+   boxes, hover affordances, and other paint-driven overlays.
+3. React overlay layer
+   Screen-space React UI that tracks nodes when DOM components are a better fit
+   than canvas drawing.
 
-### Gesture handling
+Shared rendering infrastructure includes:
 
-- **Wheel**: `deltaX`/`deltaY` → pan
-- **Ctrl+Wheel** or **pinch**: `deltaY` → zoom toward cursor position
-- **Space+drag**: pan
+- `RenderLoop`
+- node registry and `useNodeRef()`
+- imperative style application for dirty nodes
+- `useTrackNode()` for overlay tracking
+- shared sticky-note and shape-text overlay helpers
 
-### Reference implementation
+The render loop keeps node updates and overlays in sync so interactions do not
+detach visually.
 
-Viewport gestures are based on prior art from `bschlenk/affine-explorer`:
-https://github.com/bschlenk/affine-explorer/blob/main/src/hooks/use-origin-scale.ts
+## Behavior system
 
-Key approach: store `{ origin: { x, y }, scale }`. On wheel events:
-- **Pan**: `origin += { -deltaX, -deltaY }`
-- **Zoom**: `scaleBy = 1 - deltaY / 100`, then recompute origin so the point
-  under the cursor stays fixed:
-  ```
-  origin = mouse - (mouse - origin) * scaleBy
-  scale  = scale * scaleBy
-  ```
+Pointer interactions are handled by composable `Behavior` objects.
 
-The wheel listener must use `{ passive: false }` and call `preventDefault()` to
-prevent browser scroll/zoom. The `relativeMouse` helper converts clientX/Y to
-element-local coordinates via `getBoundingClientRect()`.
+Shared behavior infrastructure provides:
 
-### Zoom math (detailed)
+- `BehaviorManager`
+- hit testing
+- shared behavior factories such as pan, hover, move, box select, shape
+  creation, pencil, text, comment, and grid drag
 
-Zoom happens toward the cursor so the point under the cursor stays fixed:
+Templates assemble these into tool-specific chains in priority order. That is
+the main extension seam for product-specific interaction design.
 
-```
-newScale = oldScale * (1 - deltaY / 100)
-newOrigin = cursorLocal - (cursorLocal - oldOrigin) * scaleBy
-```
+Preferred pattern:
 
-Expanded:
-```
-newTx = cursorX - (cursorX - oldTx) * (newScale / oldScale)
-newTy = cursorY - (cursorY - oldTy) * (newScale / oldScale)
-```
+- shared event logic where behavior is genuinely common
+- template-local wrappers, callbacks, or render hooks where product behavior
+  differs
 
-## Canvas rendering
+Avoid:
 
-Nodes are rendered as absolutely-positioned DOM elements inside a transformed
-container.
+- monolithic pointer logic in `Canvas.tsx`
+- template checks inside shared behaviors
+- duplicate local behavior managers
 
-```
-<div class="canvas-root" style="position:relative; overflow:hidden">
-  <div class="canvas-world" style="transform: matrix(sx, 0, 0, sy, tx, ty);
-                                    transform-origin: 0 0;">
-    <!-- scene graph nodes rendered here -->
-    <div data-node-id="rect1"
-         style="position:absolute;
-                left:100px; top:50px;
-                width:300px; height:250px;
-                background:#7EC8E3;">
-    </div>
+## Editing and properties
 
-    <svg data-node-id="ellipse1"
-         style="position:absolute;
-                left:200px; top:150px;
-                width:206px; height:206px;">
-      <ellipse cx="103" cy="103" rx="103" ry="103"
-               fill="#EAAB92"
-               stroke="#623928" stroke-width="2" />
-    </svg>
-  </div>
-</div>
-```
+Property editing flows through shared selection-property hooks and the shared
+undo model.
 
-## Selection overlay
+Important patterns:
 
-A `<canvas>` element sits on top of the DOM canvas at the same size. It renders
-selection affordances in screen space:
+- document mutations go through scene-graph APIs
+- scrubs and drags use commit boundaries intentionally
+- mixed values are handled through shared selection-property and formatter
+  infrastructure
+- text and label editing use shared providers when the editing model is common
 
-```
-┌─ Screen-space canvas overlay ─────────────────────────┐
-│                                                       │
-│    ┌─·─·─·─·─·─·─·─·─·─┐                            │
-│    ·                     ·   ← 1px blue outline       │
-│    ·    (selected node)  ·                            │
-│    ·                     ·                            │
-│    └─·─·─·─·─·─·─·─·─·─┘                            │
-│    □                     □   ← white resize handles   │
-│         [206 × 206]          ← blue dimension label   │
-└───────────────────────────────────────────────────────┘
-```
+## Connectors and grid
 
-The overlay repaints only when selection or viewport changes, not every frame.
+Connectors and grid/layout utilities are shared infrastructure, not isolated
+template inventions.
 
-## Scene graph store
+This means reviews should treat these as established seams:
 
-See `docs/scene-graph.md` for the full data model.
+- shared connector path/point/resolution helpers
+- shared connector renderer and overlay support
+- shared grid layout and grid manager utilities
 
-The store is a flat map of node IDs to node objects, with parent/child
-references forming the tree. This makes lookups O(1) and tree operations
-straightforward.
+Templates can choose whether and how to expose those concepts in the UI, but
+they should not re-model them from scratch.
 
-```
-store = {
-  nodes: Map<string, SceneNode>
-  rootIds: string[]              // top-level node order
-}
-```
+## Template-local responsibilities
 
-## Event system
+Templates still own:
 
-Canvas mouse events flow through a dispatcher that routes based on active tool:
+- behavior chain assembly for their tool system
+- product-specific renderers and visual styling
+- template-specific node affordances layered on top of shared node types
+- app shell UI, menus, sidebars, and product panels
 
-```
-mousedown/mousemove/mouseup on canvas
-       │
-       ▼
-┌──────────────┐
-│  Dispatcher  │──── activeTool === 'MOVE'     → SelectionBehavior
-│              │──── activeTool === 'RECTANGLE' → DrawRectBehavior
-│              │──── activeTool === 'ELLIPSE'   → DrawEllipseBehavior
-│              │──── ...
-└──────────────┘
+The goal is not to push everything into shared. The goal is to keep shared
+abstractions canonical and keep template differences compositional.
 
-Each behavior implements:
-  onPointerDown(e, worldPos)
-  onPointerMove(e, worldPos)
-  onPointerUp(e, worldPos)
-```
+## Review heuristics
+
+When evaluating changes, prefer these outcomes:
+
+- extend a shared abstraction instead of creating a parallel local one
+- inject callbacks or render helpers instead of branching on template identity
+- add truly reusable node types in shared
+- solve transient interaction problems with behaviors before adding persistent
+  document model
+
+If a doc and the code disagree about where an abstraction belongs, follow the
+shared exports and live template integrations.

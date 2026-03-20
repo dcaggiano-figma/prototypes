@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAction } from '../../actions/provider';
-import { useSceneGraph } from '../scene-graph/provider';
-import { computeGroupScreenBBox } from '../scene-graph/selection-utils';
-import type { GeometryNode } from '../types';
-import { getWorldPosition, isGeometryNode } from '../scene-graph/world-position';
-import { useActiveTool } from '../tools/provider';
-import { useViewport } from '../viewport/provider';
-
+import {
+  useSceneGraph,
+  useCanvasId,
+  useSelection,
+  useViewportState,
+  computeGroupScreenBBox,
+  getWorldPosition,
+  isGeometryNode,
+  applyNodeReparenting,
+  applyContainerReparenting,
+  isContainer,
+  getLineEndpoints,
+  lineParamsFromEndpoints,
+  HANDLE_VISIBILITY_THRESHOLD,
+} from '@prototype/shared/canvas';
+import type { GeometryNode, NodeId } from '@prototype/shared/canvas';
 import { CURSORS } from '../cursors';
-import { applyNodeReparenting, applyContainerReparenting, isContainer } from '../scene-graph/container-reparenting';
-import { useSelection } from './provider';
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
@@ -49,54 +56,28 @@ const EDGE_CURSORS: Record<string, string> = {
   w: CURSORS.resizeH,
 };
 
-/** Compute the line's start and end points in parent coordinate space */
-function getLineEndpoints(node: GeometryNode) {
-  const rad = node.rotation * Math.PI / 180;
-  const dx = node.width * Math.cos(rad);
-  const dy = node.width * Math.sin(rad);
-  return {
-    start: { x: node.x, y: node.y },
-    end: { x: node.x + dx, y: node.y + dy },
-  };
-}
-
-/** Derive line node params (x, y, width, rotation) from two endpoints */
-function lineParamsFromEndpoints(
-  startX: number, startY: number,
-  endX: number, endY: number,
-) {
-  const dx = endX - startX;
-  const dy = endY - startY;
-  return {
-    x: startX,
-    y: startY,
-    width: Math.sqrt(dx * dx + dy * dy),
-    height: 0,
-    rotation: Math.atan2(dy, dx) * 180 / Math.PI,
-  };
-}
-
 /**
  * DOM-based resize handles rendered over the selected node.
  * These replace the old canvas-drawn handles and support drag-to-resize.
  */
 export function ResizeHandles() {
-  const { selectedIds } = useSelection();
-  const store = useSceneGraph();
-  const { state: viewport } = useViewport();
-  const { effectiveTool } = useActiveTool();
+  const { selectedIds, isDragging } = useSelection();
+  const sg = useSceneGraph();
+  const canvasId = useCanvasId();
+  const { state: viewport } = useViewportState();
 
-  // Subscribe to store changes so handles reposition when nodes move
+
+  // Subscribe to scene graph changes so handles reposition when nodes move
   const [, bumpStoreVersion] = useState(0);
-  useEffect(() => store.subscribe(() => bumpStoreVersion((n) => n + 1)), [store]);
+  useEffect(() => sg.addListener(() => bumpStoreVersion((n) => n + 1)), [sg]);
 
   // Point editing mode for lines (Enter to activate, Escape to exit)
-  const [pointEditingId, setPointEditingId] = useState<string | null>(null);
+  const [pointEditingId, setPointEditingId] = useState<NodeId | null>(null);
 
   // Track original geometry during drag
   const dragState = useRef<{
     handle: HandlePosition | 'point-start' | 'point-end' | 'rotate'
-    nodeId: string
+    nodeId: NodeId
     original: OriginalGeometry
     /** For line AABB resize: which diagonal the line follows */
     startIsLeft: boolean
@@ -125,6 +106,7 @@ export function ResizeHandles() {
     angle: number; clientX: number; clientY: number
   } | null>(null);
 
+
   // Enter key: enter point editing mode for selected lines
   useAction(
     'enter-point-edit',
@@ -132,10 +114,10 @@ export function ResizeHandles() {
       if (selectedIds.size !== 1) return;
       const id = selectedIds.values().next().value;
       if (!id) return;
-      const n = store.getNode(id);
+      const n = sg.getNode(id);
       if (!n || n.type !== 'LINE') return;
       setPointEditingId(id);
-    }, [selectedIds, store]),
+    }, [selectedIds, sg]),
   );
 
   // Clear point editing when selection changes
@@ -160,15 +142,21 @@ export function ResizeHandles() {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [pointEditingId]);
 
-  // Nothing to render when no selection or not using MOVE tool
-  if (selectedIds.size === 0 || effectiveTool !== 'MOVE') return null;
+  // Nothing to render when no selection or mid-move-drag
+  if (selectedIds.size === 0 || isDragging) return null;
 
   // Multi-select: render visual-only corner indicators at group bbox
   if (selectedIds.size > 1) {
-    const groupBBox = computeGroupScreenBBox(store, selectedIds, viewport);
+    const groupBBox = computeGroupScreenBBox(sg, selectedIds, viewport);
     if (!groupBBox) return null;
 
     const { minX, minY, maxX, maxY } = groupBBox;
+    const bboxW = maxX - minX;
+    const bboxH = maxY - minY;
+
+    // Hide corners when the group bbox is too small
+    if (bboxW < HANDLE_VISIBILITY_THRESHOLD || bboxH < HANDLE_VISIBILITY_THRESHOLD) return null;
+
     const indicatorSize = 8;
     const half = indicatorSize / 2;
     const corners = [
@@ -203,10 +191,10 @@ export function ResizeHandles() {
   const nodeId = selectedIds.values().next().value;
   if (!nodeId) return null;
 
-  const node = store.getNode(nodeId);
+  const node = sg.getNode(nodeId);
   if (!node || !isGeometryNode(node) || node.locked) return null;
 
-  const world = getWorldPosition(store, node);
+  const world = getWorldPosition(sg, node);
   const isLine = node.type === 'LINE';
   const half = HANDLE_SIZE / 2;
 
@@ -246,6 +234,10 @@ export function ResizeHandles() {
   const sy = aabbSY;
   const sw = aabbSW;
   const sh = aabbSH;
+
+  // Hide corner handles, rotation zones, and dimension labels when the node
+  // is too small in screen space (handles would overlap). Keep edge handles.
+  const showCorners = sw >= HANDLE_VISIBILITY_THRESHOLD && sh >= HANDLE_VISIBILITY_THRESHOLD;
 
   function onHandlePointerDown(handle: HandlePosition | 'point-start' | 'point-end' | 'rotate', e: React.PointerEvent) {
     e.stopPropagation();
@@ -315,7 +307,19 @@ export function ResizeHandles() {
         newRotation = Math.round(newRotation / 15) * 15;
       }
 
-      store.updateNode(drag.nodeId, { rotation: newRotation });
+      if (isLine) {
+        // Rotate around line midpoint: adjust x,y to keep midpoint fixed
+        const origRad = drag.original.rotation * Math.PI / 180;
+        const newRad = newRotation * Math.PI / 180;
+        const halfW = drag.original.width / 2;
+        sg.updateNode(drag.nodeId, {
+          rotation: newRotation,
+          x: drag.original.x + halfW * (Math.cos(origRad) - Math.cos(newRad)),
+          y: drag.original.y + halfW * (Math.sin(origRad) - Math.sin(newRad)),
+        });
+      } else {
+        sg.updateNode(drag.nodeId, { rotation: newRotation });
+      }
       setRotationDisplay({ angle: newRotation, clientX: e.clientX, clientY: e.clientY });
       forceUpdate((n) => n + 1);
       return;
@@ -341,7 +345,7 @@ export function ResizeHandles() {
       }
 
       const params = lineParamsFromEndpoints(newStart.x, newStart.y, newEnd.x, newEnd.y);
-      store.updateNode(drag.nodeId, params);
+      sg.updateNode(drag.nodeId, params);
       forceUpdate((n) => n + 1);
       return;
     }
@@ -373,7 +377,7 @@ export function ResizeHandles() {
       const newEndY = drag.startIsTop ? newBottom : newTop;
 
       const params = lineParamsFromEndpoints(newStartX, newStartY, newEndX, newEndY);
-      store.updateNode(drag.nodeId, params);
+      sg.updateNode(drag.nodeId, params);
       forceUpdate((n) => n + 1);
       return;
     }
@@ -431,12 +435,42 @@ export function ResizeHandles() {
       newH = 1;
     }
 
-    store.updateNode(drag.nodeId, {
+    // Section resize: compensate children so they stay at the same world position.
+    // When the section's origin shifts (left/top drag), offset children by the inverse.
+    if (node?.type === 'SECTION') {
+      const currentNode = sg.getNode(drag.nodeId);
+      if (currentNode && isGeometryNode(currentNode)) {
+        const dxLocal = newX - currentNode.x;
+        const dyLocal = newY - currentNode.y;
+        if (dxLocal !== 0 || dyLocal !== 0) {
+          const sectionNode = sg.getNodeOrThrow(drag.nodeId);
+          for (const childId of sectionNode.children) {
+            const child = sg.getNode(childId);
+            if (child && isGeometryNode(child)) {
+              sg.updateNode(childId, {
+                x: child.x - dxLocal,
+                y: child.y - dyLocal,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    const updates: Record<string, unknown> = {
       x: newX,
       y: newY,
       width: newW,
       height: newH,
-    });
+    };
+
+    // When a TEXT node is manually resized, switch to fixed width + auto height
+    const currentNode = sg.getNode(drag.nodeId);
+    if (currentNode?.type === 'TEXT') {
+      updates.textAutoResize = 'HEIGHT';
+    }
+
+    sg.updateNode(drag.nodeId, updates);
 
     forceUpdate((n) => n + 1);
   }
@@ -450,11 +484,11 @@ export function ResizeHandles() {
 
     // After resize, check for section reparenting (not for rotation)
     if (drag.handle !== 'rotate') {
-      const resizedNode = store.getNode(drag.nodeId);
+      const resizedNode = sg.getNode(drag.nodeId);
       if (resizedNode && isContainer(resizedNode)) {
-        applyContainerReparenting(store, drag.nodeId);
+        applyContainerReparenting(sg, drag.nodeId, canvasId);
       } else {
-        applyNodeReparenting(store, [drag.nodeId]);
+        applyNodeReparenting(sg, [drag.nodeId], canvasId);
       }
     }
   }
@@ -481,7 +515,7 @@ export function ResizeHandles() {
     ];
 
     return (
-      <>
+      <div className="pointer-events-auto">
         {points.map(({ handle, cx, cy }) => (
           <div
             key={handle}
@@ -501,17 +535,16 @@ export function ResizeHandles() {
             {...sharedProps}
           />
         ))}
-      </>
+      </div>
     );
   }
 
   // --- Standard corner + edge handles (used for both regular shapes and line AABB) ---
   const rotation = node.rotation ?? 0;
-  const isRotated = !isLine && rotation !== 0;
 
-  // For rotated nodes, compute handle positions relative to (0,0) of a rotated container
-  const hx = isRotated ? 0 : sx;
-  const hy = isRotated ? 0 : sy;
+  // Handle positions are relative to (0,0) of the wrapper container
+  const hx = 0;
+  const hy = 0;
 
   const corners: { pos: HandlePosition; cx: number; cy: number }[] = [
     { pos: 'nw', cx: hx, cy: hy },
@@ -560,16 +593,15 @@ export function ResizeHandles() {
   ];
 
   // Rotation zone positions: just outside each corner diagonally
-  const rotationZones = !isLine ? [
+  const rotationZones = node.type !== 'SECTION' ? [
     { key: 'rot-nw', cx: hx - ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNW },
     { key: 'rot-ne', cx: hx + sw + ROTATION_ZONE_OFFSET, cy: hy - ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateNE },
     { key: 'rot-sw', cx: hx - ROTATION_ZONE_OFFSET, cy: hy + sh + ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateSW },
     { key: 'rot-se', cx: hx + sw + ROTATION_ZONE_OFFSET, cy: hy + sh + ROTATION_ZONE_OFFSET, cursor: CURSORS.rotateSE },
   ] : [];
 
-  // For lines, compute AABB dimensions for the dimension label
-  const aabbW = isLine ? Math.round(Math.abs(node.width * Math.cos((node.rotation ?? 0) * Math.PI / 180))) : 0;
-  const aabbH = isLine ? Math.round(Math.abs(node.width * Math.sin((node.rotation ?? 0) * Math.PI / 180))) : 0;
+  // For lines, show the line length
+  const lineLength = isLine ? Math.round(node.width) : 0;
 
   const handleElements = (
     <>
@@ -587,8 +619,8 @@ export function ResizeHandles() {
           {...sharedProps}
         />
       ))}
-      {/* Corner handles */}
-      {corners.map(({ pos, cx, cy }) => (
+      {/* Corner handles — hidden when node is too small in screen space */}
+      {showCorners && corners.map(({ pos, cx, cy }) => (
         <div
           key={pos}
           style={{
@@ -606,8 +638,8 @@ export function ResizeHandles() {
           {...sharedProps}
         />
       ))}
-      {/* Rotation zone handles */}
-      {rotationZones.map(({ key, cx, cy, cursor }) => (
+      {/* Rotation zone handles — hidden when node is too small (always shown for lines) */}
+      {(showCorners || isLine) && rotationZones.map(({ key, cx, cy, cursor }) => (
         <div
           key={key}
           style={{
@@ -644,50 +676,47 @@ export function ResizeHandles() {
             }}
           />
           {/* Dimension label */}
-          <div
-            style={{
-              position: 'absolute',
-              left: sx + sw / 2,
-              top: sy + sh + 8,
-              transform: 'translateX(-50%)',
-              backgroundColor: SELECTION_COLOR,
-              color: '#ffffff',
-              fontSize: 11,
-              fontFamily: '"Inter", system-ui, sans-serif',
-              padding: '3px 4px',
-              borderRadius: 3,
-              whiteSpace: 'nowrap',
-              pointerEvents: 'none',
-              zIndex: 10,
-            }}
-          >
-            {aabbW} &times; {aabbH}
-          </div>
+          {(
+            <div
+              style={{
+                position: 'absolute',
+                left: sx + sw / 2,
+                top: sy + sh + 8,
+                transform: 'translateX(-50%)',
+                backgroundColor: SELECTION_COLOR,
+                color: '#ffffff',
+                fontSize: 11,
+                fontFamily: '"Inter", system-ui, sans-serif',
+                padding: '3px 4px',
+                borderRadius: 3,
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+                zIndex: 10,
+              }}
+            >
+              {lineLength}
+            </div>
+          )}
         </>
       )}
-      {/* Wrap handles in rotated container for rotated non-LINE nodes */}
-      {isRotated ? (
-        <div
-          style={{
-            position: 'absolute',
-            left: sx,
-            top: sy,
-            width: sw,
-            height: sh,
-            transform: `rotate(${rotation}deg)`,
-            transformOrigin: '50% 50%',
-            pointerEvents: 'none',
-            zIndex: 11,
-          }}
-        >
-          {/* Re-enable pointer events on child handles */}
-          <div className="pointer-events-auto">
-            {handleElements}
-          </div>
+      {/* Always use a positioned wrapper — stable DOM tree preserves pointer capture during rotation drag */}
+      <div
+        style={{
+          position: 'absolute',
+          left: sx,
+          top: sy,
+          width: sw,
+          height: sh,
+          transform: !isLine && rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+          transformOrigin: '50% 50%',
+          pointerEvents: 'none',
+          zIndex: 11,
+        }}
+      >
+        <div className="pointer-events-auto">
+          {handleElements}
         </div>
-      ) : (
-        handleElements
-      )}
+      </div>
       {/* Rotation angle tooltip */}
       {rotationDisplay && (
         <div

@@ -2,7 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
 
-export type ToolType = 'MOVE' | 'FRAME' | 'SECTION' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'PEN' | 'PENCIL' | 'HAND' | 'COMMENT' | 'LINE' | 'POLYGON' | 'STAR'
+export type ToolType = 'MOVE' | 'FRAME' | 'RECTANGLE' | 'ELLIPSE' | 'TEXT' | 'PEN' | 'PENCIL' | 'HAND' | 'COMMENT' | 'LINE' | 'POLYGON' | 'STAR'
 
 export interface ToolAPI {
   /** Currently active tool */
