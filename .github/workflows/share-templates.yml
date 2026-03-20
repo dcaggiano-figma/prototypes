@@ -231,7 +231,7 @@ jobs:
 
             const existing = comments.find(c =>
               c.user.login === 'github-actions[bot]' &&
-              c.body.includes('Prototype Previews')
+              c.body.includes('Prototype previews')
             );
 
             if (existing) {

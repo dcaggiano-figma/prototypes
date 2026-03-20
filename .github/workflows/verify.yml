@@ -1,0 +1,56 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    name: Verify all
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Authenticate to GitHub Packages
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check for duplicate template IDs
+        run: |
+          ids=""
+          dupes=""
+          for f in templates/*/template.json; do
+            dir="$(basename "$(dirname "$f")")"
+            id="$(node -p "require('./$f').id")"
+            if echo "$ids" | grep -q "^$id:"; then
+              existing="$(echo "$ids" | grep "^$id:" | cut -d: -f2)"
+              dupes="${dupes}Duplicate template id '$id' found in '$dir' and '$existing'\n"
+            fi
+            ids="${ids}${id}:${dir}\n"
+          done
+          if [ -n "$dupes" ]; then
+            printf "$dupes"
+            exit 1
+          fi
+          echo "All template IDs are unique."
+
+      - name: Verify all packages
+        run: pnpm verify
