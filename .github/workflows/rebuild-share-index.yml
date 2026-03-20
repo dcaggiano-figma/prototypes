@@ -117,6 +117,13 @@ jobs:
               continue
             fi
 
+            # --- Validation 4: Only include entries explicitly shown on share page ---
+            if ! jq -e '.hideFromSharePage == false' /tmp/entry.json > /dev/null 2>&1; then
+              echo "    SKIP: hideFromSharePage is not false"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+
             # --- Entry passed all checks — include it ---
             if [ "$FIRST" = true ]; then
               FIRST=false
@@ -131,19 +138,6 @@ jobs:
           echo ""
           echo "Validation complete: $INCLUDED included, $SKIPPED skipped out of $NEW_COUNT total"
           NEW_COUNT=$INCLUDED
-
-          # Size guard: refuse to upload if the new index is smaller than the existing one
-          OLD_COUNT=0
-          if aws s3 cp "s3://figma-protov2/$PREFIX/index.json" /tmp/old-index.json 2>/dev/null; then
-            OLD_COUNT=$(jq 'length' /tmp/old-index.json 2>/dev/null || echo 0)
-          fi
-
-          echo "Old index: $OLD_COUNT entries, New index: $NEW_COUNT entries"
-
-          if [ "$NEW_COUNT" -lt "$OLD_COUNT" ]; then
-            echo "::error::New index has $NEW_COUNT entries but existing has $OLD_COUNT — refusing to upload a smaller index. This may indicate an S3 listing issue."
-            exit 1
-          fi
 
           echo "Uploading index.json with $NEW_COUNT entries..."
           aws s3 cp /tmp/index.json \
