@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { createRootRoute } from '@tanstack/react-router';
 import {
@@ -28,6 +28,7 @@ import { useAction } from '../actions/provider';
 import { MinimizeUIProvider } from '../components/MinimizeUIContext';
 import { FloatingFileHeader } from '../components/FloatingFileHeader';
 import { MinimizedRightPanel } from '../components/MinimizedRightPanel';
+import { clearSceneGraphStorage } from '@prototype/shared/canvas';
 import { DesignMainMenu } from '../components/DesignMainMenu';
 import { FilePanel, SearchPanel, AiChatPanel, AssetsPanel } from '../components/panels';
 import { VariablesPanel } from '../components/variables';
@@ -165,6 +166,28 @@ function EditorContent() {
     }
   }, [activeMode]);
 
+  // Stable ref for setThemeSetting so handleQuickAction doesn't cause rerenders
+  const setThemeRef = useRef(setThemeSetting);
+  setThemeRef.current = setThemeSetting;
+
+  const handleQuickAction = useCallback((id: string) => {
+    switch (id) {
+      case 'theme-light':
+        setThemeRef.current('light');
+        break;
+      case 'theme-dark':
+        setThemeRef.current('dark');
+        break;
+      case 'theme-system':
+        setThemeRef.current('system');
+        break;
+      case 'reset-canvas':
+        clearSceneGraphStorage();
+        window.location.reload();
+        break;
+    }
+  }, []);
+
   // CMD+K / CMD+P opens QuickActions, CMD+O blocked
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -250,6 +273,7 @@ function EditorContent() {
             onModeChange={setActiveMode}
             isActionsOpen={isActionsOpen}
             onActionsOpenChange={setIsActionsOpen}
+            onQuickAction={handleQuickAction}
           />
         )}
       </main>

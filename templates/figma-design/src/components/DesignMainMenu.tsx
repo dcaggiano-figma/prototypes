@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { IconButton } from '@figma/fpl-components';
 import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon24FigmaLarge, Icon24SearchLarge } from '@figma/fpl-icons';
+import { clearSceneGraphStorage } from '@prototype/shared/canvas';
 import type { MenuItemDef } from './menuTypes';
 import { renderMenuItems } from './menuTypes';
 import type { ThemeSetting } from '../helpers/theme';
@@ -439,6 +440,11 @@ export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onT
       { type: 'item', id: 'console', label: 'Open console', onClick: noop },
       { type: 'item', id: 'network', label: 'Network log', onClick: noop },
       { type: 'item', id: 'performance', label: 'Performance', onClick: noop },
+      { type: 'separator' },
+      { type: 'item', id: 'reset-canvas', label: 'Reset canvas', onClick: () => {
+        clearSceneGraphStorage();
+        window.location.reload();
+      }},
     ]},
   ];
 

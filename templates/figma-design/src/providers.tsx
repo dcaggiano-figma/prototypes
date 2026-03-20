@@ -10,11 +10,12 @@ import {
 } from './canvas';
 import { CommentsProvider, UserConfigProvider } from '@prototype/shared';
 import { RenderingBridge } from './rendering-bridge';
+import { createInitialSceneGraph } from './createInitialSceneGraph';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <UserConfigProvider config={{ name: 'Josh Ferrell', color: 'yellow' }}>
-      <SceneGraphProvider>
+      <SceneGraphProvider createDefault={createInitialSceneGraph}>
         <UndoManagerProvider>
           <ViewportProvider>
             <RenderingBridge>

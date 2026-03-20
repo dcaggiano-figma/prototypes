@@ -6,6 +6,7 @@
 export * from '../scene-graph/types'
 export * from '../scene-graph/node-id'
 export * from '../scene-graph/scene-graph'
+export { loadSceneGraph, installAutoSave, clearSceneGraphStorage } from '../scene-graph/storage'
 export * from '../scene-graph/selection'
 export * from '../scene-graph/undo-manager'
 export { MIXED, type Mixed, isMixed, notMixed } from '../scene-graph/mixed'

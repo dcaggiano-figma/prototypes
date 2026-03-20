@@ -272,6 +272,26 @@ Important hooks exposed through `@prototype/shared/canvas` include:
 These bindings subscribe to model state. They are not alternate sources of
 truth for the document.
 
+## Persistence
+
+The scene graph is automatically persisted to `localStorage` so canvas state
+survives page reloads.
+
+- **Auto-save**: Every mutation triggers a debounced save (1 second after the
+  last change).
+- **URL-scoped keys**: Keys use the format `ppg:<scope>:sceneGraph`. For share
+  URLs (`/share/<branch>/<sha>/...`) the scope is `/share/<branch>` — the SHA
+  is stripped so state persists across re-deploys. For local dev the full
+  pathname is used.
+- **Selection is not persisted**: `selection` on `CanvasNode` is stripped
+  during serialization and restored as `Selection.EMPTY` on load.
+- **Reset**: Use the Debug > Reset canvas menu item to clear localStorage and
+  reload with the template's default scene (the Figma logo).
+- **Serialization constraint**: All node fields must remain JSON-serializable.
+  The one exception is `selection` on `CanvasNode`, which is handled specially.
+- **Paint IDs**: The global paint ID counter is advanced past the highest
+  existing ID after deserialization to prevent collisions.
+
 ## Architectural guardrails
 
 When extending the canvas model:

@@ -266,6 +266,7 @@ interface ToolbarProps {
   onModeChange: (mode: Mode) => void;
   isActionsOpen: boolean;
   onActionsOpenChange: (open: boolean) => void;
+  onQuickAction?: (id: string) => void;
 }
 
 /** Parse a CSS hex color (#RRGGBB or #RGB) to {r, g, b} (0–255) */
@@ -277,7 +278,7 @@ function parseHex(hex: string): { r: number; g: number; b: number } {
   return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
 }
 
-export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpenChange }: ToolbarProps) {
+export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpenChange, onQuickAction }: ToolbarProps) {
   const [activeTool, setActiveTool] = useState('move');
   const [selectedByGroup, setSelectedByGroup] = useState<Record<string, string>>({});
   const {
@@ -594,6 +595,7 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
                             isActive={isActionsOpen}
                             width={toolbarWidth}
                             toolbarRef={toolbarRef}
+                            onAction={onQuickAction}
                           />
                         )}
                       </div>
@@ -630,6 +632,7 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
                           isActive={isActionsOpen}
                           width={toolbarWidth}
                           toolbarRef={toolbarRef}
+                          onAction={onQuickAction}
                         />
                       )}
                     </div>

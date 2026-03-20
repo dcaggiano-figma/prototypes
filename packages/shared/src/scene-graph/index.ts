@@ -56,6 +56,7 @@ export {
   getTextSlotId,
   createPaint,
   ensurePaintId,
+  advancePaintIdPast,
 } from './types'
 
 // Scene graph
@@ -71,6 +72,9 @@ export {
   type AttachmentInvalidateEvent,
   type SceneGraphListener,
 } from './scene-graph'
+
+// Storage (localStorage persistence)
+export { loadSceneGraph, installAutoSave, clearSceneGraphStorage } from './storage'
 
 // Selection
 export { Selection } from './selection'

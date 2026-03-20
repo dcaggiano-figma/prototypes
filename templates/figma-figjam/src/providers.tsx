@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import { ActionProvider } from './actions/provider';
 import {
   LabelEditingProvider,
@@ -14,14 +13,9 @@ import { RenderingBridge } from './rendering-bridge';
 import { createInitialSceneGraph } from './createInitialSceneGraph';
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const sceneGraphRef = useRef<ReturnType<typeof createInitialSceneGraph> | null>(null);
-  if (!sceneGraphRef.current) {
-    sceneGraphRef.current = createInitialSceneGraph();
-  }
-
   return (
     <UserConfigProvider config={{ name: 'Josh Ferrell', color: 'yellow' }}>
-      <SceneGraphProvider sceneGraph={sceneGraphRef.current}>
+      <SceneGraphProvider createDefault={createInitialSceneGraph}>
         <UndoManagerProvider>
           <ViewportProvider>
             <RenderingBridge>

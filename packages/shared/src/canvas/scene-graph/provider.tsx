@@ -8,6 +8,7 @@ import type { NodeId } from '../../scene-graph/node-id'
 import type { Paint, SceneNode } from '../../scene-graph/types'
 import { createPaint } from '../../scene-graph/types'
 import { installConnectorAttachmentLifecycle } from '../connectors/connector-utils'
+import { installAutoSave, loadSceneGraph } from '../../scene-graph/storage'
 
 
 const SceneGraphContext = createContext<SceneGraph | null>(null)
@@ -16,13 +17,24 @@ export interface SceneGraphProviderProps {
   children: React.ReactNode
   /** Provide an existing SceneGraph instance, or one will be created. */
   sceneGraph?: SceneGraph
+  /** Factory for the template's default scene. Used on first visit and after reset. */
+  createDefault?: () => SceneGraph
 }
 
-export function SceneGraphProvider({ children, sceneGraph }: SceneGraphProviderProps) {
+export function SceneGraphProvider({ children, sceneGraph, createDefault }: SceneGraphProviderProps) {
   const sgRef = useRef<SceneGraph | null>(sceneGraph ?? null)
   if (!sgRef.current) {
-    sgRef.current = new SceneGraph()
-    sgRef.current.createCanvas('Page 1')
+    // Try loading from localStorage first
+    sgRef.current = loadSceneGraph()
+    if (!sgRef.current) {
+      // Fall back to template default or empty scene
+      if (createDefault) {
+        sgRef.current = createDefault()
+      } else {
+        sgRef.current = new SceneGraph()
+        sgRef.current.createCanvas('Page 1')
+      }
+    }
   }
 
   // Expose for integration tests and debugging (Vite replaces at build time)
@@ -31,6 +43,7 @@ export function SceneGraphProvider({ children, sceneGraph }: SceneGraphProviderP
   }
 
   useEffect(() => installConnectorAttachmentLifecycle(sgRef.current!), [])
+  useEffect(() => installAutoSave(sgRef.current!), [])
 
   return (
     <SceneGraphContext.Provider value={sgRef.current}>{children}</SceneGraphContext.Provider>

@@ -74,6 +74,11 @@ export function createPaint(paint: Omit<SolidPaint, 'id'>): Paint {
   return { ...paint, id: `p${++_paintIdCounter}` }
 }
 
+/** Advance the paint ID counter past the given value (used after deserialization). */
+export function advancePaintIdPast(id: number): void {
+  if (id > _paintIdCounter) _paintIdCounter = id
+}
+
 /** Ensure a paint has an ID (backwards compat for paints loaded without one). */
 export function ensurePaintId(paint: Paint): Paint {
   if (paint.id) return paint
@@ -377,7 +382,15 @@ export interface ConnectorNode extends BaseNode, GeometryMixin {
 
 // ── Union types ─────────────────────────────────────────────────────
 
-/** Union of all scene node types. */
+/**
+ * Union of all scene node types.
+ *
+ * SERIALIZATION CONSTRAINT: All fields on scene node types MUST be
+ * JSON-serializable (numbers, strings, booleans, arrays, plain objects).
+ * The one exception is `selection` on CanvasNode, which is stripped during
+ * serialization and restored as Selection.EMPTY on load.
+ * See storage.ts for the serialization implementation.
+ */
 export type SceneNode =
   | DocumentNode
   | CanvasNode

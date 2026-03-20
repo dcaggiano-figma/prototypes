@@ -110,7 +110,7 @@ export class SceneGraph {
   private _isUndoingOrRedoing = false
 
   /** The document root node. */
-  readonly documentId: NodeId
+  documentId: NodeId
 
   constructor(sessionId: number = 0) {
     this.idGen = new NodeIdGenerator(sessionId)
@@ -131,7 +131,29 @@ export class SceneGraph {
     this.documentId = docId
   }
 
+  /**
+   * Build a SceneGraph from a pre-existing node map (e.g. from localStorage).
+   * The caller is responsible for providing a consistent node tree.
+   */
+  static hydrate(
+    nodes: Map<NodeId, SceneNode>,
+    documentId: NodeId,
+    sessionId: number,
+    maxLocalId: number,
+  ): SceneGraph {
+    const sg = new SceneGraph(sessionId)
+    sg.nodes = nodes
+    sg.documentId = documentId
+    sg.idGen.advancePast(maxLocalId)
+    return sg
+  }
+
   // ── Reads ───────────────────────────────────────────────────────
+
+  /** Expose the internal nodes map as readonly for serialization. */
+  getAllNodes(): ReadonlyMap<NodeId, SceneNode> {
+    return this.nodes
+  }
 
   /** Get a node by ID, or undefined if not found. */
   getNode(id: NodeId): SceneNode | undefined {
