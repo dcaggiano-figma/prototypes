@@ -8,14 +8,14 @@ catalog:
   '@figma/fpl-components': 0.6.0
   '@figma/fpl-icons': 0.6.0
   '@figma/fpl-tokens': 0.6.0
-  '@figma/ppg-ai': ^1.3.0
-  '@figma/ppg-dev-tools': ^1.3.0
-  '@figma/ppg-eslint-config': ^1.3.0
-  '@figma/ppg-tailwind-config': ^1.3.0
-  '@figma/ppg-tsconfig': ^1.3.0
-  '@figma/ppg-ui': ^1.3.0
-  '@figma/ppg-vite-config': ^1.3.0
-  '@figma/ppg-proto-cli': ^1.3.0
+  '@figma/ppg-ai': ^1.7.0
+  '@figma/ppg-dev-tools': ^1.7.0
+  '@figma/ppg-eslint-config': ^1.7.0
+  '@figma/ppg-tailwind-config': ^1.7.0
+  '@figma/ppg-tsconfig': ^1.7.0
+  '@figma/ppg-ui': ^1.7.0
+  '@figma/ppg-vite-config': ^1.7.0
+  '@figma/ppg-proto-cli': ^1.7.0
   motion: 12.34.5
   react-hook-form: 7.62.0
   zod: 3.25.76

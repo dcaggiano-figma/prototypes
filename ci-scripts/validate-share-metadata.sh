@@ -15,7 +15,7 @@ fi
 
 if [ ! -f "$FILE" ]; then
   echo "Error: $FILE does not exist."
-  echo "Run the /share-beta skill to generate share metadata before deploying."
+  echo "Create a .share-metadata.json with a description and tags before deploying."
   exit 1
 fi
 
@@ -27,57 +27,49 @@ fi
 
 ERRORS=()
 
-# Required fields must exist
-for field in pin summary hashtags; do
-  if ! jq -e "has(\"$field\")" "$FILE" > /dev/null 2>&1; then
-    ERRORS+=("Missing required field: \"$field\"")
-  fi
-done
-
-# pin must be a string
-if jq -e '.pin | type != "string"' "$FILE" > /dev/null 2>&1; then
-  ERRORS+=("\"pin\" must be a string")
+# description must be a non-empty string
+if ! jq -e 'has("description")' "$FILE" > /dev/null 2>&1; then
+  ERRORS+=("Missing required field: \"description\"")
+elif jq -e '.description | type != "string"' "$FILE" > /dev/null 2>&1; then
+  ERRORS+=("\"description\" must be a string")
+elif jq -e '.description | length == 0' "$FILE" > /dev/null 2>&1; then
+  ERRORS+=("\"description\" must not be empty")
 fi
 
-# If pin is non-empty, it must be a URL-safe slug (lowercase, hyphens, digits, max 64 chars)
-PIN=$(jq -r '.pin // ""' "$FILE")
-if [ -n "$PIN" ]; then
-  if [ ${#PIN} -gt 64 ]; then
-    ERRORS+=("\"pin\" must be 64 characters or fewer (got ${#PIN})")
-  fi
-  if ! echo "$PIN" | grep -qE '^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$'; then
-    ERRORS+=("\"pin\" must be a URL-safe slug (lowercase letters, digits, hyphens, no leading/trailing hyphens). Got: \"$PIN\"")
-  fi
+# author must exist and be a string
+if ! jq -e 'has("author")' "$FILE" > /dev/null 2>&1; then
+  ERRORS+=("Missing required field: \"author\"")
+elif jq -e '.author | type != "string"' "$FILE" > /dev/null 2>&1; then
+  ERRORS+=("\"author\" must be a string")
 fi
 
-# summary must be a non-empty string
-if jq -e '.summary | type != "string"' "$FILE" > /dev/null 2>&1; then
-  ERRORS+=("\"summary\" must be a string")
-elif jq -e '.summary | length == 0' "$FILE" > /dev/null 2>&1; then
-  ERRORS+=("\"summary\" must not be empty")
-fi
-
-# hashtags must be an array of strings
-if jq -e '.hashtags | type != "array"' "$FILE" > /dev/null 2>&1; then
-  ERRORS+=("\"hashtags\" must be an array")
-elif jq -e '.hashtags | length == 0' "$FILE" > /dev/null 2>&1; then
-  ERRORS+=("\"hashtags\" must contain at least one tag")
+# tags must be an array of strings
+if ! jq -e 'has("tags")' "$FILE" > /dev/null 2>&1; then
+  ERRORS+=("Missing required field: \"tags\"")
+elif jq -e '.tags | type != "array"' "$FILE" > /dev/null 2>&1; then
+  ERRORS+=("\"tags\" must be an array")
 else
-  # Every element must be a string
-  NON_STRINGS=$(jq -r '[.hashtags[] | select(type != "string")] | length' "$FILE")
+  NON_STRINGS=$(jq -r '[.tags[] | select(type != "string")] | length' "$FILE")
   if [ "$NON_STRINGS" -gt 0 ]; then
-    ERRORS+=("All hashtags must be strings, found $NON_STRINGS non-string element(s)")
-  else
-    # Every string must start with #
-    BAD_TAGS=$(jq -r '.hashtags[] | select(startswith("#") | not)' "$FILE")
-    if [ -n "$BAD_TAGS" ]; then
-      ERRORS+=("All hashtags must start with \"#\". Invalid: $BAD_TAGS")
-    fi
+    ERRORS+=("All tags must be strings, found $NON_STRINGS non-string element(s)")
   fi
+fi
+
+# base must be an object with branch, commit, timestamp strings
+if ! jq -e 'has("base")' "$FILE" > /dev/null 2>&1; then
+  ERRORS+=("Missing required field: \"base\"")
+elif jq -e '.base | type != "object"' "$FILE" > /dev/null 2>&1; then
+  ERRORS+=("\"base\" must be an object with branch, commit, and timestamp")
+else
+  for key in branch commit timestamp; do
+    if jq -e ".base.${key} | type != \"string\"" "$FILE" > /dev/null 2>&1; then
+      ERRORS+=("\"base.${key}\" must be a string")
+    fi
+  done
 fi
 
 # No unexpected fields
-EXTRA=$(jq -r 'keys[] | select(. != "pin" and . != "summary" and . != "hashtags")' "$FILE" 2>/dev/null || true)
+EXTRA=$(jq -r 'keys[] | select(. != "$comment" and . != "description" and . != "tags" and . != "base" and . != "author")' "$FILE" 2>/dev/null || true)
 if [ -n "$EXTRA" ]; then
   ERRORS+=("Unexpected fields: $EXTRA")
 fi

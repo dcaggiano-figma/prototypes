@@ -156,6 +156,24 @@ For simple one-off transitions (a single fade or color change), plain CSS transi
 
 ---
 
+## Share Metadata
+
+Prototypes include a `.share-metadata.json` file at `apps/prototype/.share-metadata.json` that provides metadata for shared deploys.
+
+**Keep it up to date:** When you start a new feature or make significant changes to the prototype, update `.share-metadata.json` before you commit. The description should read like a PR description for the features you've added on top of the prototype template — focus on what the prototype does and why it's interesting, not implementation details or test plans. This is how people discover what's in the prototype.
+
+**Description:** 1-3 concise sentences describing what the prototype does and its key interactions. Written like a PR description — focus on what it does and why it's interesting.
+
+**Tags:** 3-7 lowercase, hyphenated tags that describe capabilities and patterns (e.g. `drag-and-drop`, `file-browser`), not implementation details (e.g. not `react`, `uses-zustand`).
+
+**Do NOT modify `author`, `base`, or `$comment`.** These fields record where the prototype came from (which template/branch/commit it was forked from) and are set during scaffolding. They are provenance metadata, not deploy metadata. Only update `description` and `tags`.
+
+---
+
 ## Making Changes
 
-After making changes, make sure to check the devtools-code-verifier subagent for any errors, and fix those errors before finishing up.
+After making changes:
+
+1. **Run `pnpm verify`** and fix any errors before handing back to the user. ESLint and type errors catch real bugs, not just style issues.
+2. **Check the devtools-code-verifier** subagent for any runtime errors, and fix those before finishing up.
+3. **Commit and push** your changes.

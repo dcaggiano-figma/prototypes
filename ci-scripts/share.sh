@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: ./ci-scripts/share.sh --branch <name> --sha <short-sha> --dist <path> [--pin <name>] [--test-deploy]
+# Usage: ./ci-scripts/share.sh --branch <name> --sha <short-sha> --dist <path> [--test-deploy]
 #
 # Uploads a built prototype to S3. Every deploy goes to both:
 #   <prefix>/<branch>/<sha>/          <- immutable snapshot
 #   <prefix>/<branch>/latest/         <- latest (overwritten every deploy)
-#
-# Optionally creates an additional pinned snapshot when --pin is passed.
 #
 # --test-deploy: use dev-share/ prefix instead of share/, add 7-day expiry.
 
@@ -17,7 +15,6 @@ BASE_URL="https://protov2.figma.design"
 BRANCH=""
 SHA=""
 DIST=""
-PIN=""
 TEST_DEPLOY=false
 
 while [[ $# -gt 0 ]]; do
@@ -25,7 +22,6 @@ while [[ $# -gt 0 ]]; do
     --branch)      BRANCH="$2";      shift 2 ;;
     --sha)         SHA="$2";         shift 2 ;;
     --dist)        DIST="$2";        shift 2 ;;
-    --pin)         PIN="$2";         shift 2 ;;
     --test-deploy) TEST_DEPLOY=true; shift ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
@@ -66,16 +62,3 @@ aws s3 sync "$DIST/" "$LATEST_DEST" $EXTRA_SYNC
 LATEST_URL="$BASE_URL/$PREFIX/$BRANCH/latest/"
 echo ""
 echo "Latest: $LATEST_URL"
-
-# -- Pin snapshot (<prefix>/<branch>/<pin>/) -----------------------------------
-
-if [[ -n "$PIN" ]]; then
-  PIN_DEST="$S3_BUCKET/$PREFIX/$BRANCH/$PIN/"
-  echo ""
-  echo "Pinning to $PIN_DEST ..."
-  aws s3 sync "$DIST/" "$PIN_DEST" $EXTRA_SYNC
-
-  PIN_URL="$BASE_URL/$PREFIX/$BRANCH/$PIN/"
-  echo ""
-  echo "Pinned at: $PIN_URL"
-fi
