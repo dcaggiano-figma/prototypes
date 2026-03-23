@@ -53,6 +53,7 @@ jobs:
           DESCRIPTION=$(jq -r '.description // ""' apps/prototype/.share-metadata.json)
           TAGS=$(jq -c '.tags // []' apps/prototype/.share-metadata.json)
           AUTHOR=$(jq -r '.author // ""' apps/prototype/.share-metadata.json)
+          HIDE_FROM_SHARE=$(jq '.hideFromSharePage // false' apps/prototype/.share-metadata.json)
 
           # Fall back to git actor if no author in metadata
           if [ -z "$AUTHOR" ]; then
@@ -63,6 +64,7 @@ jobs:
             --arg description "$DESCRIPTION" \
             --arg author "$AUTHOR" \
             --argjson tags "$TAGS" \
+            --argjson hideFromSharePage "$HIDE_FROM_SHARE" \
             --arg branch "$GH_BRANCH" \
             --arg commit "$SHORT_SHA" \
             --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -70,6 +72,7 @@ jobs:
               description: $description,
               author: $author,
               tags: $tags,
+              hideFromSharePage: $hideFromSharePage,
               base: {
                 branch: $branch,
                 commit: $commit,

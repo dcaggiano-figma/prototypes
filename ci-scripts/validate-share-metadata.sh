@@ -68,6 +68,13 @@ else
   done
 fi
 
+# hideFromSharePage must be a boolean if present
+if jq -e 'has("hideFromSharePage")' "$FILE" > /dev/null 2>&1; then
+  if jq -e '.hideFromSharePage | type != "boolean"' "$FILE" > /dev/null 2>&1; then
+    ERRORS+=("\"hideFromSharePage\" must be a boolean")
+  fi
+fi
+
 # No unexpected fields
 EXTRA=$(jq -r 'keys[] | select(. != "$comment" and . != "description" and . != "tags" and . != "base" and . != "author" and . != "hideFromSharePage" and . != "template")' "$FILE" 2>/dev/null || true)
 if [ -n "$EXTRA" ]; then

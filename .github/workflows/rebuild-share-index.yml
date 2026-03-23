@@ -40,61 +40,46 @@ jobs:
           echo "PREFIX=$PREFIX" >> "$GITHUB_ENV"
           echo "Using prefix: $PREFIX"
 
-      - name: Rebuild index from latest metadata files
+      - name: Download all metadata files
         run: |
-          echo "Listing latest/metadata.json files in $PREFIX/..."
+          echo "Syncing */latest/metadata.json files from $PREFIX/..."
+          aws s3 sync "s3://figma-protov2/$PREFIX/" /tmp/metadata/ \
+            --exclude "*" \
+            --include "*/latest/metadata.json"
 
-          # Only scan */latest/metadata.json — one entry per branch by design
-          aws s3api list-objects-v2 \
-            --bucket figma-protov2 \
-            --prefix "$PREFIX/" \
-            --query "Contents[?ends_with(Key, '/latest/metadata.json')].Key" \
-            --output text | tr '\t' '\n' | grep -v '^$' > /tmp/keys.txt || true
+          find /tmp/metadata -name metadata.json -path "*/latest/metadata.json" > /tmp/files.txt
+          TOTAL=$(wc -l < /tmp/files.txt | tr -d ' ')
+          echo "Downloaded $TOTAL metadata files"
 
-          NEW_COUNT=$(wc -l < /tmp/keys.txt | tr -d ' ')
-          echo "Found $NEW_COUNT metadata files"
-
-          # Build the new index, validating each entry before inclusion
+      - name: Build index from metadata
+        run: |
           echo "[" > /tmp/index.json
           FIRST=true
           INCLUDED=0
           SKIPPED=0
-          while IFS= read -r key; do
-            if [ -z "$key" ]; then continue; fi
 
-            # Derive the branch prefix from the key (e.g. share/{branch}/latest/metadata.json)
-            BRANCH_PREFIX="${key%/latest/metadata.json}"
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
 
-            echo "  Checking $key..."
+            # Derive a label for logging (e.g. user/branch)
+            LABEL="${file#/tmp/metadata/}"
 
-            # --- Validation 1: Deploy must exist (latest/index.html) ---
-            if ! aws s3api head-object --bucket figma-protov2 --key "${BRANCH_PREFIX}/latest/index.html" 2>/dev/null; then
-              echo "    SKIP: no index.html at ${BRANCH_PREFIX}/latest/ (metadata-only ghost)"
-              SKIPPED=$((SKIPPED + 1))
-              continue
-            fi
+            echo "  Checking $LABEL..."
 
-            # --- Validation 2: metadata.json must be valid JSON with required fields ---
-            if ! aws s3 cp "s3://figma-protov2/$key" /tmp/entry.json 2>/dev/null; then
-              echo "    SKIP: could not download metadata"
-              SKIPPED=$((SKIPPED + 1))
-              continue
-            fi
-
-            if ! jq empty /tmp/entry.json 2>/dev/null; then
+            # --- Validation 1: Must be valid JSON with required fields ---
+            if ! jq empty "$file" 2>/dev/null; then
               echo "    SKIP: invalid JSON"
               SKIPPED=$((SKIPPED + 1))
               continue
             fi
 
-            # Check required fields: description, author, base.branch
             MISSING_FIELDS=""
             for field in description author; do
-              if ! jq -e "has(\"$field\")" /tmp/entry.json > /dev/null 2>&1; then
+              if ! jq -e "has(\"$field\")" "$file" > /dev/null 2>&1; then
                 MISSING_FIELDS="$MISSING_FIELDS $field"
               fi
             done
-            if ! jq -e '.base.branch // empty' /tmp/entry.json > /dev/null 2>&1; then
+            if ! jq -e '.base.branch // empty' "$file" > /dev/null 2>&1; then
               MISSING_FIELDS="$MISSING_FIELDS base.branch"
             fi
 
@@ -104,22 +89,9 @@ jobs:
               continue
             fi
 
-            # --- Validation 3: Real prototype (at least one .js or .css asset) ---
-            ASSET_COUNT=$(aws s3api list-objects-v2 \
-              --bucket figma-protov2 \
-              --prefix "${BRANCH_PREFIX}/latest/" \
-              --query "length(Contents[?ends_with(Key, '.js') || ends_with(Key, '.css')])" \
-              --output text 2>/dev/null || echo "0")
-
-            if [ "$ASSET_COUNT" = "0" ] || [ "$ASSET_COUNT" = "None" ]; then
-              echo "    SKIP: no .js or .css assets (not a real prototype)"
-              SKIPPED=$((SKIPPED + 1))
-              continue
-            fi
-
-            # --- Validation 4: Only include entries explicitly shown on share page ---
-            if ! jq -e '.hideFromSharePage == false' /tmp/entry.json > /dev/null 2>&1; then
-              echo "    SKIP: hideFromSharePage is not false"
+            # --- Validation 2: Only include entries explicitly shown on share page ---
+            if jq -e '.hideFromSharePage == true' "$file" > /dev/null 2>&1; then
+              echo "    SKIP: hideFromSharePage is true"
               SKIPPED=$((SKIPPED + 1))
               continue
             fi
@@ -130,19 +102,20 @@ jobs:
             else
               echo "," >> /tmp/index.json
             fi
-            cat /tmp/entry.json >> /tmp/index.json
+            cat "$file" >> /tmp/index.json
             INCLUDED=$((INCLUDED + 1))
-          done < /tmp/keys.txt
+          done < /tmp/files.txt
           echo "]" >> /tmp/index.json
 
           echo ""
-          echo "Validation complete: $INCLUDED included, $SKIPPED skipped out of $NEW_COUNT total"
-          NEW_COUNT=$INCLUDED
+          echo "Validation complete: $INCLUDED included, $SKIPPED skipped"
 
-          echo "Uploading index.json with $NEW_COUNT entries..."
+      - name: Upload index
+        run: |
+          INCLUDED=$(jq length /tmp/index.json)
+          echo "Uploading index.json with $INCLUDED entries..."
           aws s3 cp /tmp/index.json \
             "s3://figma-protov2/$PREFIX/index.json" \
             --content-type "application/json" \
             --cache-control "max-age=0, no-cache"
-
-          echo "Index rebuilt with $NEW_COUNT entries at $PREFIX/index.json"
+          echo "Index rebuilt with $INCLUDED entries at $PREFIX/index.json"
