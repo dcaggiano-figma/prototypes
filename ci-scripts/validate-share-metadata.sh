@@ -69,7 +69,7 @@ else
 fi
 
 # No unexpected fields
-EXTRA=$(jq -r 'keys[] | select(. != "$comment" and . != "description" and . != "tags" and . != "base" and . != "author")' "$FILE" 2>/dev/null || true)
+EXTRA=$(jq -r 'keys[] | select(. != "$comment" and . != "description" and . != "tags" and . != "base" and . != "author" and . != "hideFromSharePage" and . != "template")' "$FILE" 2>/dev/null || true)
 if [ -n "$EXTRA" ]; then
   ERRORS+=("Unexpected fields: $EXTRA")
 fi

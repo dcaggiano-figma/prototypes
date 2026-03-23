@@ -63,7 +63,7 @@ if [ "$ORIG_PROV" != "$CURR_PROV" ]; then
     echo "  - $err"
   done
   echo ""
-  echo "Only \"description\" and \"tags\" should be updated. Restore the original values for author/base/\$comment."
+  echo "Only \"description\", \"tags\", \"hideFromSharePage\", and \"template\" should be updated. Restore the original values for author/base/\$comment."
   exit 2
 fi
 
