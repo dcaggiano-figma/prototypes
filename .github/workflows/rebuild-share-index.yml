@@ -89,9 +89,9 @@ jobs:
               continue
             fi
 
-            # --- Validation 2: Only include entries explicitly shown on share page ---
-            if jq -e '.hideFromSharePage == true' "$file" > /dev/null 2>&1; then
-              echo "    SKIP: hideFromSharePage is true"
+            # --- Validation 2: Only include entries with hideFromSharePage explicitly false ---
+            if ! jq -e '.hideFromSharePage == false' "$file" > /dev/null 2>&1; then
+              echo "    SKIP: hideFromSharePage is not false (missing or true)"
               SKIPPED=$((SKIPPED + 1))
               continue
             fi
