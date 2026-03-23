@@ -218,8 +218,9 @@ else
   echo
   info "You do not have push access to prototype-playground."
   echo "  You can still continue prototyping, but sharing will be restricted."
-  echo "  Please reach out in #feat-prototype-playground for sharing access:"
-  echo "  $SLACK_CHANNEL"
+  echo "  Request access via Opal:"
+  echo -e "  \e]8;;https://app.opal.dev/groups/e8b92040-0069-4bc7-a469-4e4e39fece86\e\\https://app.opal.dev/groups/e8b92040-0069-4bc7-a469-4e4e39fece86\e]8;;\e\\"
+  echo "  Note: access can take up to 10 minutes to sync after approval."
   echo
 fi
 
