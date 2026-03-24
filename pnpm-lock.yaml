@@ -9,15 +9,6 @@ catalogs:
     '@figma/fpl-cli':
       specifier: 0.6.1
       version: 0.6.1
-    '@figma/fpl-components':
-      specifier: 0.6.0
-      version: 0.6.0
-    '@figma/fpl-icons':
-      specifier: 0.6.0
-      version: 0.6.0
-    '@figma/fpl-tokens':
-      specifier: 0.6.0
-      version: 0.6.0
     '@figma/ppg-ai':
       specifier: ^1.9.0
       version: 1.9.0
@@ -52,6 +43,11 @@ catalogs:
       specifier: 3.25.76
       version: 3.25.76
 
+overrides:
+  '@figma/fpl-components': 0.6.0
+  '@figma/fpl-tokens': 0.6.0
+  '@figma/fpl-icons': 0.6.0
+
 importers:
 
   .:
@@ -60,10 +56,10 @@ importers:
         specifier: 'catalog:'
         version: 0.6.1(@figma/fpl-components@0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76))(@figma/fpl-icons@0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/ppg-dev-tools':
         specifier: 'catalog:'
@@ -78,13 +74,13 @@ importers:
   apps/prototype:
     dependencies:
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/fpl-tokens':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@figma/ppg-ai':
         specifier: 'catalog:'
@@ -163,10 +159,10 @@ importers:
   packages/shared:
     dependencies:
       '@figma/fpl-components':
-        specifier: '*'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       ag-grid-community:
         specifier: ^35.1.0
@@ -203,13 +199,13 @@ importers:
   templates/blank-slate:
     dependencies:
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/fpl-tokens':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@figma/ppg-ai':
         specifier: 'catalog:'
@@ -276,13 +272,13 @@ importers:
   templates/browser-shell:
     dependencies:
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/fpl-tokens':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@figma/ppg-ai':
         specifier: 'catalog:'
@@ -352,13 +348,13 @@ importers:
   templates/eval-starter:
     dependencies:
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/fpl-tokens':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@figma/ppg-ai':
         specifier: 'catalog:'
@@ -419,13 +415,13 @@ importers:
   templates/figma-buzz:
     dependencies:
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/fpl-tokens':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@figma/ppg-ai':
         specifier: 'catalog:'
@@ -498,13 +494,13 @@ importers:
   templates/figma-design:
     dependencies:
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/fpl-tokens':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@figma/ppg-ai':
         specifier: 'catalog:'
@@ -577,13 +573,13 @@ importers:
   templates/figma-figjam:
     dependencies:
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/fpl-tokens':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@figma/ppg-ai':
         specifier: 'catalog:'
@@ -656,13 +652,13 @@ importers:
   templates/figma-slides:
     dependencies:
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/fpl-tokens':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@figma/ppg-ai':
         specifier: 'catalog:'
@@ -735,13 +731,13 @@ importers:
   templates/make:
     dependencies:
       '@figma/fpl-components':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       '@figma/fpl-icons':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/fpl-tokens':
-        specifier: 'catalog:'
+        specifier: 0.6.0
         version: 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       '@figma/ppg-ai':
         specifier: 'catalog:'
@@ -1141,33 +1137,17 @@ packages:
     resolution: {integrity: sha512-IqqISlUxUb3z8cgIIXTY2YRVJ1jAnNjRtHFRBjvaOKQ0JeW9J0afHa9WtpyWrCOZ5JWSLBJndVI9H5FOYv642Q==, tarball: https://npm.pkg.github.com/download/@figma/fpl-cli/0.6.1/fd232c7d587bb67857e9a2daf5dccfd59c72a8af}
     hasBin: true
     peerDependencies:
-      '@figma/fpl-components': '*'
-      '@figma/fpl-icons': '*'
-
-  '@figma/fpl-components@0.0.2-release-test.4':
-    resolution: {integrity: sha512-M5VMfN6HO7WZ7TxyHD2l2z9wteRuGRoAiZJNsboo4tbHazZIo2eo98lS74dD1WKvfOiSfWfKtzYPr9Rju6SCuw==, tarball: https://npm.pkg.github.com/download/@figma/fpl-components/0.0.2-release-test.4/aa04891110b70804eaeee1263e4f0df150761843}
-    peerDependencies:
-      '@figma/fpl-tokens': '*'
-      '@types/react': '>=18'
-      react: '>=18'
-      react-dom: '>=18'
-      zod: ^3.25.76
+      '@figma/fpl-components': 0.6.0
+      '@figma/fpl-icons': 0.6.0
 
   '@figma/fpl-components@0.6.0':
     resolution: {integrity: sha512-0qBOlIXqNkSmVEtb9fyPOcKL39Lhuq+E5nNDOSBoXm6pIMtN7AZM6OivqiFBzMzUOWT3yx+bD+LHbulKQDLmMQ==, tarball: https://npm.pkg.github.com/download/@figma/fpl-components/0.6.0/66a460440bf43f37183ac078eedff2de96f23276}
     peerDependencies:
-      '@figma/fpl-tokens': '*'
+      '@figma/fpl-tokens': 0.6.0
       '@types/react': '>=18'
       react: '>=18'
       react-dom: '>=18'
       zod: ^3.25.76
-
-  '@figma/fpl-icons@0.0.1-release-test.4':
-    resolution: {integrity: sha512-F63jJcsregA9HgG4v2tHmSQEfSyahPvMvLu8sdlc8f8JS4doQVqiF8OBOrl+CgawB+825vX8Jvp6cRoSIP5Nrg==, tarball: https://npm.pkg.github.com/download/@figma/fpl-icons/0.0.1-release-test.4/08fc73ef56686e664c06bab2cf7af5b2454b65f3}
-    peerDependencies:
-      '@figma/fpl-tokens': '*'
-      react: '>=18'
-      react-dom: '>=18'
 
   '@figma/fpl-icons@0.6.0':
     resolution: {integrity: sha512-2ZCJhy79/qmLI3jBUWH2v7hsJIWM2AoheCIOLBCFTduD4L09vmqn6p9g656P1ny4+SqPqlpNjWhm41spONtelA==, tarball: https://npm.pkg.github.com/download/@figma/fpl-icons/0.6.0/602b7fa58d7afd64fedfbd0bff77a0c25a2af423}
@@ -1175,18 +1155,8 @@ packages:
       react: '>=18'
       react-dom: '>=18'
 
-  '@figma/fpl-tokens-raw@0.0.1-release-test.4':
-    resolution: {integrity: sha512-rCw+m1NkskIcJbGptpmg646kaoiix7Gan36jW/zHDW8hrZYBQQMkxKWxQAQdF6mH+F1TE5RAxybTJAsvup/vbQ==, tarball: https://npm.pkg.github.com/download/@figma/fpl-tokens-raw/0.0.1-release-test.4/d56f9e745b488144fb58ba2f2b0520bbff0bf7f0}
-
   '@figma/fpl-tokens-raw@0.6.0':
     resolution: {integrity: sha512-12Tcp4xGwcAQKoZ05fp+t01vprUzdtLbI0PP9Jz//bNtYGmvmhbVT9azP4H19WT9gToT2k/B5BtLELRFAud4Zw==, tarball: https://npm.pkg.github.com/download/@figma/fpl-tokens-raw/0.6.0/c235169f6585a65042469601c9c052b2ea2c660c}
-
-  '@figma/fpl-tokens@0.0.1-release-test.4':
-    resolution: {integrity: sha512-kEzenljPqqfm7Ogux0lO0XrWWfQxnKiwdMktx778pmHoBouMWg1YayB4HLucVhqxKJNKDuyaJOjn4zX0gLvYCw==, tarball: https://npm.pkg.github.com/download/@figma/fpl-tokens/0.0.1-release-test.4/a2ebf9b0bf4a557924ae92f65af2f2eba2cb90c8}
-    peerDependencies:
-      '@types/react': '>=18'
-      csstype: '>=3'
-      react: '>=18'
 
   '@figma/fpl-tokens@0.6.0':
     resolution: {integrity: sha512-3g7W3lY+iVp7toa68TJ8f4SdL3Fwtn4gEFUVXW9kpRuOvBcpb1vFAJt4YpiFKjzIzYFeFbx1SVvorIdJO5u1BA==, tarball: https://npm.pkg.github.com/download/@figma/fpl-tokens/0.6.0/979dbdfa619300e5cab471770f43ceadf98615d1}
@@ -1445,11 +1415,6 @@ packages:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  '@tanstack/react-virtual@3.0.0-beta.54':
-    resolution: {integrity: sha512-D1mDMf4UPbrtHRZZriCly5bXTBMhylslm4dhcHqTtDJ6brQcgGmk8YD9JdWBGWfGSWPKoh2x1H3e7eh+hgPXtQ==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0
-
   '@tanstack/react-virtual@3.13.18':
     resolution: {integrity: sha512-dZkhyfahpvlaV0rIKnvQiVoWPyURppl6w4m9IwMDpuIjcJ1sD9YGWrt0wISvgU7ewACXx2Ct46WPgI6qAD4v6A==}
     peerDependencies:
@@ -1491,9 +1456,6 @@ packages:
 
   '@tanstack/store@0.9.1':
     resolution: {integrity: sha512-+qcNkOy0N1qSGsP7omVCW0SDrXtaDcycPqBDE726yryiA5eTDFpjBReaYjghVJwNf1pcPMyzIwTGlYjCSQR0Fg==}
-
-  '@tanstack/virtual-core@3.0.0-beta.54':
-    resolution: {integrity: sha512-jtkwqdP2rY2iCCDVAFuaNBH3fiEi29aTn2RhtIoky8DTTiCdc48plpHHreLwmv1PICJ4AJUUESaq3xa8fZH8+g==}
 
   '@tanstack/virtual-core@3.13.18':
     resolution: {integrity: sha512-Mx86Hqu1k39icq2Zusq+Ey2J6dDWTjDvEv43PJtRCoEYTLyfaPnxIQ6iy7YAOK0NV/qOEmZQ/uCufrppZxTgcg==}
@@ -3740,56 +3702,6 @@ snapshots:
       scule: 1.3.0
       tinyglobby: 0.2.15
 
-  '@figma/fpl-components@0.0.2-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)':
-    dependencies:
-      '@atlaskit/pragmatic-drag-and-drop': 1.7.7
-      '@atlaskit/pragmatic-drag-and-drop-auto-scroll': 2.1.5
-      '@atlaskit/pragmatic-drag-and-drop-hitbox': 1.1.0
-      '@figma/fpl-icons': 0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@figma/fpl-tokens': 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
-      '@floating-ui/react': 0.26.28(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@tanstack/react-virtual': 3.0.0-beta.54(react@18.3.1)
-      '@types/react': 18.3.28
-      clsx: 2.1.1
-      dnd-core: 16.0.1
-      fast-deep-equal: 3.1.3
-      react: 18.3.1
-      react-dnd: 16.0.1(@types/node@20.19.33)(@types/react@18.3.28)(react@18.3.1)
-      react-dom: 18.3.1(react@18.3.1)
-      react-hook-form: 7.71.2(react@18.3.1)
-      react-virtualized-auto-sizer: 1.0.26(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react-window: 1.8.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      tabbable: 6.4.0
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@types/hoist-non-react-statics'
-      - '@types/node'
-
-  '@figma/fpl-components@0.0.2-release-test.4(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)':
-    dependencies:
-      '@atlaskit/pragmatic-drag-and-drop': 1.7.7
-      '@atlaskit/pragmatic-drag-and-drop-auto-scroll': 2.1.5
-      '@atlaskit/pragmatic-drag-and-drop-hitbox': 1.1.0
-      '@figma/fpl-icons': 0.0.1-release-test.4(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@figma/fpl-tokens': 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
-      '@floating-ui/react': 0.26.28(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@tanstack/react-virtual': 3.0.0-beta.54(react@18.3.1)
-      '@types/react': 18.3.28
-      clsx: 2.1.1
-      dnd-core: 16.0.1
-      fast-deep-equal: 3.1.3
-      react: 18.3.1
-      react-dnd: 16.0.1(@types/node@20.19.33)(@types/react@18.3.28)(react@18.3.1)
-      react-dom: 18.3.1(react@18.3.1)
-      react-hook-form: 7.71.2(react@18.3.1)
-      react-virtualized-auto-sizer: 1.0.26(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react-window: 1.8.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      tabbable: 6.4.0
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@types/hoist-non-react-statics'
-      - '@types/node'
-
   '@figma/fpl-components@0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)':
     dependencies:
       '@atlaskit/pragmatic-drag-and-drop': 1.7.7
@@ -3815,35 +3727,12 @@ snapshots:
       - '@types/hoist-non-react-statics'
       - '@types/node'
 
-  '@figma/fpl-icons@0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@figma/fpl-tokens': 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-
-  '@figma/fpl-icons@0.0.1-release-test.4(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@figma/fpl-tokens': 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-
   '@figma/fpl-icons@0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@figma/fpl-tokens-raw@0.0.1-release-test.4': {}
-
   '@figma/fpl-tokens-raw@0.6.0': {}
-
-  '@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)':
-    dependencies:
-      '@figma/fpl-tokens-raw': 0.0.1-release-test.4
-      '@stylexjs/stylex': 0.17.4
-      '@types/react': 18.3.28
-      csstype: 3.2.3
-      react: 18.3.1
-      scule: 1.3.0
 
   '@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)':
     dependencies:
@@ -3858,8 +3747,8 @@ snapshots:
 
   '@figma/ppg-dev-tools@1.9.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(vite@8.0.1(@types/node@20.19.33)(esbuild@0.27.3)(jiti@1.21.7)(tsx@4.21.0))(zod@3.25.76)':
     dependencies:
-      '@figma/fpl-components': 0.0.2-release-test.4(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
-      '@figma/fpl-icons': 0.0.1-release-test.4(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@figma/fpl-components': 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+      '@figma/fpl-icons': 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@figma/ppg-ui': 1.9.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
       commander: 11.1.0
       dotenv: 17.3.1
@@ -3905,7 +3794,7 @@ snapshots:
 
   '@figma/ppg-tailwind-config@1.9.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)(tailwindcss@3.4.19(tsx@4.21.0))':
     dependencies:
-      '@figma/fpl-tokens': 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/fpl-tokens': 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       tailwindcss: 3.4.19(tsx@4.21.0)
     transitivePeerDependencies:
       - '@types/react'
@@ -3916,9 +3805,9 @@ snapshots:
 
   '@figma/ppg-ui@1.9.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)':
     dependencies:
-      '@figma/fpl-components': 0.0.2-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
-      '@figma/fpl-icons': 0.0.1-release-test.4(@figma/fpl-tokens@0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@figma/fpl-tokens': 0.0.1-release-test.4(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
+      '@figma/fpl-components': 0.6.0(@figma/fpl-tokens@0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1))(@types/node@20.19.33)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+      '@figma/fpl-icons': 0.6.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@figma/fpl-tokens': 0.6.0(@types/react@18.3.28)(csstype@3.2.3)(react@18.3.1)
       clsx: 2.1.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -4131,11 +4020,6 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       use-sync-external-store: 1.6.0(react@18.3.1)
 
-  '@tanstack/react-virtual@3.0.0-beta.54(react@18.3.1)':
-    dependencies:
-      '@tanstack/virtual-core': 3.0.0-beta.54
-      react: 18.3.1
-
   '@tanstack/react-virtual@3.13.18(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@tanstack/virtual-core': 3.13.18
@@ -4201,8 +4085,6 @@ snapshots:
       - supports-color
 
   '@tanstack/store@0.9.1': {}
-
-  '@tanstack/virtual-core@3.0.0-beta.54': {}
 
   '@tanstack/virtual-core@3.13.18': {}
 

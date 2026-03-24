@@ -10,6 +10,11 @@
     "yarn": "please-use-pnpm"
   },
   "pnpm": {
+    "overrides": {
+      "@figma/fpl-components": "0.6.0",
+      "@figma/fpl-tokens": "0.6.0",
+      "@figma/fpl-icons": "0.6.0"
+    },
     "onlyBuiltDependencies": [
       "esbuild",
       "unrs-resolver"
