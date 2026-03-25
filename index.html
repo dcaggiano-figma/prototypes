@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Figma Admin Console</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #fff; color: #1a1a1a; font-size: 13px; -webkit-font-smoothing: antialiased; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #bbb; }
+    button { font-family: 'Inter', sans-serif; }
+    input, select, textarea { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useMemo, useRef, useEffect } = React;
+
+// ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
+const T = {
+  blue:    '#3d52d5',
+  blueLt:  '#eef0fb',
+  border:  '#e5e5e5',
+  bg:      '#fff',
+  bgAlt:   '#f9f9f9',
+  bgHover: '#f5f5f5',
+  text1:   '#1a1a1a',
+  text2:   '#6b6b6b',
+  text3:   '#aaa',
+  green:   '#16a34a',
+  greenLt: '#dcfce7',
+  amber:   '#d97706',
+  amberLt: '#fef3c7',
+  red:     '#dc2626',
+  redLt:   '#fee2e2',
+};
+
+// ─── MOCK DATA ────────────────────────────────────────────────────────────────
+const MEMBERS = [
+  { id:1,  name:"DeAnna Caggiano",   email:"deanna.caggiano@figma.com",    role:"Admin",   seat:"Full",   lastActive:"Today",       avatar:"D", color:"#7c3aed", group:"Growth and Monetization" },
+  { id:2,  name:"Avantika Mathur",   email:"avantika@figma.com",           role:"Admin",   seat:"Full",   lastActive:"Today",       avatar:"A", color:"#0891b2", group:"Asian Diaspora" },
+  { id:3,  name:"Brad Chen",         email:"brad.chen@figma.com",          role:"Member",  seat:"Full",   lastActive:"Yesterday",   avatar:"B", color:"#059669", group:"Brad's Test Workspace" },
+  { id:4,  name:"Conor Brady",       email:"conor.brady@figma.com",        role:"Member",  seat:"Full",   lastActive:"2 days ago",  avatar:"C", color:"#d97706", group:"Conor B" },
+  { id:5,  name:"Jason Park",        email:"jason.park@figma.com",         role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"J", color:"#dc2626", group:"Jason's Test Workspace" },
+  { id:6,  name:"Jenning Wu",        email:"jenning.wu@figma.com",         role:"Member",  seat:"Full",   lastActive:"3 days ago",  avatar:"J", color:"#7c3aed", group:"jenning workspace" },
+  { id:7,  name:"Josh Anderson",     email:"josh.anderson@figma.com",      role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"J", color:"#0891b2", group:"Josh's Test Workspace" },
+  { id:8,  name:"Kris Thompson",     email:"kris.thompson@figma.com",      role:"Member",  seat:"Full",   lastActive:"1 week ago",  avatar:"K", color:"#059669", group:"Kris's Test Workspace" },
+  { id:9,  name:"Madelene Torres",   email:"madelene@figma.com",           role:"Member",  seat:"Full",   lastActive:"Yesterday",   avatar:"M", color:"#be185d", group:"Madelene's test" },
+  { id:10, name:"Ndunge Kamau",      email:"ndunge@figma.com",             role:"Member",  seat:"Full",   lastActive:"4 days ago",  avatar:"N", color:"#d97706", group:"ndunge test 1" },
+  { id:11, name:"Sarah Kim",         email:"sarah.kim@figma.com",          role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"S", color:"#dc2626", group:"Growth and Monetization" },
+  { id:12, name:"Marcus Williams",   email:"marcus.w@figma.com",           role:"Member",  seat:"Full",   lastActive:"2 days ago",  avatar:"M", color:"#7c3aed", group:"Growth and Monetization" },
+  { id:13, name:"Priya Sharma",      email:"priya.sharma@figma.com",       role:"Viewer",  seat:"Viewer", lastActive:"5 days ago",  avatar:"P", color:"#0891b2", group:"Asian Diaspora" },
+  { id:14, name:"Tom Baker",         email:"tom.baker@figma.com",          role:"Viewer",  seat:"Viewer", lastActive:"1 week ago",  avatar:"T", color:"#059669", group:"Growth and Monetization" },
+  { id:15, name:"Leila Hassan",      email:"leila.hassan@figma.com",       role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"L", color:"#be185d", group:"Asian Diaspora" },
+  { id:16, name:"Carlos Rivera",     email:"carlos.r@figma.com",           role:"Member",  seat:"Full",   lastActive:"3 days ago",  avatar:"C", color:"#d97706", group:"Growth and Monetization" },
+  { id:17, name:"Emma Zhao",         email:"emma.zhao@figma.com",          role:"Member",  seat:"Full",   lastActive:"Yesterday",   avatar:"E", color:"#7c3aed", group:"Growth and Monetization" },
+  { id:18, name:"Dev Patel",         email:"dev.patel@figma.com",          role:"Viewer",  seat:"Viewer", lastActive:"2 weeks ago", avatar:"D", color:"#0891b2", group:"Asian Diaspora" },
+  { id:19, name:"Fiona MacLeod",     email:"fiona.m@figma.com",            role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"F", color:"#059669", group:"Growth and Monetization" },
+  { id:20, name:"Omar Abdullah",     email:"omar.a@figma.com",             role:"Member",  seat:"Full",   lastActive:"Yesterday",   avatar:"O", color:"#dc2626", group:"Growth and Monetization" },
+];
+
+const GUESTS = [
+  { id:101, name:"Alex Torres",    email:"a.torres@acme.com",       role:"Guest", lastActive:"Today",      avatar:"A", color:"#6b7280" },
+  { id:102, name:"Wei Zhang",      email:"wei@partnerco.io",        role:"Guest", lastActive:"3 days ago", avatar:"W", color:"#6b7280" },
+  { id:103, name:"contractor@ext.com", email:"contractor@ext.com", role:"Guest", lastActive:"1 week ago", avatar:"C", color:"#6b7280" },
+  { id:104, name:"Ravi Menon",     email:"ravi.m@vendor.com",       role:"Guest", lastActive:"2 weeks ago",avatar:"R", color:"#6b7280" },
+];
+
+const PENDING = [
+  { id:201, email:"new.designer@figma.com",  role:"Member", seat:"Full",   invited:"DeAnna Caggiano", sentAt:"Today" },
+  { id:202, email:"contractor2@ext.com",     role:"Viewer", seat:"Viewer", invited:"Sarah Kim",       sentAt:"Yesterday" },
+  { id:203, email:"newadmin@figma.com",       role:"Admin",  seat:"Full",   invited:"DeAnna Caggiano", sentAt:"2 days ago" },
+];
+
+const INVOICES = [
+  { id:"INV-2026-03", date:"Mar 1, 2026",  amount:142060, status:"Paid",    period:"Mar 2026" },
+  { id:"INV-2026-02", date:"Feb 1, 2026",  amount:141220, status:"Paid",    period:"Feb 2026" },
+  { id:"INV-2026-01", date:"Jan 1, 2026",  amount:140500, status:"Paid",    period:"Jan 2026" },
+  { id:"INV-2025-12", date:"Dec 1, 2025",  amount:138900, status:"Paid",    period:"Dec 2025" },
+  { id:"INV-2025-11", date:"Nov 1, 2025",  amount:137400, status:"Paid",    period:"Nov 2025" },
+  { id:"INV-2025-10", date:"Oct 1, 2025",  amount:136100, status:"Paid",    period:"Oct 2025" },
+  { id:"INV-2025-09", date:"Sep 1, 2025",  amount:134700, status:"Paid",    period:"Sep 2025" },
+  { id:"INV-2025-08", date:"Aug 1, 2025",  amount:133200, status:"Paid",    period:"Aug 2025" },
+  { id:"INV-2025-07", date:"Jul 1, 2025",  amount:131900, status:"Paid",    period:"Jul 2025" },
+  { id:"INV-2025-06", date:"Jun 1, 2025",  amount:130500, status:"Paid",    period:"Jun 2025" },
+  { id:"INV-2025-05", date:"May 1, 2025",  amount:129200, status:"Paid",    period:"May 2025" },
+  { id:"INV-2025-04", date:"Apr 1, 2025",  amount:128000, status:"Paid",    period:"Apr 2025" },
+];
+
+const ACTIVITY_LOG = [
+  { id:1,  user:"DeAnna Caggiano", action:"Invited member",        detail:"new.designer@figma.com",     time:"2 hours ago",  icon:"people",   category:"Members" },
+  { id:2,  user:"Sarah Kim",       action:"Seat assigned",         detail:"Emma Zhao → Full seat",       time:"5 hours ago",  icon:"seat",     category:"Seats" },
+  { id:3,  user:"DeAnna Caggiano", action:"Admin role granted",    detail:"Avantika Mathur",             time:"Yesterday",    icon:"shield",   category:"Roles" },
+  { id:4,  user:"System",          action:"Invoice generated",     detail:"INV-2026-03 · $142,060",      time:"Mar 1, 2026",  icon:"billing",  category:"Billing" },
+  { id:5,  user:"Conor Brady",     action:"Joined organization",   detail:"via invite",                  time:"Feb 28, 2026", icon:"people",   category:"Members" },
+  { id:6,  user:"DeAnna Caggiano", action:"SSO configuration updated", detail:"SAML provider changed",  time:"Feb 26, 2026", icon:"shield",   category:"Security" },
+  { id:7,  user:"System",          action:"Payment processed",     detail:"$141,220 · Visa ····4242",    time:"Feb 1, 2026",  icon:"billing",  category:"Billing" },
+  { id:8,  user:"DeAnna Caggiano", action:"Workspace created",     detail:"Growth and Monetization Pillar", time:"Jan 20, 2026", icon:"workspace", category:"Workspaces" },
+  { id:9,  user:"Brad Chen",       action:"Seat request submitted", detail:"Full seat requested",       time:"Jan 15, 2026", icon:"seat",     category:"Seats" },
+  { id:10, user:"DeAnna Caggiano", action:"Seat request approved", detail:"Brad Chen → Full seat",       time:"Jan 15, 2026", icon:"seat",     category:"Seats" },
+  { id:11, user:"System",          action:"AI credits reset",      detail:"250K credits available",      time:"Jan 1, 2026",  icon:"credits",  category:"Billing" },
+  { id:12, user:"Avantika Mathur", action:"Member removed",        detail:"ex.employee@figma.com",       time:"Dec 18, 2025", icon:"people",   category:"Members" },
+  { id:13, user:"System",          action:"Invoice generated",     detail:"INV-2025-12 · $138,900",      time:"Dec 1, 2025",  icon:"billing",  category:"Billing" },
+  { id:14, user:"DeAnna Caggiano", action:"Domain capture enabled", detail:"figma.com",                  time:"Nov 10, 2025", icon:"shield",   category:"Security" },
+  { id:15, user:"System",          action:"Payment processed",     detail:"$137,400 · Visa ····4242",    time:"Nov 1, 2025",  icon:"billing",  category:"Billing" },
+];
+
+const BILLING_GROUPS_DATA = [
+  { name:"Asian Diaspora",          seats:312,  members:18, workspace:"Figma Staging" },
+  { name:"Avantika's workspace",    seats:45,   members:4,  workspace:"Figma Staging" },
+  { name:"Brad's Test Workspace",   seats:12,   members:2,  workspace:"Figma Staging" },
+  { name:"Conor B",                 seats:8,    members:1,  workspace:"Figma Staging" },
+  { name:"Jason's Test Workspace",  seats:22,   members:3,  workspace:"Figma Staging" },
+  { name:"jenning workspace",       seats:18,   members:2,  workspace:"Figma Staging" },
+  { name:"Josh's Test Workspace",   seats:15,   members:2,  workspace:"Figma Staging" },
+  { name:"Kris's Test Workspace",   seats:10,   members:1,  workspace:"Figma Staging" },
+  { name:"Madelene's test",         seats:7,    members:1,  workspace:"Figma Staging" },
+  { name:"ndunge test 1",           seats:5,    members:1,  workspace:"Figma Staging" },
+  { name:"Growth and Monetization", seats:2928, members:148, workspace:"Growth and Monetization Pillar" },
+];
+
+const LIBRARIES = [
+  { id:1, name:"Figma Base Components", published:"Dec 2025", files:142, status:"Active" },
+  { id:2, name:"Product UI Kit",        published:"Jan 2026",  files:89,  status:"Active" },
+  { id:3, name:"Brand & Marketing",     published:"Feb 2026",  files:34,  status:"Active" },
+  { id:4, name:"Icons v3",              published:"Nov 2025",  files:1,   status:"Active" },
+  { id:5, name:"Legacy Components",     published:"Jun 2024",  files:67,  status:"Deprecated" },
+];
+
+const PLUGINS_DATA = [
+  { id:1, name:"Tokens Studio",       publisher:"Tokens Studio for Figma", installs:3421, status:"Approved" },
+  { id:2, name:"Content Reel",        publisher:"Figma",                   installs:2108, status:"Approved" },
+  { id:3, name:"Stark",               publisher:"Stark Lab",               installs:1844, status:"Approved" },
+  { id:4, name:"Figma to HTML",       publisher:"Community",               installs:987,  status:"Under review" },
+  { id:5, name:"Auto Layout Helper",  publisher:"Community",               installs:742,  status:"Approved" },
+];
+
+// ─── ICONS ─────────────────────────────────────────────────────────────────
+const PATHS = {
+  dashboard:  "M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z",
+  people:     "M8 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-5 7s-.3-4.5 5-4.5S13 14 13 14",
+  billing:    "M2 4h12v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4zm0 3h12",
+  content:    "M4 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm1 4h6M5 8h6M5 11h4",
+  resources:  "M12 2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1zM8 5v6M5 8h6",
+  activity:   "M2 8h2l2-5 3 10 2-5h3",
+  settings:   "M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM8 1v1.5M8 13.5V15M3.2 3.2l1 1M11.8 11.8l1 1M1 8h1.5M13.5 8H15M3.2 12.8l1-1M11.8 4.2l1-1",
+  group:      "M5 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm6 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM1 13s-.3-4 4-4h.5M9.5 9H10c4 0 5 4 5 4",
+  check:      "M3 8l3.5 3.5L13 4",
+  checkFill:  "M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.2 5.2L7 10.4 4.8 8.2",
+  circle:     "M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z",
+  eye:        "M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zm6.5 2a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
+  bell:       "M8 1.5a4.5 4.5 0 0 1 4.5 4.5v3l1 1.5h-11L3.5 9V6A4.5 4.5 0 0 1 8 1.5zm-1 11h2a1 1 0 0 1-2 0z",
+  chevL:      "M10 3L5 8l5 5",
+  chevR:      "M6 3l5 5-5 5",
+  chevD:      "M4 6l4 4 4-4",
+  chevU:      "M4 10l4-4 4 4",
+  search:     "M11 11l3 3M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10z",
+  plus:       "M8 3v10M3 8h10",
+  x:          "M4 4l8 8M12 4l-8 8",
+  download:   "M8 3v8M5 8l3 3 3-3M3 13h10",
+  shield:     "M8 2L3 4.5V9c0 3 2.5 5.5 5 6.5 2.5-1 5-3.5 5-6.5V4.5L8 2z",
+  seat:       "M8 2a3 3 0 0 1 3 3v1h1a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h1V5a3 3 0 0 1 3-3z",
+  workspace:  "M2 5h12v9H2zM6 5V3h4v2",
+  credits:    "M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zm0 3v3l2 2",
+  link:       "M6.5 9.5l3-3M9 4.5H11.5V7M4.5 7.5H3A2.5 2.5 0 0 0 3 12.5h2.5M8.5 3.5H11A2.5 2.5 0 0 1 11 8.5H8.5",
+  edit:       "M11.5 2.5a1.5 1.5 0 0 1 2 2L5 13l-3 1 1-3 8.5-8.5z",
+  trash:      "M3 5h10M8 8v4M6 8v4M5 5l1-2h4l1 2M6 13h4a1 1 0 0 0 1-1V5H5v7a1 1 0 0 0 1 1z",
+  dots:       "M4 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm4 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm4 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z",
+  info:       "M8 7v5M8 5v.5",
+  copy:       "M5 4H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2M5 4V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H9",
+  lock:       "M5 7V5a3 3 0 0 1 6 0v2M3 7h10v8H3z",
+  key:        "M10 6a4 4 0 1 0-8 0 4 4 0 0 0 8 0zm1 1l4 4-2 2-1-1",
+  toggle:     "M5 8a3 3 0 1 0 6 0 3 3 0 0 0-6 0zM2 5h12v6H2z",
+};
+
+const Ico = ({ name, size=14, stroke="currentColor", fill="none", sw=1.5, style={} }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill={fill} stroke={stroke}
+    strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style}>
+    <path d={PATHS[name]} />
+  </svg>
+);
+
+// ─── BASE COMPONENTS ──────────────────────────────────────────────────────────
+const Btn = ({ children, variant="secondary", size="sm", onClick, style={}, disabled, icon }) => {
+  const base = {
+    display:"inline-flex", alignItems:"center", gap:6, border:"none",
+    borderRadius:6, cursor:disabled?"not-allowed":"pointer", fontFamily:"inherit",
+    fontWeight:500, transition:"all 0.1s", opacity:disabled?0.5:1, ...style,
+  };
+  const variants = {
+    primary:   { background:T.blue, color:"#fff", padding: size==="sm"?"5px 12px":"7px 16px", fontSize:13 },
+    secondary: { background:"#fff", color:T.text1, border:`1px solid ${T.border}`, padding: size==="sm"?"4px 11px":"6px 15px", fontSize:13 },
+    ghost:     { background:"transparent", color:T.text2, padding: size==="sm"?"4px 8px":"6px 12px", fontSize:13 },
+    danger:    { background:T.redLt, color:T.red, border:`1px solid #fca5a5`, padding: size==="sm"?"4px 11px":"6px 15px", fontSize:13 },
+  };
+  const [hover, setHover] = useState(false);
+  const hoverStyles = {
+    primary:   { background:"#2d3fb5" },
+    secondary: { background:T.bgHover },
+    ghost:     { background:T.bgHover },
+    danger:    { background:"#fecaca" },
+  };
+  return (
+    <button style={{...base, ...variants[variant], ...(hover && !disabled ? hoverStyles[variant] : {})}}
+      onClick={onClick} disabled={disabled}
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      {icon && <Ico name={icon} size={13} stroke={variant==="primary"?"#fff":T.text2} />}
+      {children}
+    </button>
+  );
+};
+
+const Badge = ({ children, color="gray" }) => {
+  const colors = {
+    gray:   { bg:"#f0f0f0",    text:"#555" },
+    blue:   { bg:T.blueLt,     text:T.blue },
+    green:  { bg:T.greenLt,    text:T.green },
+    amber:  { bg:T.amberLt,    text:T.amber },
+    red:    { bg:T.redLt,      text:T.red },
+  };
+  const c = colors[color] || colors.gray;
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", padding:"2px 8px", borderRadius:99,
+      background:c.bg, color:c.text, fontSize:11, fontWeight:500, whiteSpace:"nowrap" }}>
+      {children}
+    </span>
+  );
+};
+
+const Card = ({ children, style={} }) => (
+  <div style={{ border:`1px solid ${T.border}`, borderRadius:8, background:"#fff", ...style }}>
+    {children}
+  </div>
+);
+
+const Divider = ({ style={} }) => <div style={{ height:1, background:T.border, ...style }} />;
+
+const Input = ({ value, onChange, placeholder, icon, style={} }) => (
+  <div style={{ position:"relative", ...style }}>
+    {icon && <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:T.text3 }}>
+      <Ico name={icon} size={13} stroke={T.text3} />
+    </span>}
+    <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      style={{ width:"100%", height:32, padding: icon ? "0 10px 0 32px" : "0 10px",
+        border:`1px solid ${T.border}`, borderRadius:6, fontSize:13, color:T.text1,
+        outline:"none", background:"#fff" }} />
+  </div>
+);
+
+const Select = ({ value, onChange, options, style={} }) => (
+  <select value={value} onChange={e => onChange(e.target.value)}
+    style={{ height:32, padding:"0 8px", border:`1px solid ${T.border}`, borderRadius:6,
+      fontSize:13, color:T.text1, outline:"none", background:"#fff", cursor:"pointer", ...style }}>
+    {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+  </select>
+);
+
+const Toggle = ({ checked, onChange, label }) => (
+  <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+    <div onClick={() => onChange(!checked)}
+      style={{ position:"relative", width:36, height:20, borderRadius:10,
+        background:checked?T.blue:T.border, transition:"background 0.2s", cursor:"pointer" }}>
+      <div style={{ position:"absolute", top:2, left:checked?18:2, width:16, height:16,
+        borderRadius:8, background:"#fff", transition:"left 0.2s",
+        boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
+    </div>
+    {label && <span style={{ fontSize:13, color:T.text1 }}>{label}</span>}
+  </label>
+);
+
+const TabBar = ({ tabs, active, onChange, style={} }) => (
+  <div style={{ display:"flex", gap:0, borderBottom:`1px solid ${T.border}`, ...style }}>
+    {tabs.map(t => (
+      <button key={t} onClick={() => onChange(t)} style={{
+        padding:"10px 16px", border:"none", background:"none", cursor:"pointer",
+        fontFamily:"inherit", fontSize:13, fontWeight:active===t?500:400,
+        color:active===t?T.text1:T.text2,
+        borderBottom: active===t ? `2px solid ${T.text1}` : "2px solid transparent",
+        marginBottom:-1, transition:"color 0.1s",
+      }}>{t}</button>
+    ))}
+  </div>
+);
+
+const Avatar = ({ name, color, size=28 }) => (
+  <div style={{ width:size, height:size, borderRadius:"50%", background:color||"#888",
+    display:"flex", alignItems:"center", justifyContent:"center",
+    color:"#fff", fontSize:size*0.38, fontWeight:600, flexShrink:0, userSelect:"none" }}>
+    {(name||"?")[0].toUpperCase()}
+  </div>
+);
+
+const EmptyState = ({ icon, title, subtitle }) => (
+  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+    padding:"48px 24px", color:T.text3 }}>
+    <div style={{ marginBottom:12, opacity:0.4 }}><Ico name={icon} size={32} stroke={T.text3} sw={1} /></div>
+    <p style={{ fontWeight:500, color:T.text2, marginBottom:4 }}>{title}</p>
+    {subtitle && <p style={{ fontSize:12, textAlign:"center", maxWidth:280 }}>{subtitle}</p>}
+  </div>
+);
+
+const Modal = ({ open, onClose, title, children, width=480 }) => {
+  if (!open) return null;
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex",
+      alignItems:"center", justifyContent:"center", zIndex:1000 }} onClick={onClose}>
+      <div style={{ background:"#fff", borderRadius:12, padding:24, width, maxHeight:"80vh",
+        overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+          <h3 style={{ fontSize:16, fontWeight:600 }}>{title}</h3>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer",
+            color:T.text3, padding:4, borderRadius:4 }}>
+            <Ico name="x" size={16} stroke={T.text2} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const NotifDot = ({ count }) => count > 0 ? (
+  <span style={{ minWidth:18, height:18, borderRadius:9, background:T.blue, color:"#fff",
+    fontSize:10, fontWeight:600, display:"inline-flex", alignItems:"center",
+    justifyContent:"center", padding:"0 5px" }}>{count}</span>
+) : null;
+
+// ─── SIDEBAR ─────────────────────────────────────────────────────────────────
+const NAV = [
+  { key:"dashboard", icon:"dashboard", label:"Dashboard" },
+  { key:"people",    icon:"people",    label:"People" },
+  { key:"billing",   icon:"billing",   label:"Billing" },
+  { key:"content",   icon:"content",   label:"Content" },
+  { key:"resources", icon:"resources", label:"Resources" },
+  { key:"activity",  icon:"activity",  label:"Activity" },
+  { key:"settings",  icon:"settings",  label:"Settings" },
+];
+
+const SidebarItem = ({ icon, label, active, onClick, notif }) => {
+  const [hover, setHover] = useState(false);
+  return (
+    <button onClick={onClick}
+      onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ display:"flex", alignItems:"center", gap:8, width:"100%", padding:"6px 10px",
+        borderRadius:6, border:"none", cursor:"pointer", textAlign:"left",
+        background: active ? T.blueLt : hover ? T.bgHover : "transparent",
+        color: active ? T.blue : T.text1, fontWeight: active ? 500 : 400, fontSize:13,
+        transition:"background 0.1s" }}>
+      <Ico name={icon} size={14} stroke={active ? T.blue : "#888"} />
+      <span style={{ flex:1 }}>{label}</span>
+      {notif && <NotifDot count={notif} />}
+    </button>
+  );
+};
+
+const Sidebar = ({ active, onChange, requests }) => {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? BILLING_GROUPS_DATA : BILLING_GROUPS_DATA.slice(0, 8);
+
+  return (
+    <aside style={{ width:232, flexShrink:0, borderRight:`1px solid ${T.border}`, display:"flex",
+      flexDirection:"column", overflow:"hidden", background:"#fff", height:"100vh" }}>
+      {/* User row */}
+      <div style={{ padding:"12px 12px 10px", borderBottom:`1px solid ${T.border}`,
+        display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+          <Avatar name="DeAnna Caggiano" color="#7c3aed" size={26} />
+          <span style={{ fontWeight:500, fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            DeAnna Caggiano
+          </span>
+          <Ico name="chevD" size={12} stroke="#aaa" />
+        </div>
+        <button style={{ background:"none", border:"none", cursor:"pointer", padding:4, color:T.text3, position:"relative" }}>
+          <Ico name="bell" size={14} stroke="#888" />
+          <span style={{ position:"absolute", top:2, right:2, width:6, height:6,
+            borderRadius:3, background:T.blue, border:"1.5px solid #fff" }} />
+        </button>
+      </div>
+
+      {/* Org label */}
+      <div style={{ padding:"10px 8px 6px", display:"flex", alignItems:"center", gap:4 }}>
+        <button style={{ background:"none", border:"none", cursor:"pointer", color:T.text3, padding:4, flexShrink:0 }}>
+          <Ico name="chevL" size={13} stroke="#aaa" />
+        </button>
+        <span style={{ fontWeight:500, fontSize:12, color:T.text1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+          Figma Staging Org admin
+        </span>
+      </div>
+
+      {/* Nav */}
+      <div style={{ padding:"2px 8px", display:"flex", flexDirection:"column", gap:1 }}>
+        {NAV.map(n => (
+          <SidebarItem key={n.key} icon={n.icon} label={n.label}
+            active={active===n.key} onClick={() => onChange(n.key)}
+            notif={n.key==="dashboard" && requests > 0 ? requests : null} />
+        ))}
+      </div>
+
+      <Divider style={{ margin:"10px 0 0" }} />
+
+      {/* Billing groups */}
+      <div style={{ flex:1, overflowY:"auto", padding:"10px 8px 8px" }}>
+        <div style={{ fontSize:11, fontWeight:600, color:T.text3, textTransform:"uppercase",
+          letterSpacing:"0.07em", padding:"0 4px", marginBottom:6 }}>
+          Billing groups
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
+          {visible.map(g => (
+            <SidebarItem key={g.name} icon="group" label={g.name}
+              active={false} onClick={() => onChange("billing")} />
+          ))}
+        </div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"4px 8px 0" }}>
+          <span style={{ color:T.text3, fontSize:12 }}>···</span>
+          <button onClick={() => setShowAll(v => !v)}
+            style={{ background:"none", border:"none", cursor:"pointer", color:T.text2, fontSize:12, padding:0 }}>
+            {showAll ? "Show less" : "See all"}
+          </button>
+        </div>
+
+        {/* Workspaces */}
+        <div style={{ marginTop:14 }}>
+          <div style={{ fontSize:11, fontWeight:600, color:T.text3, textTransform:"uppercase",
+            letterSpacing:"0.07em", padding:"0 4px", marginBottom:6 }}>
+            Workspaces
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 8px", borderRadius:6 }}>
+            <div style={{ width:18, height:18, borderRadius:4, background:"#1a1a1a", flexShrink:0 }} />
+            <span style={{ fontSize:13, color:T.text1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              Growth and Monetization Pillar
+            </span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+};
+
+// ─── DASHBOARD PAGE ──────────────────────────────────────────────────────────
+const DashboardPage = ({ onNav }) => {
+  const totalSeats = 7181;
+  const assigned = 3442;
+  const available = 1185;
+  const free = 2554;
+  const creditsUsed = 199400;
+  const creditsTotal = 250000;
+  const pct = Math.round((creditsUsed / creditsTotal) * 100);
+
+  return (
+    <div style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:24 }}>
+        <Ico name="dashboard" size={18} stroke="#555" />
+        <h1 style={{ fontSize:18, fontWeight:600 }}>Figma Staging Org admin</h1>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 320px", gap:16, alignItems:"start" }}>
+        {/* Left */}
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <Card style={{ padding:"16px 20px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:16 }}>
+              <span style={{ fontWeight:500, fontSize:14 }}>Your requests</span>
+              <NotifDot count={0} />
+            </div>
+            <EmptyState icon="seat" title="No requests to approve"
+              subtitle="When a seat request needs to be reviewed and approved, it'll show up here." />
+          </Card>
+
+          {/* Quick links */}
+          <Card style={{ padding:"16px 20px" }}>
+            <p style={{ fontWeight:500, fontSize:14, marginBottom:12 }}>Quick actions</p>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <Btn icon="plus" onClick={() => onNav("people")}>Invite members</Btn>
+              <Btn icon="billing" onClick={() => onNav("billing")}>View invoices</Btn>
+              <Btn icon="activity" onClick={() => onNav("activity")}>Audit log</Btn>
+              <Btn icon="settings" onClick={() => onNav("settings")}>Org settings</Btn>
+            </div>
+          </Card>
+        </div>
+
+        {/* Right */}
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <Card style={{ padding:"16px 20px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontWeight:500, fontSize:14 }}>Total seats</span>
+                <span style={{ fontWeight:600, fontSize:14 }}>{totalSeats.toLocaleString()}</span>
+              </div>
+              <Btn onClick={() => onNav("billing")}>Manage</Btn>
+            </div>
+            <Divider />
+            {[
+              { icon:"checkFill", label:"Assigned seats", val:assigned, muted:false },
+              { icon:"circle",    label:"Available seats", val:available, muted:true },
+              { icon:"eye",       label:"View seats (free)", val:free, muted:true },
+            ].map(r => (
+              <div key={r.label} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"7px 0" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <Ico name={r.icon} size={14} stroke={r.muted?"#ccc":"#888"} />
+                  <span style={{ color:r.muted?T.text3:T.text1 }}>{r.label}</span>
+                </div>
+                <span style={{ fontWeight:500, color:r.muted?T.text3:T.text1 }}>{r.val.toLocaleString()}</span>
+              </div>
+            ))}
+          </Card>
+
+          <Card style={{ padding:"16px 20px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+              <span style={{ fontWeight:500, fontSize:14 }}>AI credits</span>
+              <Btn onClick={() => onNav("billing")}>Manage</Btn>
+            </div>
+            {[
+              { dot:T.blue, label:"Monthly paid credits", val:`${(creditsUsed/1000).toFixed(1)}K`, sub:`/ ${creditsTotal/1000}K`, muted:false },
+              { dot:"#ddd",  label:"Pay as you go",        val:"0",      sub:"",           muted:true },
+            ].map(r => (
+              <div key={r.label} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ width:12, height:12, borderRadius:6, border:`2px solid ${r.dot}`, background:r.muted?"#f5f5f5":T.blueLt }} />
+                  <span style={{ color:r.muted?T.text3:T.text1 }}>{r.label}</span>
+                </div>
+                <span style={{ fontWeight:r.muted?400:500, color:r.muted?T.text3:T.text1 }}>
+                  {r.val}{r.sub && <span style={{ color:T.text3, fontWeight:400 }}> {r.sub}</span>}
+                </span>
+              </div>
+            ))}
+            <div style={{ height:6, borderRadius:3, background:"#eef0fb", overflow:"hidden", margin:"10px 0 8px" }}>
+              <div style={{ width:`${pct}%`, height:"100%", borderRadius:3,
+                background:`linear-gradient(90deg, ${T.blue}, #7c8ef7)` }} />
+            </div>
+            <p style={{ fontSize:12, color:T.text3 }}>
+              Reset: <span style={{ color:T.text2, textDecoration:"underline", cursor:"pointer" }}>Mar 26</span>
+            </p>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── PEOPLE PAGE ─────────────────────────────────────────────────────────────
+const PeoplePage = () => {
+  const [tab, setTab] = useState("Members");
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("Member");
+  const [members, setMembers] = useState(MEMBERS);
+
+  const filtered = useMemo(() => {
+    let list = tab === "Members" ? members : tab === "Guests" ? GUESTS : PENDING;
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(m => (m.name||m.email||"").toLowerCase().includes(q) || (m.email||"").toLowerCase().includes(q));
+    }
+    if (roleFilter !== "all" && tab === "Members") {
+      list = list.filter(m => m.role.toLowerCase() === roleFilter);
+    }
+    return list;
+  }, [tab, search, roleFilter, members]);
+
+  const MemberRow = ({ m }) => (
+    <tr style={{ borderBottom:`1px solid ${T.border}` }}
+      onMouseEnter={e => e.currentTarget.style.background=T.bgHover}
+      onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+      <td style={{ padding:"10px 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <Avatar name={m.name||m.email} color={m.color} size={28} />
+          <div>
+            <div style={{ fontWeight:500 }}>{m.name || m.email}</div>
+            {m.name && <div style={{ fontSize:12, color:T.text3 }}>{m.email}</div>}
+          </div>
+        </div>
+      </td>
+      <td style={{ padding:"10px 16px" }}>
+        <Badge color={m.role==="Admin"?"blue":m.role==="Viewer"?"gray":"gray"}>{m.role}</Badge>
+      </td>
+      {tab === "Members" && <>
+        <td style={{ padding:"10px 16px", color:T.text2 }}>{m.seat}</td>
+        <td style={{ padding:"10px 16px", color:T.text2 }}>{m.lastActive}</td>
+        <td style={{ padding:"10px 16px", color:T.text2 }}>{m.group}</td>
+      </>}
+      {tab === "Guests" && <>
+        <td style={{ padding:"10px 16px", color:T.text2 }}>{m.lastActive}</td>
+      </>}
+      <td style={{ padding:"10px 16px", textAlign:"right" }}>
+        <Btn variant="ghost" style={{ padding:"3px 8px" }}><Ico name="dots" size={14} stroke={T.text2} /></Btn>
+      </td>
+    </tr>
+  );
+
+  const PendingRow = ({ m }) => (
+    <tr style={{ borderBottom:`1px solid ${T.border}` }}
+      onMouseEnter={e => e.currentTarget.style.background=T.bgHover}
+      onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+      <td style={{ padding:"10px 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ width:28, height:28, borderRadius:"50%", background:"#f0f0f0",
+            display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Ico name="people" size={13} stroke={T.text3} />
+          </div>
+          <span style={{ color:T.text2 }}>{m.email}</span>
+        </div>
+      </td>
+      <td style={{ padding:"10px 16px" }}><Badge color="amber">{m.role}</Badge></td>
+      <td style={{ padding:"10px 16px", color:T.text2 }}>{m.seat}</td>
+      <td style={{ padding:"10px 16px", color:T.text2 }}>Invited by {m.invited}</td>
+      <td style={{ padding:"10px 16px", color:T.text2 }}>{m.sentAt}</td>
+      <td style={{ padding:"10px 16px", textAlign:"right" }}>
+        <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
+          <Btn variant="ghost" style={{ padding:"3px 8px", fontSize:12 }}>Resend</Btn>
+          <Btn variant="ghost" style={{ padding:"3px 8px", fontSize:12, color:T.red }}>Revoke</Btn>
+        </div>
+      </td>
+    </tr>
+  );
+
+  return (
+    <div style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+        <div>
+          <h1 style={{ fontSize:18, fontWeight:600, marginBottom:2 }}>People</h1>
+          <p style={{ color:T.text2, fontSize:13 }}>{MEMBERS.length} members · {GUESTS.length} guests · {PENDING.length} pending</p>
+        </div>
+        <Btn variant="primary" icon="plus" onClick={() => setInviteOpen(true)}>Invite people</Btn>
+      </div>
+
+      <TabBar tabs={["Members","Guests","Pending invites"]} active={tab} onChange={t => { setTab(t); setSearch(""); }} style={{ marginBottom:0 }} />
+
+      <Card style={{ borderTopLeftRadius:0, borderTopRightRadius:0, borderTop:"none" }}>
+        {/* Filters */}
+        <div style={{ padding:"12px 16px", display:"flex", gap:8, borderBottom:`1px solid ${T.border}` }}>
+          <Input value={search} onChange={setSearch} placeholder="Search by name or email" icon="search" style={{ width:260 }} />
+          {tab === "Members" && (
+            <Select value={roleFilter} onChange={setRoleFilter}
+              options={[{value:"all",label:"All roles"},{value:"admin",label:"Admin"},{value:"member",label:"Member"},{value:"viewer",label:"Viewer"}]} />
+          )}
+        </div>
+
+        {/* Table */}
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ borderBottom:`1px solid ${T.border}`, background:T.bgAlt }}>
+              {tab === "Members" && <>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Name</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Role</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Seat</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Last active</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Group</th>
+                <th style={{ padding:"8px 16px" }}></th>
+              </>}
+              {tab === "Guests" && <>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Name</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Role</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Last active</th>
+                <th style={{ padding:"8px 16px" }}></th>
+              </>}
+              {tab === "Pending invites" && <>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Email</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Role</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Seat</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Invited by</th>
+                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Sent</th>
+                <th style={{ padding:"8px 16px" }}></th>
+              </>}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0
+              ? <tr><td colSpan={6} style={{ padding:0 }}><EmptyState icon="people" title="No results found" subtitle="Try adjusting your search or filters." /></td></tr>
+              : filtered.map(m =>
+                  tab === "Pending invites" ? <PendingRow key={m.id} m={m} /> : <MemberRow key={m.id} m={m} />
+                )}
+          </tbody>
+        </table>
+      </Card>
+
+      {/* Invite modal */}
+      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite people">
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div>
+            <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:6 }}>Email address</label>
+            <Input value={inviteEmail} onChange={setInviteEmail} placeholder="name@company.com" />
+            <p style={{ fontSize:11, color:T.text3, marginTop:4 }}>Separate multiple emails with a comma</p>
+          </div>
+          <div>
+            <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:6 }}>Role</label>
+            <Select value={inviteRole} onChange={setInviteRole} style={{ width:"100%" }}
+              options={[{value:"Admin",label:"Admin — Can manage members and billing"},{value:"Member",label:"Member — Can create and edit files"},{value:"Viewer",label:"Viewer — Can view files only"}]} />
+          </div>
+          <div>
+            <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:6 }}>Seat type</label>
+            <Select value="Full" onChange={() => {}} style={{ width:"100%" }}
+              options={[{value:"Full",label:"Full seat"},{value:"Viewer",label:"View-only seat (free)"}]} />
+          </div>
+          <div style={{ display:"flex", gap:8, justifyContent:"flex-end", paddingTop:4 }}>
+            <Btn onClick={() => setInviteOpen(false)}>Cancel</Btn>
+            <Btn variant="primary" onClick={() => setInviteOpen(false)}>Send invite</Btn>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+// ─── BILLING PAGE ─────────────────────────────────────────────────────────────
+const BillingPage = () => {
+  const [tab, setTab] = useState("Overview");
+
+  const Overview = () => (
+    <div style={{ display:"flex", flexDirection:"column", gap:16, paddingTop:20 }}>
+      {/* Plan banner */}
+      <Card style={{ padding:"20px 24px", background:"linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)", borderColor:"transparent" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+              <Badge color="blue">Enterprise</Badge>
+            </div>
+            <h2 style={{ fontSize:18, fontWeight:600, color:"#fff", marginBottom:4 }}>Figma Staging Org</h2>
+            <p style={{ color:"#999", fontSize:13 }}>Renews Apr 1, 2026 · Annual contract</p>
+          </div>
+          <Btn style={{ borderColor:"rgba(255,255,255,0.2)", color:"#fff", background:"rgba(255,255,255,0.08)" }}>
+            Manage plan
+          </Btn>
+        </div>
+      </Card>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16 }}>
+        {[
+          { label:"Monthly spend",    value:"$142,060",  sub:"Based on 7,181 seats",       icon:"billing" },
+          { label:"Annual contract",  value:"$1,704,720", sub:"Locked in until Apr 2026",   icon:"lock"    },
+          { label:"AI credits used",  value:"79.8%",     sub:"199.4K of 250K this month",  icon:"credits" },
+        ].map(s => (
+          <Card key={s.label} style={{ padding:"16px 20px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <span style={{ fontSize:12, color:T.text2 }}>{s.label}</span>
+              <Ico name={s.icon} size={14} stroke={T.text3} />
+            </div>
+            <div style={{ fontSize:22, fontWeight:600, marginBottom:4 }}>{s.value}</div>
+            <div style={{ fontSize:12, color:T.text3 }}>{s.sub}</div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Billing groups table */}
+      <Card>
+        <div style={{ padding:"14px 20px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontWeight:500 }}>Billing groups</span>
+          <Btn icon="plus">New group</Btn>
+        </div>
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ background:T.bgAlt }}>
+              {["Group","Members","Seats","Workspace"].map(h => (
+                <th key={h} style={{ padding:"8px 20px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12, borderBottom:`1px solid ${T.border}` }}>{h}</th>
+              ))}
+              <th style={{ padding:"8px 20px", borderBottom:`1px solid ${T.border}` }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {BILLING_GROUPS_DATA.map(g => (
+              <tr key={g.name} style={{ borderBottom:`1px solid ${T.border}` }}
+                onMouseEnter={e => e.currentTarget.style.background=T.bgHover}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                <td style={{ padding:"10px 20px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <Ico name="group" size={14} stroke="#888" />
+                    <span style={{ fontWeight:500 }}>{g.name}</span>
+                  </div>
+                </td>
+                <td style={{ padding:"10px 20px", color:T.text2 }}>{g.members}</td>
+                <td style={{ padding:"10px 20px", color:T.text2 }}>{g.seats.toLocaleString()}</td>
+                <td style={{ padding:"10px 20px", color:T.text2 }}>{g.workspace}</td>
+                <td style={{ padding:"10px 20px", textAlign:"right" }}>
+                  <Btn variant="ghost" style={{ padding:"3px 8px" }}><Ico name="dots" size={14} stroke={T.text2} /></Btn>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+
+  const Invoices = () => (
+    <div style={{ paddingTop:20 }}>
+      <Card>
+        <div style={{ padding:"14px 20px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontWeight:500 }}>Invoice history</span>
+          <Btn icon="download">Export all</Btn>
+        </div>
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ background:T.bgAlt }}>
+              {["Invoice","Period","Date","Amount","Status",""].map(h => (
+                <th key={h} style={{ padding:"8px 20px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12, borderBottom:`1px solid ${T.border}` }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {INVOICES.map(inv => (
+              <tr key={inv.id} style={{ borderBottom:`1px solid ${T.border}` }}
+                onMouseEnter={e => e.currentTarget.style.background=T.bgHover}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                <td style={{ padding:"11px 20px", fontWeight:500, fontSize:13, color:T.blue }}>{inv.id}</td>
+                <td style={{ padding:"11px 20px", color:T.text2 }}>{inv.period}</td>
+                <td style={{ padding:"11px 20px", color:T.text2 }}>{inv.date}</td>
+                <td style={{ padding:"11px 20px", fontWeight:500 }}>${inv.amount.toLocaleString()}</td>
+                <td style={{ padding:"11px 20px" }}><Badge color="green">{inv.status}</Badge></td>
+                <td style={{ padding:"11px 20px", textAlign:"right" }}>
+                  <Btn variant="ghost" icon="download" style={{ fontSize:12 }}>PDF</Btn>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+
+  const Payment = () => (
+    <div style={{ paddingTop:20, display:"flex", flexDirection:"column", gap:16 }}>
+      <Card style={{ padding:"20px 24px" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <span style={{ fontWeight:500 }}>Payment method</span>
+          <Btn icon="edit">Update</Btn>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:16, padding:"16px 20px",
+          border:`1px solid ${T.border}`, borderRadius:8, background:T.bgAlt }}>
+          <div style={{ width:44, height:30, borderRadius:4, background:"#1a1a2e",
+            display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <span style={{ color:"#fff", fontSize:10, fontWeight:700 }}>VISA</span>
+          </div>
+          <div>
+            <div style={{ fontWeight:500 }}>Visa ending in 4242</div>
+            <div style={{ fontSize:12, color:T.text3 }}>Expires 12/2027 · billing@figma.com</div>
+          </div>
+          <Badge color="green" style={{ marginLeft:"auto" }}>Active</Badge>
+        </div>
+      </Card>
+
+      <Card style={{ padding:"20px 24px" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <span style={{ fontWeight:500 }}>Billing contact</span>
+          <Btn icon="edit">Edit</Btn>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {[
+            { label:"Name",    value:"Figma Staging Org" },
+            { label:"Email",   value:"billing@figma.com" },
+            { label:"Address", value:"760 Market St, San Francisco, CA 94102" },
+            { label:"Tax ID",  value:"US-XX-XXXXXXX" },
+          ].map(r => (
+            <div key={r.label} style={{ display:"flex", gap:12, fontSize:13 }}>
+              <span style={{ color:T.text3, width:80, flexShrink:0 }}>{r.label}</span>
+              <span style={{ color:T.text1 }}>{r.value}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+
+  const Usage = () => {
+    const data = [
+      { label:"Full seats used",      val:3442, max:7181, pct:48 },
+      { label:"View seats",           val:2554, max:7181, pct:36 },
+      { label:"Seats available",      val:1185, max:7181, pct:16 },
+      { label:"AI credits used",      val:79.8, max:100,  pct:80, suffix:"%" },
+    ];
+    return (
+      <div style={{ paddingTop:20, display:"flex", flexDirection:"column", gap:16 }}>
+        <Card style={{ padding:"20px 24px" }}>
+          <p style={{ fontWeight:500, marginBottom:16 }}>Seat usage</p>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {data.map(d => (
+              <div key={d.label}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:6 }}>
+                  <span style={{ color:T.text1 }}>{d.label}</span>
+                  <span style={{ fontWeight:500 }}>{d.suffix ? `${d.val}${d.suffix}` : d.val.toLocaleString()}</span>
+                </div>
+                <div style={{ height:6, borderRadius:3, background:"#f0f0f0", overflow:"hidden" }}>
+                  <div style={{ width:`${d.pct}%`, height:"100%", borderRadius:3, background:`linear-gradient(90deg, ${T.blue}, #7c8ef7)` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card style={{ padding:"20px 24px" }}>
+          <p style={{ fontWeight:500, marginBottom:16 }}>AI credits breakdown</p>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${T.border}` }}>
+              <span style={{ color:T.text2 }}>Monthly paid credits</span>
+              <span style={{ fontWeight:500 }}>199,400 / 250,000</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${T.border}` }}>
+              <span style={{ color:T.text2 }}>Pay-as-you-go credits</span>
+              <span style={{ color:T.text3 }}>0</span>
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 0" }}>
+              <span style={{ color:T.text2 }}>Credits remaining</span>
+              <span style={{ fontWeight:500, color:T.green }}>50,600</span>
+            </div>
+            <p style={{ fontSize:12, color:T.text3, paddingTop:4 }}>Credits reset monthly on the 26th.</p>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
+  const TABS = { Overview, Invoices, Payment, Usage };
+  const TabContent = TABS[tab] || (() => null);
+
+  return (
+    <div style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+        <h1 style={{ fontSize:18, fontWeight:600 }}>Billing</h1>
+      </div>
+      <TabBar tabs={["Overview","Invoices","Payment","Usage"]} active={tab} onChange={setTab} />
+      <TabContent />
+    </div>
+  );
+};
+
+// ─── CONTENT PAGE ─────────────────────────────────────────────────────────────
+const ContentPage = () => {
+  const [tab, setTab] = useState("Libraries");
+
+  const Libraries = () => (
+    <div style={{ paddingTop:20 }}>
+      <Card>
+        <div style={{ padding:"14px 20px", borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontWeight:500 }}>Shared libraries</span>
+          <Btn icon="plus">Add library</Btn>
+        </div>
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ background:T.bgAlt }}>
+              {["Library","Files","Published","Status",""].map(h => (
+                <th key={h} style={{ padding:"8px 20px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12, borderBottom:`1px solid ${T.border}` }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {LIBRARIES.map(lib => (
+              <tr key={lib.id} style={{ borderBottom:`1px solid ${T.border}` }}
+                onMouseEnter={e => e.currentTarget.style.background=T.bgHover}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                <td style={{ padding:"11px 20px", fontWeight:500 }}>{lib.name}</td>
+                <td style={{ padding:"11px 20px", color:T.text2 }}>{lib.files} files</td>
+                <td style={{ padding:"11px 20px", color:T.text2 }}>{lib.published}</td>
+                <td style={{ padding:"11px 20px" }}>
+                  <Badge color={lib.status==="Active"?"green":"gray"}>{lib.status}</Badge>
+                </td>
+                <td style={{ padding:"11px 20px", textAlign:"right" }}>
+                  <Btn variant="ghost" style={{ padding:"3px 8px" }}><Ico name="dots" size={14} stroke={T.text2} /></Btn>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+
+  const Templates = () => (
+    <div style={{ paddingTop:20 }}>
+      <EmptyState icon="content" title="No org templates yet"
+        subtitle="Create templates to help your team start projects faster." />
+    </div>
+  );
+
+  const Fonts = () => (
+    <div style={{ paddingTop:20 }}>
+      <Card style={{ padding:"20px 24px" }}>
+        <p style={{ fontWeight:500, marginBottom:12 }}>Shared fonts</p>
+        <p style={{ color:T.text2, fontSize:13, lineHeight:"1.6" }}>
+          Upload custom fonts to make them available across your organization.
+          Members can access shared fonts in the Figma editor.
+        </p>
+        <div style={{ marginTop:16 }}>
+          <Btn icon="plus">Upload fonts</Btn>
+        </div>
+        <EmptyState icon="resources" title="No custom fonts uploaded" subtitle="Drag and drop .ttf or .otf files to upload." />
+      </Card>
+    </div>
+  );
+
+  const TABS = { Libraries, Templates, Fonts };
+  const TabContent = TABS[tab] || (() => null);
+
+  return (
+    <div style={{ padding:"28px 32px" }}>
+      <h1 style={{ fontSize:18, fontWeight:600, marginBottom:20 }}>Content</h1>
+      <TabBar tabs={["Libraries","Templates","Fonts"]} active={tab} onChange={setTab} />
+      <TabContent />
+    </div>
+  );
+};
+
+// ─── RESOURCES PAGE ───────────────────────────────────────────────────────────
+const ResourcesPage = () => {
+  const [tab, setTab] = useState("Plugins");
+
+  const Plugins = () => (
+    <div style={{ paddingTop:20 }}>
+      <Card>
+        <div style={{ padding:"14px 20px 12px", borderBottom:`1px solid ${T.border}`,
+          display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div>
+            <span style={{ fontWeight:500 }}>Approved plugins</span>
+            <p style={{ fontSize:12, color:T.text3, marginTop:2 }}>Control which plugins members can install</p>
+          </div>
+          <Btn icon="plus">Add plugin</Btn>
+        </div>
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ background:T.bgAlt }}>
+              {["Plugin","Publisher","Installs","Status",""].map(h => (
+                <th key={h} style={{ padding:"8px 20px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12, borderBottom:`1px solid ${T.border}` }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {PLUGINS_DATA.map(p => (
+              <tr key={p.id} style={{ borderBottom:`1px solid ${T.border}` }}
+                onMouseEnter={e => e.currentTarget.style.background=T.bgHover}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                <td style={{ padding:"11px 20px", fontWeight:500 }}>{p.name}</td>
+                <td style={{ padding:"11px 20px", color:T.text2 }}>{p.publisher}</td>
+                <td style={{ padding:"11px 20px", color:T.text2 }}>{p.installs.toLocaleString()}</td>
+                <td style={{ padding:"11px 20px" }}>
+                  <Badge color={p.status==="Approved"?"green":"amber"}>{p.status}</Badge>
+                </td>
+                <td style={{ padding:"11px 20px", textAlign:"right" }}>
+                  <Btn variant="ghost" style={{ padding:"3px 8px" }}><Ico name="dots" size={14} stroke={T.text2} /></Btn>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+
+  const Widgets = () => (
+    <div style={{ paddingTop:20 }}>
+      <EmptyState icon="resources" title="No widgets configured"
+        subtitle="Add widgets to let your team use them across projects." />
+    </div>
+  );
+
+  const TABS = { Plugins, Widgets };
+  const TabContent = TABS[tab] || (() => null);
+
+  return (
+    <div style={{ padding:"28px 32px" }}>
+      <h1 style={{ fontSize:18, fontWeight:600, marginBottom:20 }}>Resources</h1>
+      <TabBar tabs={["Plugins","Widgets"]} active={tab} onChange={setTab} />
+      <TabContent />
+    </div>
+  );
+};
+
+// ─── ACTIVITY PAGE ────────────────────────────────────────────────────────────
+const ActivityPage = () => {
+  const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("all");
+
+  const categories = ["all", ...Array.from(new Set(ACTIVITY_LOG.map(a => a.category)))];
+
+  const filtered = ACTIVITY_LOG.filter(a => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || a.action.toLowerCase().includes(q) || a.user.toLowerCase().includes(q) || a.detail.toLowerCase().includes(q);
+    const matchCat = catFilter === "all" || a.category === catFilter;
+    return matchSearch && matchCat;
+  });
+
+  const catColors = { Members:"blue", Billing:"green", Security:"red", Roles:"amber", Seats:"gray", Workspaces:"blue" };
+
+  return (
+    <div style={{ padding:"28px 32px" }}>
+      <div style={{ marginBottom:20 }}>
+        <h1 style={{ fontSize:18, fontWeight:600, marginBottom:2 }}>Activity</h1>
+        <p style={{ color:T.text2, fontSize:13 }}>Audit log for your organization</p>
+      </div>
+
+      <Card>
+        <div style={{ padding:"12px 16px", borderBottom:`1px solid ${T.border}`, display:"flex", gap:8 }}>
+          <Input value={search} onChange={setSearch} placeholder="Search events..." icon="search" style={{ width:280 }} />
+          <Select value={catFilter} onChange={setCatFilter}
+            options={categories.map(c => ({ value:c, label:c==="all"?"All categories":c }))} />
+        </div>
+
+        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+          <thead>
+            <tr style={{ background:T.bgAlt }}>
+              {["Event","Actor","Detail","Category","Time"].map(h => (
+                <th key={h} style={{ padding:"8px 20px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12, borderBottom:`1px solid ${T.border}` }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(a => (
+              <tr key={a.id} style={{ borderBottom:`1px solid ${T.border}` }}
+                onMouseEnter={e => e.currentTarget.style.background=T.bgHover}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                <td style={{ padding:"11px 20px", fontWeight:500 }}>{a.action}</td>
+                <td style={{ padding:"11px 20px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    {a.user !== "System"
+                      ? <Avatar name={a.user} color="#888" size={22} />
+                      : <div style={{ width:22, height:22, borderRadius:"50%", background:T.bgAlt,
+                          display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          <Ico name="settings" size={11} stroke={T.text3} />
+                        </div>}
+                    <span style={{ color:T.text2 }}>{a.user}</span>
+                  </div>
+                </td>
+                <td style={{ padding:"11px 20px", color:T.text2, fontSize:12 }}>{a.detail}</td>
+                <td style={{ padding:"11px 20px" }}>
+                  <Badge color={catColors[a.category]||"gray"}>{a.category}</Badge>
+                </td>
+                <td style={{ padding:"11px 20px", color:T.text3, fontSize:12, whiteSpace:"nowrap" }}>{a.time}</td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={5}><EmptyState icon="activity" title="No events found" subtitle="Try adjusting your search or filters." /></td></tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+};
+
+// ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
+const SettingsPage = () => {
+  const [tab, setTab] = useState("General");
+  const [orgName, setOrgName] = useState("Figma Staging Org");
+  const [sso, setSso] = useState(true);
+  const [scim, setScim] = useState(false);
+  const [twofa, setTwofa] = useState(true);
+  const [domainCapture, setDomainCapture] = useState(true);
+  const [guestAccess, setGuestAccess] = useState(true);
+  const [memberInvite, setMemberInvite] = useState(false);
+
+  const SettingRow = ({ label, sub, children }) => (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 0", borderBottom:`1px solid ${T.border}` }}>
+      <div style={{ flex:1, paddingRight:32 }}>
+        <div style={{ fontWeight:500, fontSize:13 }}>{label}</div>
+        {sub && <div style={{ fontSize:12, color:T.text3, marginTop:2, lineHeight:"1.5" }}>{sub}</div>}
+      </div>
+      <div style={{ flexShrink:0 }}>{children}</div>
+    </div>
+  );
+
+  const General = () => (
+    <div style={{ paddingTop:20, display:"flex", flexDirection:"column", gap:20 }}>
+      <Card style={{ padding:"20px 24px" }}>
+        <p style={{ fontWeight:500, marginBottom:16 }}>Organization details</p>
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div>
+            <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:6 }}>Organization name</label>
+            <div style={{ display:"flex", gap:8 }}>
+              <Input value={orgName} onChange={setOrgName} placeholder="Org name" style={{ width:320 }} />
+              <Btn variant="primary" onClick={() => {}}>Save</Btn>
+            </div>
+          </div>
+          <div>
+            <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:6 }}>Organization URL</label>
+            <div style={{ display:"flex", alignItems:"center", gap:0 }}>
+              <span style={{ padding:"0 10px", height:32, display:"flex", alignItems:"center",
+                background:T.bgAlt, border:`1px solid ${T.border}`, borderRight:"none",
+                borderRadius:"6px 0 0 6px", color:T.text3, fontSize:13 }}>
+                figma.com/
+              </span>
+              <input defaultValue="figma-staging-org" style={{ height:32, padding:"0 10px", width:200,
+                border:`1px solid ${T.border}`, borderRadius:"0 6px 6px 0", fontSize:13, outline:"none" }} />
+            </div>
+          </div>
+          <div>
+            <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:6 }}>Organization logo</label>
+            <div style={{ width:64, height:64, borderRadius:8, border:`2px dashed ${T.border}`,
+              display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+              cursor:"pointer", color:T.text3, gap:4 }}>
+              <Ico name="plus" size={16} stroke={T.text3} />
+              <span style={{ fontSize:10 }}>Upload</span>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Card style={{ padding:"20px 24px" }}>
+        <p style={{ fontWeight:500, marginBottom:4 }}>Member permissions</p>
+        <p style={{ fontSize:12, color:T.text3, marginBottom:16 }}>Control what members can do in this organization</p>
+        <SettingRow label="Allow members to invite guests"
+          sub="Members can invite external collaborators to specific files">
+          <Toggle checked={guestAccess} onChange={setGuestAccess} />
+        </SettingRow>
+        <SettingRow label="Allow members to invite new members"
+          sub="Members can send organization invites (admins are always able to invite)">
+          <Toggle checked={memberInvite} onChange={setMemberInvite} />
+        </SettingRow>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 0" }}>
+          <div>
+            <div style={{ fontWeight:500, fontSize:13 }}>Default seat type for new members</div>
+            <div style={{ fontSize:12, color:T.text3, marginTop:2 }}>What seat new org members receive by default</div>
+          </div>
+          <Select value="Full" onChange={() => {}}
+            options={[{value:"Full",label:"Full seat"},{value:"Viewer",label:"View-only (free)"}]} />
+        </div>
+      </Card>
+
+      <Card style={{ padding:"20px 24px", borderColor:"#fca5a5" }}>
+        <p style={{ fontWeight:500, color:T.red, marginBottom:4 }}>Danger zone</p>
+        <p style={{ fontSize:12, color:T.text3, marginBottom:16 }}>These actions are irreversible. Proceed with caution.</p>
+        <Btn variant="danger" icon="trash">Delete organization</Btn>
+      </Card>
+    </div>
+  );
+
+  const Security = () => (
+    <div style={{ paddingTop:20, display:"flex", flexDirection:"column", gap:16 }}>
+      <Card style={{ padding:"20px 24px" }}>
+        <p style={{ fontWeight:500, marginBottom:4 }}>Authentication</p>
+        <p style={{ fontSize:12, color:T.text3, marginBottom:16 }}>Configure how members sign in to your organization</p>
+
+        <SettingRow label="Single Sign-On (SAML SSO)"
+          sub="Require members to authenticate via your identity provider">
+          <Toggle checked={sso} onChange={setSso} />
+        </SettingRow>
+
+        {sso && (
+          <div style={{ padding:"14px 0 0", display:"flex", flexDirection:"column", gap:10 }}>
+            {[
+              { label:"SSO URL",       val:"https://sso.okta.com/app/figma/exk.../sso/saml" },
+              { label:"Entity ID",     val:"https://www.figma.com/saml" },
+              { label:"Certificate",   val:"-----BEGIN CERTIFICATE----- ... -----END CERTIFICATE-----" },
+            ].map(r => (
+              <div key={r.label}>
+                <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:4 }}>{r.label}</label>
+                <div style={{ display:"flex", gap:6 }}>
+                  <input defaultValue={r.val} style={{ flex:1, height:32, padding:"0 10px",
+                    border:`1px solid ${T.border}`, borderRadius:6, fontSize:12, outline:"none",
+                    color:T.text2, background:T.bgAlt }} readOnly />
+                  <Btn variant="ghost" icon="copy" style={{ padding:"4px 8px" }}></Btn>
+                </div>
+              </div>
+            ))}
+            <div style={{ paddingTop:4 }}>
+              <Btn variant="primary">Save SSO configuration</Btn>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card style={{ padding:"20px 24px" }}>
+        <p style={{ fontWeight:500, marginBottom:4 }}>Provisioning</p>
+        <p style={{ fontSize:12, color:T.text3, marginBottom:16 }}>Automate member management via your identity provider</p>
+
+        <SettingRow label="SCIM provisioning"
+          sub="Automatically sync members from your identity provider (requires SSO)">
+          <Toggle checked={scim} onChange={setScim} />
+        </SettingRow>
+
+        {scim && (
+          <div style={{ paddingTop:14, display:"flex", flexDirection:"column", gap:10 }}>
+            <div>
+              <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:4 }}>SCIM endpoint</label>
+              <div style={{ display:"flex", gap:6 }}>
+                <input defaultValue="https://www.figma.com/scim/v2" style={{ flex:1, height:32, padding:"0 10px",
+                  border:`1px solid ${T.border}`, borderRadius:6, fontSize:12, outline:"none",
+                  color:T.text2, background:T.bgAlt }} readOnly />
+                <Btn variant="ghost" icon="copy" style={{ padding:"4px 8px" }}></Btn>
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card style={{ padding:"20px 24px" }}>
+        <p style={{ fontWeight:500, marginBottom:4 }}>Access controls</p>
+        <p style={{ fontSize:12, color:T.text3, marginBottom:16 }}>Manage additional security policies</p>
+
+        <SettingRow label="Enforce two-factor authentication"
+          sub="All members must enable 2FA to access the organization">
+          <Toggle checked={twofa} onChange={setTwofa} />
+        </SettingRow>
+        <SettingRow label="Domain capture"
+          sub="Anyone signing up with @figma.com is automatically added to this org">
+          <Toggle checked={domainCapture} onChange={setDomainCapture} />
+        </SettingRow>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 0" }}>
+          <div>
+            <div style={{ fontWeight:500, fontSize:13 }}>Session timeout</div>
+            <div style={{ fontSize:12, color:T.text3, marginTop:2 }}>Automatically sign out inactive members</div>
+          </div>
+          <Select value="30" onChange={() => {}}
+            options={[{value:"never",label:"Never"},{value:"7",label:"7 days"},{value:"30",label:"30 days"},{value:"90",label:"90 days"}]} />
+        </div>
+      </Card>
+    </div>
+  );
+
+  const Integrations = () => {
+    const integrations = [
+      { name:"Okta",    desc:"Identity provider & SSO",    status:"Connected", icon:"🔐" },
+      { name:"Slack",   desc:"Notifications & workflows",  status:"Connected", icon:"💬" },
+      { name:"Jira",    desc:"Link designs to tickets",    status:"Not connected", icon:"🎯" },
+      { name:"GitHub",  desc:"Connect repos to files",     status:"Not connected", icon:"⚙" },
+    ];
+    return (
+      <div style={{ paddingTop:20 }}>
+        <Card>
+          {integrations.map((integ, i) => (
+            <div key={integ.name} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+              padding:"16px 20px", borderBottom: i < integrations.length-1 ? `1px solid ${T.border}` : "none" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:36, height:36, borderRadius:8, background:T.bgAlt, border:`1px solid ${T.border}`,
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                  {integ.icon}
+                </div>
+                <div>
+                  <div style={{ fontWeight:500 }}>{integ.name}</div>
+                  <div style={{ fontSize:12, color:T.text3 }}>{integ.desc}</div>
+                </div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <Badge color={integ.status==="Connected"?"green":"gray"}>{integ.status}</Badge>
+                <Btn>{integ.status==="Connected"?"Configure":"Connect"}</Btn>
+              </div>
+            </div>
+          ))}
+        </Card>
+      </div>
+    );
+  };
+
+  const TABS = { General, Security, Integrations };
+  const TabContent = TABS[tab] || (() => null);
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:760 }}>
+      <h1 style={{ fontSize:18, fontWeight:600, marginBottom:20 }}>Settings</h1>
+      <TabBar tabs={["General","Security","Integrations"]} active={tab} onChange={setTab} />
+      <TabContent />
+    </div>
+  );
+};
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+const PAGES = {
+  dashboard: DashboardPage,
+  people:    PeoplePage,
+  billing:   BillingPage,
+  content:   ContentPage,
+  resources: ResourcesPage,
+  activity:  ActivityPage,
+  settings:  SettingsPage,
+};
+
+function App() {
+  const [page, setPage] = useState("dashboard");
+  const PageComp = PAGES[page] || DashboardPage;
+
+  return (
+    <div style={{ display:"flex", height:"100vh", overflow:"hidden", background:"#fff" }}>
+      <Sidebar active={page} onChange={setPage} requests={0} />
+      <main style={{ flex:1, overflowY:"auto", background:"#fff" }}>
+        <PageComp onNav={setPage} />
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
