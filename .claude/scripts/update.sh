@@ -60,10 +60,12 @@ fi
 echo ""
 echo "=== Upgrading @figma packages ==="
 
+UPDATE_VERSIONS_SCRIPT="$REPO_ROOT/.claude/scripts/update-figma-versions.sh"
+
 if [[ "$DRY_RUN" == true ]]; then
-  echo "(dry run) Would run: pnpm update '@figma/*'"
+  bash "$UPDATE_VERSIONS_SCRIPT" --dry-run
 else
-  pnpm update '@figma/*'
+  bash "$UPDATE_VERSIONS_SCRIPT"
   pnpm install
 fi
 
