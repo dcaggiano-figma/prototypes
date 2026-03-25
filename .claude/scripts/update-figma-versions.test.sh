@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Tests for update-figma-versions.sh
+# Tests for the update_figma_versions function in update.sh.
 #
 # Uses fixture data and a mock npm command to validate behavior without
 # hitting the network.
@@ -9,7 +9,9 @@ set -euo pipefail
 # Usage: bash .claude/scripts/update-figma-versions.test.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HELPER="$SCRIPT_DIR/update-figma-versions.sh"
+
+# Source just the function from update.sh without running the full script
+__UPDATE_SH_SOURCED=true source "$SCRIPT_DIR/update.sh"
 
 PASS=0
 FAIL=0
@@ -75,7 +77,6 @@ FOOTER
   chmod +x "$mock_script"
 }
 
-# Pre-built mock configs for common scenarios
 create_mock_all_upgraded() {
   create_mock_npm "$1" \
     "@figma/fpl-cli" "0.7.0" \
@@ -88,7 +89,6 @@ create_mock_all_upgraded() {
     "@figma/ppg-vite-config" "1.10.0"
 }
 
-# Returns versions matching the fixtures — no changes expected
 create_mock_already_latest() {
   create_mock_npm "$1" \
     "@figma/fpl-cli" "0.6.1" \
@@ -131,27 +131,22 @@ test_versions_updated() {
   setup_fixtures "$tmpdir"
   create_mock_all_upgraded "$tmpdir/mock-npm"
 
-  NPM_CMD="$tmpdir/mock-npm" bash "$HELPER" \
-    --workspace "$tmpdir/pnpm-workspace.yaml" \
-    --package-json "$tmpdir/package.json"
+  NPM_CMD="$tmpdir/mock-npm" update_figma_versions \
+    "$tmpdir/pnpm-workspace.yaml" "$tmpdir/package.json"
 
-  # Catalog: exact pins updated
   assert_contains "$tmpdir/pnpm-workspace.yaml" "'@figma/fpl-cli': 0.7.0" \
     "fpl-cli catalog updated to 0.7.0"
   assert_contains "$tmpdir/pnpm-workspace.yaml" "'@figma/fpl-components': 0.7.0" \
     "fpl-components catalog updated to 0.7.0"
 
-  # Catalog: caret prefix preserved
   assert_contains "$tmpdir/pnpm-workspace.yaml" "'@figma/ppg-ai': ^1.10.0" \
     "ppg-ai catalog updated with ^ prefix"
   assert_contains "$tmpdir/pnpm-workspace.yaml" "'@figma/ppg-dev-tools': ^1.10.0" \
     "ppg-dev-tools catalog updated with ^ prefix"
 
-  # Non-@figma entries unchanged
   assert_contains "$tmpdir/pnpm-workspace.yaml" "motion: 12.34.5" \
     "non-figma package not touched"
 
-  # Overrides updated
   assert_contains "$tmpdir/package.json" '"@figma/fpl-components": "0.7.0"' \
     "fpl-components override updated"
   assert_contains "$tmpdir/package.json" '"@figma/fpl-tokens": "0.7.0"' \
@@ -173,9 +168,8 @@ test_noop_when_latest() {
   cp "$tmpdir/pnpm-workspace.yaml" "$tmpdir/pnpm-workspace.yaml.orig"
   cp "$tmpdir/package.json" "$tmpdir/package.json.orig"
 
-  NPM_CMD="$tmpdir/mock-npm" bash "$HELPER" \
-    --workspace "$tmpdir/pnpm-workspace.yaml" \
-    --package-json "$tmpdir/package.json"
+  NPM_CMD="$tmpdir/mock-npm" update_figma_versions \
+    "$tmpdir/pnpm-workspace.yaml" "$tmpdir/package.json"
 
   assert_file_unchanged "$tmpdir/pnpm-workspace.yaml.orig" "$tmpdir/pnpm-workspace.yaml" \
     "workspace yaml unchanged when at latest"
@@ -196,10 +190,8 @@ test_dry_run() {
   cp "$tmpdir/pnpm-workspace.yaml" "$tmpdir/pnpm-workspace.yaml.orig"
   cp "$tmpdir/package.json" "$tmpdir/package.json.orig"
 
-  NPM_CMD="$tmpdir/mock-npm" bash "$HELPER" \
-    --workspace "$tmpdir/pnpm-workspace.yaml" \
-    --package-json "$tmpdir/package.json" \
-    --dry-run
+  NPM_CMD="$tmpdir/mock-npm" update_figma_versions \
+    "$tmpdir/pnpm-workspace.yaml" "$tmpdir/package.json" --dry-run
 
   assert_file_unchanged "$tmpdir/pnpm-workspace.yaml.orig" "$tmpdir/pnpm-workspace.yaml" \
     "workspace yaml unchanged in dry-run"
@@ -225,11 +217,9 @@ test_partial_update() {
     "@figma/ppg-eslint-config" "1.9.0" \
     "@figma/ppg-vite-config" "1.9.0"
 
-  NPM_CMD="$tmpdir/mock-npm" bash "$HELPER" \
-    --workspace "$tmpdir/pnpm-workspace.yaml" \
-    --package-json "$tmpdir/package.json"
+  NPM_CMD="$tmpdir/mock-npm" update_figma_versions \
+    "$tmpdir/pnpm-workspace.yaml" "$tmpdir/package.json"
 
-  # Changed
   assert_contains "$tmpdir/pnpm-workspace.yaml" "'@figma/fpl-cli': 0.7.0" \
     "fpl-cli updated in partial"
   assert_contains "$tmpdir/pnpm-workspace.yaml" "'@figma/fpl-components': 0.7.0" \
@@ -237,7 +227,6 @@ test_partial_update() {
   assert_contains "$tmpdir/package.json" '"@figma/fpl-components": "0.7.0"' \
     "fpl-components override updated in partial"
 
-  # Unchanged
   assert_contains "$tmpdir/pnpm-workspace.yaml" "'@figma/fpl-icons': 0.6.0" \
     "fpl-icons stays at 0.6.0"
   assert_contains "$tmpdir/pnpm-workspace.yaml" "'@figma/ppg-ai': ^1.9.0" \

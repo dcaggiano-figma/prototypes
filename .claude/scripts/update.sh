@@ -25,6 +25,114 @@ cd "$REPO_ROOT"
 # The canonical source for .claude/ and infrastructure is origin/main
 BASE_REF="origin/main"
 
+# -- update_figma_versions function --------------------------------------------
+# Queries the registry for the latest version of each @figma/* package in the
+# catalog and updates pnpm-workspace.yaml + package.json overrides in-place.
+#
+# Globals: NPM_CMD (override for testing, defaults to "npm view")
+# Args: workspace_yaml_path package_json_path [--dry-run]
+
+update_figma_versions() {
+  local workspace_yaml="$1"
+  local package_json="$2"
+  local dry_run=false
+  if [[ "${3:-}" == "--dry-run" ]]; then
+    dry_run=true
+  fi
+
+  local npm_cmd="${NPM_CMD:-npm view}"
+
+  # Parse catalog — parallel arrays for bash 3 compatibility (macOS default)
+  local packages=() old_versions=() prefixes=()
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ \'(@figma/[^\']+)\':\ +(\^?)([0-9][0-9a-zA-Z._-]*) ]]; then
+      packages+=("${BASH_REMATCH[1]}")
+      prefixes+=("${BASH_REMATCH[2]}")
+      old_versions+=("${BASH_REMATCH[3]}")
+    fi
+  done < "$workspace_yaml"
+
+  if [[ ${#packages[@]} -eq 0 ]]; then
+    echo "No @figma/* packages found in catalog."
+    return 0
+  fi
+
+  # Query latest versions in parallel
+  local results_dir
+  results_dir=$(mktemp -d)
+
+  for i in "${!packages[@]}"; do
+    ( $npm_cmd "${packages[$i]}" version --registry https://npm.pkg.github.com > "$results_dir/$i" 2>/dev/null || echo "" > "$results_dir/$i" ) &
+  done
+  wait
+
+  local new_versions=() changed=0
+
+  for i in "${!packages[@]}"; do
+    local latest old
+    latest=$(tr -d '[:space:]' < "$results_dir/$i")
+    old="${old_versions[$i]}"
+
+    if [[ -z "$latest" ]]; then
+      echo "  Warning: could not fetch latest version for ${packages[$i]}, skipping"
+      new_versions+=("$old")
+      continue
+    fi
+
+    new_versions+=("$latest")
+
+    if [[ "$old" != "$latest" ]]; then
+      echo "  ${packages[$i]}: ${prefixes[$i]}${old} -> ${prefixes[$i]}${latest}"
+      changed=$((changed + 1))
+    fi
+  done
+
+  rm -rf "$results_dir"
+
+  if [[ $changed -eq 0 ]]; then
+    echo "  All @figma/* packages are already at their latest versions."
+    return 0
+  fi
+
+  if [[ "$dry_run" == true ]]; then
+    echo "  (dry run) No files modified."
+    return 0
+  fi
+
+  # Build sed expressions and apply once per file
+  local workspace_sed_args=() json_sed_args=()
+
+  for i in "${!packages[@]}"; do
+    local old="${old_versions[$i]}" new="${new_versions[$i]}"
+    if [[ "$old" == "$new" ]]; then
+      continue
+    fi
+
+    local old_escaped="${old//./\\.}"
+    local pkg="${packages[$i]}"
+    local prefix="${prefixes[$i]}"
+
+    workspace_sed_args+=(-e "s|'${pkg}': ${prefix}${old_escaped}|'${pkg}': ${prefix}${new}|")
+    json_sed_args+=(-e "s|\"${pkg}\": \"${old_escaped}\"|\"${pkg}\": \"${new}\"|")
+  done
+
+  if [[ ${#workspace_sed_args[@]} -gt 0 ]]; then
+    sed -i '' "${workspace_sed_args[@]}" "$workspace_yaml"
+  fi
+
+  if [[ -f "$package_json" ]] && [[ ${#json_sed_args[@]} -gt 0 ]]; then
+    sed -i '' "${json_sed_args[@]}" "$package_json"
+  fi
+
+  echo "  Updated $changed package(s) in catalog and overrides."
+}
+
+# Allow tests to source just the function without running the full script
+if [[ "${__UPDATE_SH_SOURCED:-}" == "true" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+
 # -- Step 1: Checkpoint commit -------------------------------------------------
 
 CHECKPOINT_SHA=""
@@ -60,12 +168,10 @@ fi
 echo ""
 echo "=== Upgrading @figma packages ==="
 
-UPDATE_VERSIONS_SCRIPT="$REPO_ROOT/.claude/scripts/update-figma-versions.sh"
-
 if [[ "$DRY_RUN" == true ]]; then
-  bash "$UPDATE_VERSIONS_SCRIPT" --dry-run
+  update_figma_versions "$REPO_ROOT/pnpm-workspace.yaml" "$REPO_ROOT/package.json" --dry-run
 else
-  bash "$UPDATE_VERSIONS_SCRIPT"
+  update_figma_versions "$REPO_ROOT/pnpm-workspace.yaml" "$REPO_ROOT/package.json"
   pnpm install
 fi
 
