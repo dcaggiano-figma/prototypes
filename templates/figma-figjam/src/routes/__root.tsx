@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 import { createRootRoute } from '@tanstack/react-router';
+import { SaveAsDefaultModal, UserConfigModal, PatternLibraryWindow } from '@prototype/shared';
+import { showToast } from '../components/toast';
 import {
   Icon24Page,
   Icon24TemplateLarge,
@@ -16,7 +18,7 @@ import { FigJamTopRight } from '../components/FigJamTopRight';
 import { FloatingObjectToolbar } from '../components/FloatingObjectToolbar';
 import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
 import { FigJamZoomControls } from '../components/FigJamZoomControls';
-import { FigJamMainMenu } from '../components/FigJamMainMenu';
+import { MainMenu } from '../components/MainMenu';
 import { TemplatesPanel, AssetsPanel, AiChatPanel } from '../components/panels';
 import { useAppTheme } from '@prototype/shared';
 import { MODE_TO_BRAND } from '../helpers/theme';
@@ -60,8 +62,12 @@ function EditorContent() {
   const [themeSetting, setThemeSetting] = useAppTheme({
     storageKey: 'editor-shell-theme',
     brand: MODE_TO_BRAND.figjam,
+    initial: 'light',
   });
   const [activeRailItem, setActiveRailItem] = useState('file');
+  const [showSaveAsDefault, setShowSaveAsDefault] = useState(false);
+  const [showUserConfig, setShowUserConfig] = useState(false);
+  const [showPatternLibrary, setShowPatternLibrary] = useState(false);
   const contextMenu = useContextMenu();
   const { activeTool, setActiveTool } = useActiveTool();
   const viewport = useViewport();
@@ -91,7 +97,7 @@ function EditorContent() {
       {/* Left rail + panel */}
       <div className="pointer-events-auto flex shrink-0">
         <LeftSidebar.Rail>
-          <FigJamMainMenu themeSetting={themeSetting} onThemeChange={setThemeSetting} />
+          <MainMenu themeSetting={themeSetting} onThemeChange={setThemeSetting} onSaveAsDefault={() => setShowSaveAsDefault(true)} onOpenPatternLibrary={() => setShowPatternLibrary(true)} onOpenUserConfig={() => setShowUserConfig(true)} />
           <LeftSidebar.Divider />
           <LeftSidebar.NavGroup>
             {navItems.map((item) => (
@@ -144,6 +150,13 @@ function EditorContent() {
         {featuresModal.modal}
       </div>
 
+      {showPatternLibrary && <PatternLibraryWindow onClose={() => setShowPatternLibrary(false)} />}
+      <UserConfigModal open={showUserConfig} onClose={() => setShowUserConfig(false)} />
+      <SaveAsDefaultModal
+        open={showSaveAsDefault}
+        onClose={() => setShowSaveAsDefault(false)}
+        onCopy={() => showToast({ message: 'JSON copied to clipboard' })}
+      />
     </div>
     </LeftSidebar.Provider>
   );

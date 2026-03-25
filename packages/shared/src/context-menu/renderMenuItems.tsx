@@ -30,6 +30,12 @@ export function renderMenuItems(items: MenuItemDef[]): ReactNode {
             ))}
           </MenuV2.RadioGroup>
         );
+      case 'group':
+        return (
+          <MenuV2.Group key={item.id} title={item.title}>
+            {renderMenuItems(item.children)}
+          </MenuV2.Group>
+        );
       case 'submenu':
         return (
           <MenuV2.SubMenu key={item.id} title={item.label}>

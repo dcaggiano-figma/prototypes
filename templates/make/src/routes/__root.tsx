@@ -7,8 +7,8 @@ import { WorkingStateProvider } from '../helpers/workingState';
 function RootLayout() {
   return (
     <ThemeProvider initialVersion="ui3">
-      <AppThemeProvider initial="light">
-        <UserConfigProvider config={{ name: 'Josh Ferrell', color: 'yellow' }}>
+      <AppThemeProvider initial="system">
+        <UserConfigProvider defaultConfig={{ name: 'Josh Ferrell', color: 'yellow' }}>
           <WorkingStateProvider>
             <Outlet />
           </WorkingStateProvider>

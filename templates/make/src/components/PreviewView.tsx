@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-arbitrary-value */
 import { useState } from 'react';
 import { ButtonPrimitive, Input, Label, Link } from '@figma/fpl-components';
 import { useWorkingState } from '../helpers/workingState';

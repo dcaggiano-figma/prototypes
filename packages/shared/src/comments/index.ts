@@ -9,3 +9,4 @@ export type {
 export { createCommentsStore } from './store';
 export { CommentsProvider, useComments, useThread } from './provider';
 export { formatRelativeTime, resolveCommentPosition } from './utils';
+export { loadComments, saveComments, clearCommentsStorage, installCommentsAutoSave } from './comment-storage';

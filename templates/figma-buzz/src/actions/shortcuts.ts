@@ -56,6 +56,10 @@ export const SHORTCUT_MAP: Record<string, string> = {
   'Shift+0': 'zoom-to-100',
   'Mod+0': 'zoom-to-100',
 
+  // Layer order
+  ']': 'bring-to-front',
+  '[': 'send-to-back',
+
   // View
   'Shift+Mod+\\': 'view.minimize-ui',
 };

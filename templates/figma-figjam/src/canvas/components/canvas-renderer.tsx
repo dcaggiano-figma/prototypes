@@ -39,6 +39,7 @@ import {
   ShapeTextOverlay,
   ConnectorRenderer,
   useLabelEditing,
+  formatFontFamily,
 } from '@prototype/shared/canvas';
 import type { FigJamStickyNoteNode, FigJamShapeWithTextNode } from '../text-types';
 import { CURSORS } from '../cursors';
@@ -268,7 +269,7 @@ function TextRenderer({ node }: { node: TextNode }) {
         minHeight: node.textAutoResize === 'NONE' ? node.height : 'auto',
         opacity: node.opacity,
         color: fill ? colorToCSS(fill.color, fill.opacity) : 'rgb(0,0,0)',
-        fontFamily: node.fontFamily,
+        fontFamily: formatFontFamily(node.fontFamily),
         fontSize: node.fontSize,
         fontWeight: node.fontWeight,
         textAlign: node.textAlignHorizontal.toLowerCase() as 'left' | 'center' | 'right',

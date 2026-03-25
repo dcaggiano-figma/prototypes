@@ -3,6 +3,7 @@ import type { GeometryNode } from '../../scene-graph/types'
 import { isGeometryNode } from '../../scene-graph/types'
 import type { SceneGraph } from '../../scene-graph/scene-graph'
 import { getWorldPosition, reparentNodeAdjusted } from './world-position'
+import { isContainer } from './container-reparenting'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -146,6 +147,56 @@ export function distributeNodes(
         y: currentY - parentWorld.y,
       })
       currentY += node.height + gap
+    }
+  }
+}
+
+// ── alignToParent ───────────────────────────────────────────────────
+
+/**
+ * Align selected nodes within their shared parent container's bounds.
+ * Only works when all nodes share the same parent and that parent is a
+ * geometry container (FRAME, SECTION, GRID_SECTION, SLIDE).
+ * Coordinates are already in parent space so the math is direct.
+ */
+export function alignToParent(
+  sg: SceneGraph,
+  selectedIds: Iterable<NodeId>,
+  direction: AlignDirection,
+): void {
+  const nodes = collectGeometryNodes(sg, selectedIds)
+  if (nodes.length === 0) return
+
+  // Verify all nodes share the same container parent
+  const firstParentId = nodes[0].parentId
+  if (!firstParentId) return
+  for (const node of nodes) {
+    if (node.parentId !== firstParentId) return
+  }
+
+  const parent = sg.getNode(firstParentId)
+  if (!parent || !isGeometryNode(parent) || !isContainer(parent)) return
+
+  for (const node of nodes) {
+    switch (direction) {
+      case 'left':
+        sg.updateNode(node.id, { x: 0 })
+        break
+      case 'center-h':
+        sg.updateNode(node.id, { x: (parent.width - node.width) / 2 })
+        break
+      case 'right':
+        sg.updateNode(node.id, { x: parent.width - node.width })
+        break
+      case 'top':
+        sg.updateNode(node.id, { y: 0 })
+        break
+      case 'center-v':
+        sg.updateNode(node.id, { y: (parent.height - node.height) / 2 })
+        break
+      case 'bottom':
+        sg.updateNode(node.id, { y: parent.height - node.height })
+        break
     }
   }
 }

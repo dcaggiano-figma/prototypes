@@ -11,7 +11,7 @@ export type MultiplayerColor =
   | 'red'
   | 'yellow';
 
-const MULTIPLAYER_COLORS: MultiplayerColor[] = [
+export const MULTIPLAYER_COLORS: MultiplayerColor[] = [
   'blue',
   'green',
   'grey',

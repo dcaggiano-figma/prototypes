@@ -8,7 +8,7 @@ interface UseAppThemeOptions {
   storageKey?: string;
   /** data-editor-theme value (default: undefined, won't set attribute) */
   brand?: string;
-  /** Fallback if nothing stored (default: 'light') */
+  /** Fallback if nothing stored (default: 'system') */
   initial?: ThemeSetting;
 }
 
@@ -19,7 +19,7 @@ interface UseAppThemeOptions {
 export function useAppTheme({
   storageKey = 'app-theme',
   brand,
-  initial = 'light',
+  initial = 'system',
 }: UseAppThemeOptions = {}): [ThemeSetting, (next: ThemeSetting) => void] {
 
   const [theme, setThemeState] = useState<ThemeSetting>(() =>

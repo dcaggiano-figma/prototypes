@@ -22,7 +22,7 @@ import {
   Icon24ArrowLeft,
   Icon24ArrowRight,
 } from '@figma/fpl-icons';
-import { Card, type PromptSubmission } from '@prototype/shared';
+import { Card, PatternLibraryWindow, UserConfigModal, type PromptSubmission } from '@prototype/shared';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
 import { PromptLanding } from '../components/PromptLanding';
@@ -65,6 +65,8 @@ function HomePage() {
   const [editingValue, setEditingValue] = useState('');
   const fileNameInputRef = useRef<HTMLInputElement>(null);
   const [promptValue, setPromptValue] = useState('');
+  const [showPatternLibrary, setShowPatternLibrary] = useState(false);
+  const [showUserConfig, setShowUserConfig] = useState(false);
 
   /* Menus */
   const chevronMenu = MenuV2.useMenu();
@@ -115,7 +117,6 @@ function HomePage() {
           <IconButton
               aria-label="Figma"
               size="lg"
-              // eslint-disable-next-line react/jsx-props-no-spreading
               {...chevronMenu.getTriggerProps()}
             >
               <Icon24FigmaLarge />
@@ -181,16 +182,20 @@ function HomePage() {
                   <MenuV2.Item onClick={() => console.log('account')}>Account settings</MenuV2.Item>
                 </MenuV2.SubMenu>
 
-              {/* Debug */}
-              <MenuV2.SubMenu title="Debug">
-                  <MenuV2.Item onClick={() => console.log('console')}>Open console</MenuV2.Item>
-                  <MenuV2.Item onClick={() => console.log('network')}>Network log</MenuV2.Item>
-                  <MenuV2.Item onClick={() => console.log('performance')}>Performance</MenuV2.Item>
+              {/* Prototype */}
+              <MenuV2.SubMenu title="Prototype">
+                  <MenuV2.Group>
+                    <MenuV2.Item onClick={() => { ws.reset(); navigate({ to: '/' }); }}>Reset prototype</MenuV2.Item>
+                  </MenuV2.Group>
+                  <MenuV2.Group>
+                    <MenuV2.Item onClick={() => setShowPatternLibrary(true)}>Pattern library</MenuV2.Item>
+                    <MenuV2.Item onClick={() => setShowUserConfig(true)}>User config...</MenuV2.Item>
+                  </MenuV2.Group>
                 </MenuV2.SubMenu>
           </MenuV2.Root>
 
           {/* 2. File name button group */}
-          {isEditingFileName ? (
+          {isEditingFileName && (
             <div className="w-[120px]">
               <Input
                 className="text-bodyLg text-text"
@@ -207,38 +212,36 @@ function HomePage() {
                 }}
               />
             </div>
-          ) : (
-            <>
-              <ButtonGroup aria-label="File actions">
-                <Button size="lg" variant="ghost" onClick={startEditingFileName}>
-                  <span className="text-bodyLg text-text">{fileName}</span>
-                </Button>
-                <ButtonGroup.Trigger
-                  size="lg"
-                  // eslint-disable-next-line react/jsx-props-no-spreading
-                  {...fileMenu.getTriggerProps() as React.ComponentProps<typeof ButtonGroup.Trigger>}
-                  aria-label="File options"
-                >
-                  <Icon16ChevronDown />
-                </ButtonGroup.Trigger>
-              </ButtonGroup>
-              <MenuV2.Root manager={fileMenu.manager}>
-                <MenuV2.Group>
-                  <MenuV2.SubMenu title="Add to sidebar">
-                      <MenuV2.Group>
-                        <MenuV2.Item onClick={() => console.log('starred')}>Starred</MenuV2.Item>
-                      </MenuV2.Group>
-                    </MenuV2.SubMenu>
-                </MenuV2.Group>
-                <MenuV2.Group>
-                  <MenuV2.Item onClick={() => console.log('duplicate')}>Duplicate</MenuV2.Item>
-                  <MenuV2.Item onClick={() => console.log('rename')}>Rename</MenuV2.Item>
-                  <MenuV2.Item onClick={() => console.log('move-file')}>Move file…</MenuV2.Item>
-                  <MenuV2.Item onClick={() => console.log('move-to-trash')}>Move to trash</MenuV2.Item>
-                </MenuV2.Group>
-              </MenuV2.Root>
-            </>
           )}
+          <div className={isEditingFileName ? 'hidden' : ''}>
+          <ButtonGroup aria-label="File actions">
+            <Button size="lg" variant="ghost" onClick={startEditingFileName}>
+              <span className="text-bodyLg text-text">{fileName}</span>
+            </Button>
+            <ButtonGroup.Trigger
+              size="lg"
+              {...fileMenu.getTriggerProps() as React.ComponentProps<typeof ButtonGroup.Trigger>}
+              aria-label="File options"
+            >
+              <Icon16ChevronDown />
+            </ButtonGroup.Trigger>
+          </ButtonGroup>
+          </div>
+          <MenuV2.Root manager={fileMenu.manager}>
+            <MenuV2.Group>
+              <MenuV2.SubMenu title="Add to sidebar">
+                  <MenuV2.Group>
+                    <MenuV2.Item onClick={() => console.log('starred')}>Starred</MenuV2.Item>
+                  </MenuV2.Group>
+                </MenuV2.SubMenu>
+            </MenuV2.Group>
+            <MenuV2.Group>
+              <MenuV2.Item onClick={() => console.log('duplicate')}>Duplicate</MenuV2.Item>
+              <MenuV2.Item onClick={() => console.log('rename')}>Rename</MenuV2.Item>
+              <MenuV2.Item onClick={() => console.log('move-file')}>Move file…</MenuV2.Item>
+              <MenuV2.Item onClick={() => console.log('move-to-trash')}>Move to trash</MenuV2.Item>
+            </MenuV2.Group>
+          </MenuV2.Root>
 
         </div>
 
@@ -251,7 +254,6 @@ function HomePage() {
           <IconButton
               size="lg"
               aria-label="Settings"
-              // eslint-disable-next-line react/jsx-props-no-spreading
               {...settingsMenu.getTriggerProps()}
             >
               <Icon24SettingsLarge />
@@ -330,6 +332,9 @@ function HomePage() {
           </div>
         </div>
       </main>
+
+      {showPatternLibrary && <PatternLibraryWindow onClose={() => setShowPatternLibrary(false)} />}
+      <UserConfigModal open={showUserConfig} onClose={() => setShowUserConfig(false)} />
     </div>
   );
 }

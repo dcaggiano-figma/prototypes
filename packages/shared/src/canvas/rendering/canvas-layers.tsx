@@ -149,6 +149,10 @@ function CanvasLayersInner({ nodeLayer, reactOverlay }: CanvasLayersInnerProps) 
 
   return (
     <>
+      {/* Force the tool cursor on all descendants when a non-default tool is active.
+          Child elements set inline cursor styles (e.g. CURSORS.default on text nodes)
+          that would otherwise override the container's tool cursor (e.g. comment pin). */}
+      <style>{`[data-tool="COMMENT"] * { cursor: inherit !important; }`}</style>
       {/* Wrapper creates a stacking context for the 3 layers */}
       <div ref={wrapperRef} style={wrapperStyle}>
         {/* Layer 1: Node layer — zooms with viewport, receives pointer events */}

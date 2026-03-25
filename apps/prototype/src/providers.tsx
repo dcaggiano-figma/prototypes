@@ -11,7 +11,7 @@ import { CommentsProvider, UserConfigProvider } from '@prototype/shared';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <UserConfigProvider config={{ name: 'Josh Ferrell', color: 'yellow' }}>
+    <UserConfigProvider defaultConfig={{ name: 'Josh Ferrell', color: 'yellow' }}>
       <SceneGraphProvider>
         <UndoManagerProvider>
           <ViewportProvider>

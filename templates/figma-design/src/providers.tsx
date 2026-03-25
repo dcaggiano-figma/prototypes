@@ -1,5 +1,6 @@
 import { ActionProvider } from './actions/provider';
 import {
+  FontLoader,
   LabelEditingProvider,
   SceneGraphProvider,
   SelectionProvider,
@@ -10,12 +11,14 @@ import {
 } from './canvas';
 import { CommentsProvider, UserConfigProvider } from '@prototype/shared';
 import { RenderingBridge } from './rendering-bridge';
-import { createInitialSceneGraph } from './createInitialSceneGraph';
+import { createInitialSceneGraph } from './defaults/createInitialSceneGraph';
+import defaultComments from './defaults/default-comments.json';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <UserConfigProvider config={{ name: 'Josh Ferrell', color: 'yellow' }}>
+    <UserConfigProvider defaultConfig={{ name: 'Josh Ferrell', color: 'yellow' }}>
       <SceneGraphProvider createDefault={createInitialSceneGraph}>
+        <FontLoader />
         <UndoManagerProvider>
           <ViewportProvider>
             <RenderingBridge>
@@ -23,7 +26,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 <TextEditingProvider>
                   <LabelEditingProvider>
                     <ToolProvider>
-                      <CommentsProvider>
+                      <CommentsProvider defaultComments={defaultComments.threads}>
                         <ActionProvider>{children}</ActionProvider>
                       </CommentsProvider>
                     </ToolProvider>

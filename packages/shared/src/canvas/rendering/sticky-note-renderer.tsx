@@ -9,10 +9,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { NodeId } from '../../scene-graph/node-id'
 import type { Paint } from '../../scene-graph/types'
-import { useSceneGraph } from '../scene-graph/provider'
+import { useSceneGraph, useNode } from '../scene-graph/provider'
 import { useTextEditing } from '../text-editing/provider'
 import { CURSORS } from '../../cursors'
 import { colorToCSS, getFirstVisibleFill, nodePosition } from './style-helpers'
+import { formatFontFamily } from './font-utils'
 import { useRendering } from './provider'
 import { useNodeRef } from './use-node-ref'
 
@@ -37,7 +38,12 @@ export interface StickyNoteRenderNode {
   authorName: string
 }
 
-export function StickyNoteRenderer({ node }: { node: StickyNoteRenderNode }) {
+export function StickyNoteRenderer({ node: nodeProp }: { node: StickyNoteRenderNode }) {
+  // Subscribe to field changes so font/text/color updates propagate reactively
+  // (useRootNodes only fires on structural changes, not field changes).
+  const reactiveNode = useNode(nodeProp.id)
+  const node = (reactiveNode as StickyNoteRenderNode | undefined) ?? nodeProp
+
   const { nodeRegistry } = useRendering()
   const outerRef = useNodeRef<HTMLDivElement>(node.id, nodeRegistry)
   const fill = getFirstVisibleFill(node.fills)
@@ -160,7 +166,7 @@ export function StickyNoteRenderer({ node }: { node: StickyNoteRenderNode }) {
             top: STICKY_PADDING,
             left: STICKY_PADDING,
             color: 'rgba(0, 0, 0, 0.3)',
-            fontFamily: node.fontFamily,
+            fontFamily: formatFontFamily(node.fontFamily ?? 'Inter'),
             fontSize: node.fontSize,
             fontWeight: node.fontWeight,
             lineHeight: 1.4,
@@ -182,7 +188,7 @@ export function StickyNoteRenderer({ node }: { node: StickyNoteRenderNode }) {
         style={{
           padding: STICKY_PADDING,
           paddingBottom: node.showAuthor ? 16 : STICKY_PADDING,
-          fontFamily: node.fontFamily,
+          fontFamily: formatFontFamily(node.fontFamily ?? 'Inter'),
           fontSize: node.fontSize,
           fontWeight: node.fontWeight,
           lineHeight: 1.4,

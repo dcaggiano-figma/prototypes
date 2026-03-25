@@ -18,6 +18,20 @@ interface ClipboardPayload {
 }
 
 let clipboard: ClipboardPayload | null = null;
+// Monotonic counter: bumped on internal copy/cut, reset on external paste.
+// When > 0 the native paste handler should prefer the internal clipboard
+// over stale Figma HTML that may still be on the system clipboard.
+let internalCopyGeneration = 0;
+
+/** True when an internal copy/cut happened more recently than the last external paste. */
+export function hasRecentInternalCopy(): boolean {
+  return internalCopyGeneration > 0 && clipboard !== null;
+}
+
+/** Call after an external paste so subsequent Cmd+V doesn't re-use the internal clipboard. */
+export function clearInternalCopyFlag(): void {
+  internalCopyGeneration = 0;
+}
 
 /**
  * External node shape from Figma clipboard — uses string IDs instead of NodeId.
@@ -72,6 +86,7 @@ export function copyNodes(
     bbox,
     topLevelIds: [...topLevelIds],
   };
+  internalCopyGeneration++;
 }
 
 export function cutNodes(
@@ -110,7 +125,7 @@ export function pasteNodes(
     const target = sg.getNode(targetId);
     if (
       target &&
-      (target.type === 'FRAME' || target.type === 'SECTION' || target.type === 'GRID_SECTION') &&
+      (target.type === 'FRAME' || target.type === 'SECTION' || target.type === 'GRID_SECTION' || target.type === 'SLIDE') &&
       isGeometryNode(target)
     ) {
       pasteParentId = targetId;
@@ -218,7 +233,7 @@ export function pasteExternalNodes(
     const target = sg.getNode(targetId);
     if (
       target &&
-      (target.type === 'FRAME' || target.type === 'SECTION' || target.type === 'GRID_SECTION') &&
+      (target.type === 'FRAME' || target.type === 'SECTION' || target.type === 'GRID_SECTION' || target.type === 'SLIDE') &&
       isGeometryNode(target)
     ) {
       pasteParentId = targetId;

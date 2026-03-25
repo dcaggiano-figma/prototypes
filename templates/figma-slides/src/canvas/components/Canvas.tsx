@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { addListener } from '@figma/fpl-components';
 
 import {
   type NodeId, type SceneNode,
@@ -11,7 +12,17 @@ import {
   useUndoManager,
   useUndoActions,
   useNudgeActions,
+  useReorderActions,
   CanvasLayers,
+  copyNodes,
+  cutNodes,
+  pasteNodes,
+  pasteExternalNodes,
+  duplicateNodes,
+  hasFigmaClipboardData,
+  decodeFigmaClipboard,
+  hasRecentInternalCopy,
+  clearInternalCopyFlag,
 } from '@prototype/shared/canvas';
 
 import { useAction } from '../../actions/provider';
@@ -176,6 +187,11 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   useAction('nudge.left.big', nudge.nudgeLeftBig);
   useAction('nudge.right.big', nudge.nudgeRightBig);
 
+  // Register layer order actions
+  const reorder = useReorderActions();
+  useAction('bring-to-front', reorder.bringToFront);
+  useAction('send-to-back', reorder.sendToBack);
+
   // Register selection actions
   useAction(
     'select-all',
@@ -214,6 +230,88 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       recomputeGridLayout(store, sectionIds);
       um.commit();
     }, [store, selection, canvasId, um]),
+  );
+
+  useAction(
+    'copy',
+    useCallback(() => {
+      if (selection.selectedIds.size === 0) return;
+      copyNodes(store, selection.selectedIds);
+    }, [store, selection]),
+  );
+
+  useAction(
+    'cut',
+    useCallback(() => {
+      if (selection.selectedIds.size === 0) return;
+      cutNodes(store, selection.selectedIds);
+      selection.clear();
+      um.commit();
+    }, [store, selection, um]),
+  );
+
+  // Handle all paste via the native event — Figma clipboard or internal
+  useEffect(
+    () => addListener(document, 'paste', (e: ClipboardEvent) => {
+      // Don't intercept paste for text inputs — let the browser handle natively
+      const target = e.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const center = screenToWorld(rect.width / 2, rect.height / 2);
+
+      // If the user did an internal copy/cut more recently than the last
+      // external paste, prefer the internal clipboard over stale Figma HTML
+      // that may still be on the system clipboard.
+      const html = e.clipboardData?.getData('text/html');
+      if (html && hasFigmaClipboardData(html) && !hasRecentInternalCopy()) {
+        e.preventDefault();
+        clearInternalCopyFlag();
+        decodeFigmaClipboard(html).then((result) => {
+          if (!result) return;
+          const newIds = pasteExternalNodes(
+            store,
+            canvasId,
+            result.nodes,
+            selection.selectedIds,
+            center,
+          );
+          if (newIds.length > 0) {
+            selection.selectMany(newIds);
+          }
+          um.commit();
+        });
+        return;
+      }
+
+      // Internal clipboard paste
+      const newIds = pasteNodes(store, canvasId, selection.selectedIds, center);
+      if (newIds.length > 0) {
+        selection.selectMany(newIds);
+      }
+      um.commit();
+    }),
+    [store, canvasId, selection, containerRef, screenToWorld, um],
+  );
+
+  useAction(
+    'duplicate',
+    useCallback(() => {
+      if (selection.selectedIds.size === 0) return;
+      const newIds = duplicateNodes(store, canvasId, selection.selectedIds);
+      if (newIds.length > 0) {
+        selection.selectMany(newIds);
+      }
+      um.commit();
+    }, [store, selection, um, canvasId]),
   );
 
   useAction(
@@ -1033,6 +1131,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     <div
       ref={containerRef}
       className="fixed inset-0 overflow-hidden"
+      data-tool={effectiveTool}
       style={{ backgroundColor: isDefaultPageBackground(pageBg) ? 'var(--color-fsCanvasDefaultFill)' : `rgb(${pageBg.color.r}, ${pageBg.color.g}, ${pageBg.color.b})`, cursor: cursorStyle }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

@@ -37,7 +37,7 @@ import {
   Icon24StrokeCircleArrow,
   Icon24StrokeDiamondArrow,
 } from '@figma/fpl-icons';
-import { useSelection, useSceneGraph, useCanvasId, useViewportState, useActiveTool, isShapeWithText, isTextCapableNode, isConnectorNode, alignNodes, distributeNodes, wrapInSection, getTypeDefaults, createPaint } from '../canvas';
+import { useSelection, useSceneGraph, useCanvasId, useViewportState, useActiveTool, isShapeWithText, isTextCapableNode, isConnectorNode, useAlignHandler, wrapInSection, getTypeDefaults, createPaint } from '../canvas';
 import type { AppearanceNode, ConnectorCap, ConnectorLineShape, ConnectorNode, LineNode } from '../canvas';
 import { isGeometryNode, getWorldPosition, isConnectorNode as isConnectorType, resolveEndpointPosition } from '@prototype/shared/canvas';
 import type { FigJamTextCapableNode } from '../canvas/text-types';
@@ -88,6 +88,9 @@ export function FloatingObjectToolbar() {
   const { setStickyColor, activeTool, sectionFillColor } = useActiveTool();
   const { manager: fontMenuManager, getTriggerProps: getFontTriggerProps } = MenuV2.useMenu();
   const { manager: sizeMenuManager, getTriggerProps: getSizeTriggerProps } = MenuV2.useMenu();
+  // Call getTriggerProps unconditionally — they invoke hooks internally (useMergeRefs)
+  const fontTriggerProps = getFontTriggerProps();
+  const sizeTriggerProps = getSizeTriggerProps();
   // Subscribe to scene graph changes so toolbar updates when node properties change
   const [, bump] = useState(0);
   useEffect(() => sg.addListener(() => bump((n) => n + 1)), [sg]);
@@ -416,7 +419,7 @@ export function FloatingObjectToolbar() {
         {isTextCapable ? (
           <>
             <ButtonPrimitive
-              {...getFontTriggerProps()}
+              {...fontTriggerProps}
               className="flex items-center gap-1 rounded-md h-5 pl-2 pr-1 hover:bg-bg-hover active:bg-bg-pressed text-headingMd text-text whitespace-nowrap"
             >
               <span style={{ fontFamily: FONT_FAMILY_PRESETS.find((p) => p.value === currentFontFamily)?.fontFamily }} className="w-3 text-center">Aa</span>
@@ -448,7 +451,7 @@ export function FloatingObjectToolbar() {
         {isTextCapable ? (
           <>
             <ButtonPrimitive
-              {...getSizeTriggerProps()}
+              {...sizeTriggerProps}
               className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap"
             >
               <span className="w-[120px]">{getFontSizeLabel(currentFontSize)}</span>
@@ -576,6 +579,10 @@ function SectionToolbar({
   const { manager: alignMenuManager, getTriggerProps: getAlignTriggerProps } = MenuV2.useMenu();
   const { manager: lockMenuManager, getTriggerProps: getLockTriggerProps } = MenuV2.useMenu();
   const { manager: layoutMenuManager, getTriggerProps: getLayoutTriggerProps } = MenuV2.useMenu();
+  // Call getTriggerProps unconditionally — they invoke hooks internally (useMergeRefs)
+  const alignTriggerMenuProps = getAlignTriggerProps();
+  const lockTriggerMenuProps = getLockTriggerProps();
+  const layoutTriggerMenuProps = getLayoutTriggerProps();
   const [showColors, setShowColors] = useState(false);
   const colorPopoverRef = useRef<HTMLDivElement>(null);
   const colorTriggerRef = useRef<HTMLButtonElement>(null);
@@ -708,7 +715,7 @@ function SectionToolbar({
 
         {/* Alignment dropdown */}
         <ButtonPrimitive
-          {...getAlignTriggerProps()}
+          {...alignTriggerMenuProps}
           className="flex items-center gap-1 rounded-md p-1 pl-2 hover:bg-bg-hover active:bg-bg-pressed text-text text-bodyLg whitespace-nowrap"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -740,7 +747,7 @@ function SectionToolbar({
 
             {/* Lock dropdown */}
             <ButtonPrimitive
-              {...getLockTriggerProps()}
+              {...lockTriggerMenuProps}
               className="flex items-center gap-1 rounded-md p-1 hover:bg-bg-hover active:bg-bg-pressed text-text"
             >
               <Icon24LockOpen />
@@ -763,7 +770,7 @@ function SectionToolbar({
 
             {/* Layout dropdown */}
             <ButtonPrimitive
-              {...getLayoutTriggerProps()}
+              {...layoutTriggerMenuProps}
               className="flex items-center gap-1 rounded-md p-1 hover:bg-bg-hover active:bg-bg-pressed text-text"
             >
               <Icon24AlLayoutGrid />
@@ -797,6 +804,7 @@ interface MixedSelectionToolbarProps {
  */
 function MixedSelectionToolbar({ centerX, topY, selection, sg }: MixedSelectionToolbarProps) {
   const canvasId = useCanvasId();
+  const { handleAlign, handleDistribute } = useAlignHandler(sg, selection.selectedIds);
   const { manager: distributeMenuManager, getTriggerProps: getDistributeTriggerProps } = MenuV2.useMenu();
   const [showAlign, setShowAlign] = useState(false);
   const alignPopoverRef = useRef<HTMLDivElement>(null);
@@ -830,27 +838,27 @@ function MixedSelectionToolbar({ centerX, topY, selection, sg }: MixedSelectionT
           className="flex items-center gap-1 bg-bg rounded-lg shadow-300 p-1"
         >
           <IconButton size="lg" aria-label="Align left" variant="ghost"
-            onClick={() => alignNodes(sg, selection.selectedIds, 'left')}>
+            onClick={() => handleAlign('left')}>
             <Icon24LayoutAlignLeft />
           </IconButton>
           <IconButton size="lg" aria-label="Align horizontal center" variant="ghost"
-            onClick={() => alignNodes(sg, selection.selectedIds, 'center-h')}>
+            onClick={() => handleAlign('center-h')}>
             <Icon24LayoutAlignHorizontalCenter />
           </IconButton>
           <IconButton size="lg" aria-label="Align right" variant="ghost"
-            onClick={() => alignNodes(sg, selection.selectedIds, 'right')}>
+            onClick={() => handleAlign('right')}>
             <Icon24LayoutAlignRight />
           </IconButton>
           <IconButton size="lg" aria-label="Align top" variant="ghost"
-            onClick={() => alignNodes(sg, selection.selectedIds, 'top')}>
+            onClick={() => handleAlign('top')}>
             <Icon24LayoutAlignTop />
           </IconButton>
           <IconButton size="lg" aria-label="Align vertical center" variant="ghost"
-            onClick={() => alignNodes(sg, selection.selectedIds, 'center-v')}>
+            onClick={() => handleAlign('center-v')}>
             <Icon24LayoutAlignVerticalCenter />
           </IconButton>
           <IconButton size="lg" aria-label="Align bottom" variant="ghost"
-            onClick={() => alignNodes(sg, selection.selectedIds, 'bottom')}>
+            onClick={() => handleAlign('bottom')}>
             <Icon24LayoutAlignBottom />
           </IconButton>
         </div>
@@ -885,10 +893,10 @@ function MixedSelectionToolbar({ centerX, topY, selection, sg }: MixedSelectionT
           <Icon16ChevronDown />
         </ButtonPrimitive>
         <MenuV2.Root manager={distributeMenuManager}>
-          <MenuV2.Item onClick={() => distributeNodes(sg, selection.selectedIds, 'horizontal')}>
+          <MenuV2.Item onClick={() => handleDistribute('horizontal')}>
             Distribute horizontal spacing
           </MenuV2.Item>
-          <MenuV2.Item onClick={() => distributeNodes(sg, selection.selectedIds, 'vertical')}>
+          <MenuV2.Item onClick={() => handleDistribute('vertical')}>
             Distribute vertical spacing
           </MenuV2.Item>
         </MenuV2.Root>

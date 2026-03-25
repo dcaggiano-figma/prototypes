@@ -42,10 +42,8 @@ export function ModelSelector({
         >
           {options.map((model) => (
             <MenuV2.RadioGroupItem key={model.value} value={model.value} disabled={model.disabled}>
-              <span>
-                {model.label}
-                <MenuV2.SubText>{model.description}</MenuV2.SubText>
-              </span>
+              {model.label}
+              <MenuV2.SubText>{model.description}</MenuV2.SubText>
             </MenuV2.RadioGroupItem>
           ))}
         </MenuV2.RadioGroup>

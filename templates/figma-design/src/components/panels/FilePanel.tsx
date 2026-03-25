@@ -76,7 +76,7 @@ export function FilePanel() {
       {/* Header */}
       <div className="pr-2 pl-2 py-2 gap-2 flex items-start justify-between">
         <div className="flex flex-col py-1 min-w-0 flex-1">
-          {isEditingFileName ? (
+          {isEditingFileName && (
             <Input
               className="text-bodyLg text-text"
               ref={fileNameInputRef}
@@ -90,8 +90,8 @@ export function FilePanel() {
                 }
               }}
             />
-          ) : (
-            <>
+          )}
+          <div className={isEditingFileName ? 'hidden' : ''}>
               <ButtonGroup aria-label="File actions">
                 <Button variant="ghost" onClick={startEditingFileName}>
                   <span className="text-bodyLg text-text truncate">{fileName}</span>
@@ -103,6 +103,7 @@ export function FilePanel() {
                   <Icon16ChevronDown />
                 </ButtonGroup.Trigger>
               </ButtonGroup>
+          </div>
               <MenuV2.Root manager={fileMenu.manager}>
                 <MenuV2.Group>
                   <MenuV2.Item onClick={() => console.log('version-history')}>
@@ -155,8 +156,6 @@ export function FilePanel() {
                   <MenuV2.Item onClick={() => console.log('restore-thumbnail')}>Restore default thumbnail</MenuV2.Item>
                 </MenuV2.Group>
               </MenuV2.Root>
-            </>
-          )}
           <span className="px-2 text-bodyMd text-text-secondary truncate">Drafts</span>
         </div>
         <div className="flex items-center">

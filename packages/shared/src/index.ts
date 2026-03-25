@@ -42,6 +42,7 @@ export {
   useThread,
   formatRelativeTime,
   resolveCommentPosition,
+  clearCommentsStorage,
 } from './comments';
 export { CommentPin } from './comments/CommentPin';
 export { CommentPopover } from './comments/CommentPopover';
@@ -107,7 +108,7 @@ export type { NavListItemDef } from './navigation';
 
 // User Config
 export type { UserConfig } from './user-config';
-export { UserConfigProvider, useUserConfig, UserAvatar } from './user-config';
+export { UserConfigProvider, useUserConfig, UserAvatar, UserConfigModal } from './user-config';
 
 // Thumbnail
 export { NavListThumbnail, ThumbnailPreview } from './thumbnail';
@@ -137,3 +138,7 @@ export type { SwatchProps, SwatchType, SwatchSize } from './swatch';
 
 // Pattern Library
 export { PatternLibraryWindow } from './pattern-library';
+
+// Save as Default
+export { SaveAsDefaultModal, hydrateFromSnapshot } from './save-as-default';
+export type { SerializedSceneGraph } from './save-as-default';

@@ -11,6 +11,7 @@ import {
   useCanvasId,
   useUndoActions,
   useNudgeActions,
+  useReorderActions,
   useUndoManager,
   getWorldPosition,
   isGeometryNode,
@@ -31,7 +32,7 @@ import { useActiveTool } from '../tools/provider';
 import { useBehaviorChain } from '../behaviors';
 import { CURSORS } from '../cursors';
 import { CanvasRenderer } from './canvas-renderer';
-import { copyNodes, cutNodes, pasteNodes, pasteExternalNodes, duplicateNodes, hasFigmaClipboardData, decodeFigmaClipboard } from '@prototype/shared/canvas';
+import { copyNodes, cutNodes, pasteNodes, pasteExternalNodes, duplicateNodes, hasFigmaClipboardData, decodeFigmaClipboard, hasRecentInternalCopy, clearInternalCopyFlag } from '@prototype/shared/canvas';
 
 /** Shape tools that show a ghost preview following the cursor */
 const GHOST_SHAPE_TOOLS = new Set(['RECTANGLE', 'ELLIPSE', 'POLYGON']);
@@ -212,6 +213,11 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
   useAction('nudge.left.big', nudge.nudgeLeftBig);
   useAction('nudge.right.big', nudge.nudgeRightBig);
 
+  // Register layer order actions
+  const reorder = useReorderActions();
+  useAction('bring-to-front', reorder.bringToFront);
+  useAction('send-to-back', reorder.sendToBack);
+
   // Register tool shortcuts
   useAction('tool.move', useCallback(() => setActiveTool('MOVE'), [setActiveTool]));
   useAction('tool.rectangle', useCallback(() => setActiveTool('RECTANGLE'), [setActiveTool]));
@@ -278,17 +284,63 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
     }, [sg, selection, um]),
   );
 
+  // When copying/cutting from contentEditable nodes (e.g. sticky notes), strip
+  // rich formatting so only plain text lands on the clipboard. Without this the
+  // browser copies the background-color of the source element, which bleeds
+  // through when pasted into another node.
+  useEffect(() => {
+    const stripFormatting = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.isContentEditable) return;
+
+      const text = document.getSelection()?.toString() ?? '';
+      if (!text) return;
+
+      e.preventDefault();
+      e.clipboardData?.setData('text/plain', text);
+
+      // For cut, also remove the selected text
+      if (e.type === 'cut') {
+        document.getSelection()?.deleteFromDocument();
+      }
+    };
+
+    const removeCopy = addListener(document, 'copy', stripFormatting);
+    const removeCut = addListener(document, 'cut', stripFormatting);
+    return () => { removeCopy(); removeCut(); };
+  }, []);
+
   // Handle all paste via the native event — Figma clipboard or internal
   useEffect(
     () => addListener(document, 'paste', (e: ClipboardEvent) => {
+      // For text inputs, let the browser handle natively
+      const target = e.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      // For contentEditable nodes, force plain-text paste to strip formatting
+      if (target.isContentEditable) {
+        const text = e.clipboardData?.getData('text/plain');
+        if (text) {
+          e.preventDefault();
+          document.execCommand('insertText', false, text);
+        }
+        return;
+      }
+
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
       const center = screenToWorld(rect.width / 2, rect.height / 2);
 
       const html = e.clipboardData?.getData('text/html');
-      if (html && hasFigmaClipboardData(html)) {
+      if (html && hasFigmaClipboardData(html) && !hasRecentInternalCopy()) {
         e.preventDefault();
+        clearInternalCopyFlag();
         decodeFigmaClipboard(html).then((result) => {
           if (!result) return;
           const newIds = pasteExternalNodes(
@@ -651,6 +703,7 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
     <div
       ref={containerRef}
       className="fixed inset-0 overflow-hidden pointer-events-auto"
+      data-tool={effectiveTool}
       style={{
         backgroundColor: isDefaultPageBackground(pageBg)
           ? `rgb(${DEFAULT_PAGE_BG.color.r}, ${DEFAULT_PAGE_BG.color.g}, ${DEFAULT_PAGE_BG.color.b})`

@@ -40,7 +40,7 @@ import {
 import { z } from 'zod';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
-import { useResizablePanel, UserAvatar, ResizeHandle, NavList } from '@prototype/shared';
+import { useResizablePanel, UserAvatar, ResizeHandle, NavList, PatternLibraryWindow, UserConfigModal } from '@prototype/shared';
 
 /* ------------------------------------------------------------------ */
 /*  Navigation data                                                     */
@@ -401,6 +401,10 @@ export function SettingsPage() {
   const [editingValue, setEditingValue] = useState('');
   const fileNameInputRef = useRef<HTMLInputElement>(null);
 
+  /* Prototype modals */
+  const [showPatternLibrary, setShowPatternLibrary] = useState(false);
+  const [showUserConfig, setShowUserConfig] = useState(false);
+
   /* Resizable left panel */
   const { panelRef, onMouseDown: onResizeMouseDown } = useResizablePanel({ minWidth: 280 });
 
@@ -449,7 +453,6 @@ export function SettingsPage() {
             <IconButton
                 aria-label="Figma"
                 size="lg"
-                // eslint-disable-next-line react/jsx-props-no-spreading
                 {...chevronMenu.getTriggerProps()}
               >
                 <Icon24FigmaLarge />
@@ -457,7 +460,7 @@ export function SettingsPage() {
             <MenuV2.Root manager={chevronMenu.manager}>
                 {/* File */}
                 <MenuV2.SubMenu title="File">
-                    <MenuV2.Item onClick={() => console.log('new-make')}>New Make</MenuV2.Item>
+                    <MenuV2.Item onClick={() => { ws.reset(); navigate({ to: '/' }); }}>New Make</MenuV2.Item>
                     <MenuV2.SubMenu title="New">
                         <MenuV2.Item onClick={() => console.log('design')}>Design</MenuV2.Item>
                         <MenuV2.Item onClick={() => console.log('figjam')}>FigJam</MenuV2.Item>
@@ -515,16 +518,20 @@ export function SettingsPage() {
                     <MenuV2.Item onClick={() => console.log('account')}>Account settings</MenuV2.Item>
                   </MenuV2.SubMenu>
 
-                {/* Debug */}
-                <MenuV2.SubMenu title="Debug">
-                    <MenuV2.Item onClick={() => console.log('console')}>Open console</MenuV2.Item>
-                    <MenuV2.Item onClick={() => console.log('network')}>Network log</MenuV2.Item>
-                    <MenuV2.Item onClick={() => console.log('performance')}>Performance</MenuV2.Item>
+                {/* Prototype */}
+                <MenuV2.SubMenu title="Prototype">
+                    <MenuV2.Group>
+                      <MenuV2.Item onClick={() => { ws.reset(); navigate({ to: '/' }); }}>Reset prototype</MenuV2.Item>
+                    </MenuV2.Group>
+                    <MenuV2.Group>
+                      <MenuV2.Item onClick={() => setShowPatternLibrary(true)}>Pattern library</MenuV2.Item>
+                      <MenuV2.Item onClick={() => setShowUserConfig(true)}>User config...</MenuV2.Item>
+                    </MenuV2.Group>
                   </MenuV2.SubMenu>
             </MenuV2.Root>
 
             {/* File name button group */}
-            {isEditingFileName ? (
+            {isEditingFileName && (
               <div className="w-[120px]">
                 <Input
                   className="text-bodyLg text-text"
@@ -541,21 +548,21 @@ export function SettingsPage() {
                   }}
                 />
               </div>
-            ) : (
-              <>
+            )}
+            <div className={isEditingFileName ? 'hidden' : ''}>
                 <ButtonGroup aria-label="File actions">
                   <Button size="lg" variant="ghost" onClick={startEditingFileName}>
                     <span className="text-bodyLg text-text">{ws.fileName}</span>
                   </Button>
                   <ButtonGroup.Trigger
                     size="lg"
-                    // eslint-disable-next-line react/jsx-props-no-spreading
                     {...fileMenu.getTriggerProps() as React.ComponentProps<typeof ButtonGroup.Trigger>}
                     aria-label="File options"
                   >
                     <Icon16ChevronDown />
                   </ButtonGroup.Trigger>
                 </ButtonGroup>
+            </div>
                 <MenuV2.Root manager={fileMenu.manager}>
                   <MenuV2.Group>
                     <MenuV2.SubMenu title="Add to sidebar">
@@ -571,8 +578,6 @@ export function SettingsPage() {
                     <MenuV2.Item onClick={() => console.log('move-to-trash')}>Move to trash</MenuV2.Item>
                   </MenuV2.Group>
                 </MenuV2.Root>
-              </>
-            )}
           </div>
         </header>
 
@@ -625,7 +630,6 @@ export function SettingsPage() {
             <IconButton
                 size="lg"
                 aria-label="Settings"
-                // eslint-disable-next-line react/jsx-props-no-spreading
                 {...settingsMenu.getTriggerProps()}
               >
                 <Icon24SettingsLarge />
@@ -667,6 +671,9 @@ export function SettingsPage() {
           <ActivePanel />
         </main>
       </div>
+
+      {showPatternLibrary && <PatternLibraryWindow onClose={() => setShowPatternLibrary(false)} />}
+      <UserConfigModal open={showUserConfig} onClose={() => setShowUserConfig(false)} />
     </div>
   );
 }

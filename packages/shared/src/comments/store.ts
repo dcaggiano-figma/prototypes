@@ -11,10 +11,29 @@ function genCommentId(): string {
   return `comment_${nextCommentId++}`;
 }
 
-export function createCommentsStore(): CommentsStoreAPI {
+export function createCommentsStore(initialThreads?: CommentThread[]): CommentsStoreAPI {
   const threads = new Map<string, CommentThread>();
   const listeners = new Set<() => void>();
   let snapshot: CommentThread[] = [];
+
+  // Hydrate from persisted data if provided
+  if (initialThreads) {
+    for (const thread of initialThreads) {
+      threads.set(thread.id, thread);
+
+      // Advance ID counters past existing IDs to avoid collisions
+      const threadNum = parseInt(thread.id.replace('thread_', ''), 10);
+      if (!isNaN(threadNum) && threadNum >= nextThreadId) {
+        nextThreadId = threadNum + 1;
+      }
+      for (const comment of thread.comments) {
+        const commentNum = parseInt(comment.id.replace('comment_', ''), 10);
+        if (!isNaN(commentNum) && commentNum >= nextCommentId) {
+          nextCommentId = commentNum + 1;
+        }
+      }
+    }
+  }
 
   function updateSnapshot() {
     snapshot = Array.from(threads.values()).sort((a, b) => b.createdAt - a.createdAt);

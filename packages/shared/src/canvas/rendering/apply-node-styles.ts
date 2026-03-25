@@ -11,6 +11,7 @@
 
 import type { SceneNode, FrameNode, RectangleNode, SectionNode, GridSectionNode, SlideNode, TextNode, VectorNode, EllipseNode, PolygonNode, StarNode, LineNode, StickyNoteNode, ShapeWithTextNode } from '../../scene-graph/types'
 import { colorToCSS, getFirstVisibleFill, getFirstVisibleStroke, rotationTransform, strokeBoxShadow, svgStrokeWidth } from './style-helpers'
+import { formatFontFamily } from './font-utils'
 
 // ── Public API ───────────────────────────────────────────────────────
 
@@ -97,7 +98,6 @@ function applyFrameStyles(el: HTMLElement, node: FrameNode): void {
 
 function applySectionStyles(el: HTMLElement, node: SectionNode): void {
   const s = el.style
-  const fill = getFirstVisibleFill(node.fills)
 
   s.left = `${node.x}px`
   s.top = `${node.y}px`
@@ -105,14 +105,13 @@ function applySectionStyles(el: HTMLElement, node: SectionNode): void {
   s.width = `${node.width}px`
   s.height = `${node.height}px`
   s.opacity = node.opacity < 1 ? String(node.opacity) : ''
-  s.backgroundColor = fill ? colorToCSS(fill.color, fill.opacity) : ''
-  // Border styling (borderRadius, boxShadow) is owned by the React renderer
-  // since it varies by template (e.g. slides/buzz use top-border-only).
+  // Background and border styling are owned by the React renderer
+  // since they vary by template (e.g. slides/buzz use top-border-only
+  // and intentionally omit background fills on section rows).
 }
 
 function applyGridSectionStyles(el: HTMLElement, node: GridSectionNode): void {
   const s = el.style
-  const fill = getFirstVisibleFill(node.fills)
 
   s.left = `${node.x}px`
   s.top = `${node.y}px`
@@ -120,7 +119,8 @@ function applyGridSectionStyles(el: HTMLElement, node: GridSectionNode): void {
   s.width = `${node.width}px`
   s.height = `${node.height}px`
   s.opacity = node.opacity < 1 ? String(node.opacity) : ''
-  s.backgroundColor = fill ? colorToCSS(fill.color, fill.opacity) : ''
+  // Background styling is owned by the React renderer (intentionally omitted
+  // for grid sections which use transparent backgrounds).
 }
 
 function applySlideStyles(el: HTMLElement, node: SlideNode): void {
@@ -149,7 +149,7 @@ function applyTextStyles(el: HTMLElement, node: TextNode): void {
   s.transform = rotationTransform(node.rotation)
   s.opacity = node.opacity < 1 ? String(node.opacity) : ''
   s.color = fill ? colorToCSS(fill.color, fill.opacity) : ''
-  s.fontFamily = node.fontFamily
+  s.fontFamily = formatFontFamily(node.fontFamily)
   s.fontSize = `${node.fontSize}px`
   s.fontWeight = String(node.fontWeight)
   s.lineHeight = `${node.lineHeight}px`

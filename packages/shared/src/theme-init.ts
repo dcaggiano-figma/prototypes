@@ -7,9 +7,9 @@ export type { ThemeSetting } from './theme/theme';
 export function initTheme({
   storageKey = 'app-theme',
 }: { storageKey?: string } = {}): void {
-  let setting = 'light';
+  let setting = 'system';
   try {
-    setting = localStorage.getItem(storageKey) || 'light';
+    setting = localStorage.getItem(storageKey) || 'system';
   } catch {
     // localStorage may be unavailable
   }

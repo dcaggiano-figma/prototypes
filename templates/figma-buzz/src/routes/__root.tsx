@@ -27,7 +27,8 @@ import {
   readStoredTheme,
   type ThemeSetting,
 } from '../helpers/theme';
-import { CommentOverlay, ContextMenuRenderer, LeftSidebar, ModeSwitcher, useComments, useContextMenu } from '@prototype/shared';
+import { CommentOverlay, ContextMenuRenderer, LeftSidebar, ModeSwitcher, PatternLibraryWindow, SaveAsDefaultModal, UserConfigModal, useComments, useContextMenu } from '@prototype/shared';
+import { showToast } from '../components/toast';
 import { PrototypeFeaturesModal } from '../components/PrototypeFeaturesModal';
 import { Providers } from '../providers';
 import { useAction } from '../actions/provider';
@@ -37,7 +38,7 @@ import { FloatingFileHeader } from '../components/FloatingFileHeader';
 import { FloatingFrameToolbar } from '../components/FloatingFrameToolbar';
 import { MinimizedRightPanel } from '../components/MinimizedRightPanel';
 import { FloatingCommentPanel } from '../components/FloatingCommentPanel';
-import { DesignMainMenu } from '../components/DesignMainMenu';
+import { MainMenu } from '../components/MainMenu';
 import {
   FilePanel,
   AiChatPanel,
@@ -124,6 +125,9 @@ function EditorContent() {
   const [focusedFrameId, setFocusedFrameId] = useState<NodeId | null>(null);
   const [isAnimatingViewMode, setIsAnimatingViewMode] = useState(false);
   const [isAnimatingModeChange, setIsAnimatingModeChange] = useState(false);
+  const [showSaveAsDefault, setShowSaveAsDefault] = useState(false);
+  const [showUserConfig, setShowUserConfig] = useState(false);
+  const [showPatternLibrary, setShowPatternLibrary] = useState(false);
 
   const viewModeCtx = useMemo<ViewModeAPI>(
     () => ({ viewMode, setViewMode, focusedFrameId, setFocusedFrameId, isAnimatingViewMode, setIsAnimatingViewMode, isAnimatingModeChange, setIsAnimatingModeChange }),
@@ -211,11 +215,14 @@ function EditorContent() {
       {/* Left icon rail — hidden when minimized */}
       {!isMinimized && (
         <LeftSidebar.Rail>
-          <DesignMainMenu
+          <MainMenu
             themeSetting={themeSetting}
             onThemeChange={handleThemeChange}
             onOpenActions={() => setIsActionsOpen(true)}
             onToggleMinimize={toggleMinimized}
+            onSaveAsDefault={() => setShowSaveAsDefault(true)}
+            onOpenPatternLibrary={() => setShowPatternLibrary(true)}
+            onOpenUserConfig={() => setShowUserConfig(true)}
           />
           <LeftSidebar.Divider />
           <div className="pt-2 pb-3">
@@ -297,6 +304,13 @@ function EditorContent() {
         store={commentsStore}
         threads={commentThreads}
         worldToScreen={viewport.worldToScreen}
+      />
+      {showPatternLibrary && <PatternLibraryWindow onClose={() => setShowPatternLibrary(false)} />}
+      <UserConfigModal open={showUserConfig} onClose={() => setShowUserConfig(false)} />
+      <SaveAsDefaultModal
+        open={showSaveAsDefault}
+        onClose={() => setShowSaveAsDefault(false)}
+        onCopy={() => showToast({ message: 'JSON copied to clipboard' })}
       />
     </div>
     </MinimizeUIProvider>

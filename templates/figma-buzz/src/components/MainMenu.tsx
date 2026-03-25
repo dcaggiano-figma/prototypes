@@ -5,15 +5,20 @@ import { Icon24FigmaLarge, Icon24SearchLarge } from '@figma/fpl-icons';
 import type { MenuItemDef } from './menuTypes';
 import { renderMenuItems } from './menuTypes';
 import type { ThemeSetting } from '../helpers/theme';
+import { clearCommentsStorage } from '@prototype/shared';
+import { clearSceneGraphStorage } from '@prototype/shared/canvas';
 
-interface DesignMainMenuProps {
+interface MainMenuProps {
   themeSetting: ThemeSetting;
   onThemeChange: (setting: ThemeSetting) => void;
   onOpenActions: () => void;
   onToggleMinimize?: () => void;
+  onSaveAsDefault?: () => void;
+  onOpenPatternLibrary?: () => void;
+  onOpenUserConfig?: () => void;
 }
 
-export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize }: DesignMainMenuProps) {
+export function MainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize, onSaveAsDefault, onOpenPatternLibrary, onOpenUserConfig }: MainMenuProps) {
   const mainMenu = MenuV2.useMenu();
 
   // Consolidated preferences state
@@ -431,10 +436,20 @@ export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onT
       { type: 'item', id: 'log-out', label: 'Log out', onClick: noop },
     ]},
 
-    { type: 'submenu', id: 'debug', label: 'Debug', children: [
-      { type: 'item', id: 'console', label: 'Open console', onClick: noop },
-      { type: 'item', id: 'network', label: 'Network log', onClick: noop },
-      { type: 'item', id: 'performance', label: 'Performance', onClick: noop },
+    { type: 'separator' },
+    { type: 'submenu', id: 'prototype', label: 'Prototype', children: [
+      { type: 'group', id: 'proto-reset', children: [
+        { type: 'item', id: 'reset-prototype', label: 'Reset prototype', onClick: () => {
+          clearSceneGraphStorage();
+          clearCommentsStorage();
+          window.location.reload();
+        }},
+      ]},
+      { type: 'group', id: 'proto-tools', children: [
+        { type: 'item', id: 'pattern-library', label: 'Pattern library', onClick: onOpenPatternLibrary ?? noop },
+        { type: 'item', id: 'save-default', label: 'Save as prototype default...', onClick: () => onSaveAsDefault?.() },
+        { type: 'item', id: 'user-config', label: 'User config...', onClick: () => onOpenUserConfig?.() },
+      ]},
     ]},
   ];
 

@@ -6,7 +6,7 @@
 export * from '../scene-graph/types'
 export * from '../scene-graph/node-id'
 export * from '../scene-graph/scene-graph'
-export { loadSceneGraph, installAutoSave, clearSceneGraphStorage } from '../scene-graph/storage'
+export { loadSceneGraph, installAutoSave, clearSceneGraphStorage, serializeSceneGraph } from '../scene-graph/storage'
 export * from '../scene-graph/selection'
 export * from '../scene-graph/undo-manager'
 export { MIXED, type Mixed, isMixed, notMixed } from '../scene-graph/mixed'
@@ -43,6 +43,7 @@ export * from './viewport/provider'
 
 // Alignment
 export * from './scene-graph/alignment'
+export * from './scene-graph/use-align-handler'
 
 // Selection utilities
 export * from './scene-graph/selection-utils'
@@ -75,6 +76,7 @@ export * from './scene-graph/grid-helpers'
 
 // Actions (shared action hooks)
 export * from './actions/use-nudge-actions'
+export * from './actions/use-reorder-actions'
 
 // Connectors (path computation, point definitions, resolution, rendering)
 export * from './connectors'

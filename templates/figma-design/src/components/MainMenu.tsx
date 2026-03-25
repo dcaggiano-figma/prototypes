@@ -3,19 +3,22 @@ import { IconButton } from '@figma/fpl-components';
 import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon24FigmaLarge, Icon24SearchLarge } from '@figma/fpl-icons';
 import { clearSceneGraphStorage } from '@prototype/shared/canvas';
+import { clearCommentsStorage } from '@prototype/shared';
 import type { MenuItemDef } from './menuTypes';
 import { renderMenuItems } from './menuTypes';
 import type { ThemeSetting } from '../helpers/theme';
 
-interface DesignMainMenuProps {
+interface MainMenuProps {
   themeSetting: ThemeSetting;
   onThemeChange: (setting: ThemeSetting) => void;
   onOpenActions: () => void;
   onToggleMinimize?: () => void;
   onOpenPatternLibrary?: () => void;
+  onSaveAsDefault?: () => void;
+  onOpenUserConfig?: () => void;
 }
 
-export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize, onOpenPatternLibrary }: DesignMainMenuProps) {
+export function MainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize, onOpenPatternLibrary, onSaveAsDefault, onOpenUserConfig }: MainMenuProps) {
   const mainMenu = MenuV2.useMenu();
 
   // Consolidated preferences state
@@ -415,7 +418,6 @@ export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onT
     ]},
 
     { type: 'item', id: 'libraries', label: 'Libraries', onClick: noop },
-    { type: 'item', id: 'pattern-library', label: 'Pattern library', onClick: onOpenPatternLibrary ?? noop },
 
     { type: 'separator' },
 
@@ -436,15 +438,20 @@ export function DesignMainMenu({ themeSetting, onThemeChange, onOpenActions, onT
       { type: 'item', id: 'log-out', label: 'Log out', onClick: noop },
     ]},
 
-    { type: 'submenu', id: 'debug', label: 'Debug', children: [
-      { type: 'item', id: 'console', label: 'Open console', onClick: noop },
-      { type: 'item', id: 'network', label: 'Network log', onClick: noop },
-      { type: 'item', id: 'performance', label: 'Performance', onClick: noop },
-      { type: 'separator' },
-      { type: 'item', id: 'reset-canvas', label: 'Reset canvas', onClick: () => {
-        clearSceneGraphStorage();
-        window.location.reload();
-      }},
+    { type: 'separator' },
+    { type: 'submenu', id: 'prototype', label: 'Prototype', children: [
+      { type: 'group', id: 'proto-reset', children: [
+        { type: 'item', id: 'reset-prototype', label: 'Reset prototype', onClick: () => {
+          clearSceneGraphStorage();
+          clearCommentsStorage();
+          window.location.reload();
+        }},
+      ]},
+      { type: 'group', id: 'proto-tools', children: [
+        { type: 'item', id: 'pattern-library', label: 'Pattern library', onClick: onOpenPatternLibrary ?? noop },
+        { type: 'item', id: 'save-default', label: 'Save as prototype default...', onClick: () => onSaveAsDefault?.() },
+        { type: 'item', id: 'user-config', label: 'User config...', onClick: () => onOpenUserConfig?.() },
+      ]},
     ]},
   ];
 

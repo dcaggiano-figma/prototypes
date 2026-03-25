@@ -42,6 +42,7 @@ export const SHORTCUT_MAP: Record<string, string> = {
   'Mod+c': 'copy',
   'Mod+v': 'paste',
   'Mod+x': 'cut',
+  'Mod+d': 'duplicate',
 
   // Undo / redo
   'Mod+z': 'undo',
@@ -54,6 +55,10 @@ export const SHORTCUT_MAP: Record<string, string> = {
   'Shift+1': 'zoom-to-fit',
   'Shift+0': 'zoom-to-100',
   'Mod+0': 'zoom-to-100',
+
+  // Layer order
+  ']': 'bring-to-front',
+  '[': 'send-to-back',
 
   // View
   'Shift+Mod+\\': 'view.minimize-ui',

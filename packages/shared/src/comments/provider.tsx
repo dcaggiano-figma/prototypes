@@ -1,6 +1,7 @@
 import {
-  createContext, useContext, useMemo, useRef, useState, useSyncExternalStore,
+  createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore,
 } from 'react';
+import { loadComments, installCommentsAutoSave } from './comment-storage';
 import { createCommentsStore } from './store';
 import type { CommentInteraction, CommentsStoreAPI, CommentThread } from './types';
 
@@ -14,11 +15,20 @@ interface CommentsContextValue {
 
 const CommentsContext = createContext<CommentsContextValue | null>(null);
 
-export function CommentsProvider({ children }: { children: React.ReactNode }) {
+interface CommentsProviderProps {
+  children: React.ReactNode;
+  /** Fallback threads used on first visit (before anything is saved to localStorage). */
+  defaultComments?: CommentThread[];
+}
+
+export function CommentsProvider({ children, defaultComments }: CommentsProviderProps) {
   const storeRef = useRef<CommentsStoreAPI | null>(null);
   if (storeRef.current === null) {
-    storeRef.current = createCommentsStore();
+    storeRef.current = createCommentsStore(loadComments() ?? defaultComments);
   }
+
+  // Auto-save comments to localStorage on mutations
+  useEffect(() => installCommentsAutoSave(storeRef.current!), []);
 
   const [interaction, setInteraction] = useState<CommentInteraction>({ type: 'none' });
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);

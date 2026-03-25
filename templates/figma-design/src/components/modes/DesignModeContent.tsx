@@ -58,12 +58,13 @@ import {
 } from '@figma/fpl-icons';
 
 import {
-  alignChildren,
-  alignNodes,
   createPaint,
-  distributeNodes,
+  FONT_OPTIONS,
+  getFontOptionWeights,
   isMixed,
+  useAlignHandler,
   useCanvasId,
+  useLocalFonts,
   usePageBackground,
   useSceneGraph,
   useSelection,
@@ -74,10 +75,8 @@ import {
   useViewportState,
 } from '../../canvas';
 import type {
-  AlignDirection,
   AppearanceNode,
   Color,
-  DistributeDirection,
   FrameNode,
   GeometryNode,
   NodeId,
@@ -222,14 +221,14 @@ function SelectionProperties({ selectedIds }: { selectedIds: ReadonlySet<NodeId>
       <SelectionHeader singleNode={singleNode} count={selectedIds.size} />
 
       {/* Position — always shown when all are geometry */}
-      {allGeometry && <PositionSection singleNode={singleNode} selectedIds={selectedIds} geoCount={geoCount} />}
+      {allGeometry && <PositionSection selectedIds={selectedIds} geoCount={geoCount} />}
 
       {/* Layout — text has its own layout section, otherwise show for geometry */}
-      {allText && singleNode && <TextLayoutSection />}
+      {allText && <TextLayoutSection />}
       {!allText && allGeometry && <LayoutSection singleNode={singleNode as GeometryNode | null} />}
 
       {/* Typography — only for text nodes */}
-      {allText && singleNode && <TypographySection />}
+      {allText && <TypographySection />}
 
       {/* Appearance — shown when all are geometry */}
       {allGeometry && <AppearanceSection singleNode={singleNode as GeometryNode | null} allAppearance={allAppearance} />}
@@ -279,7 +278,7 @@ function nodeTypeLabel(node: SceneNode): string {
 
 // ── Position ────────────────────────────────────────────────────────
 
-function PositionSection({ singleNode, selectedIds, geoCount }: { singleNode: SceneNode | null; selectedIds: ReadonlySet<NodeId>; geoCount: number }) {
+function PositionSection({ selectedIds, geoCount }: { selectedIds: ReadonlySet<NodeId>; geoCount: number }) {
   const sg = useSceneGraph();
   const [x, setX] = useSelectionProperty('x');
   const [y, setY] = useSelectionProperty('y');
@@ -288,34 +287,9 @@ function PositionSection({ singleNode, selectedIds, geoCount }: { singleNode: Sc
   const mixedY = useMixedChangeHandler('y');
   const mixedRotation = useMixedChangeHandler('rotation');
 
-  // Multi-select: align nodes relative to each other
+  const { handleAlign, handleDistribute, alignEnabled, distributeEnabled } = useAlignHandler(sg, selectedIds);
+
   const isMulti = geoCount >= 2;
-
-  // Single-selection: containers with 2+ children can align children
-  const hasChildren = singleNode && 'children' in singleNode && Array.isArray(singleNode.children) && singleNode.children.length >= 2;
-
-  const handleAlignChildren = useCallback(
-    (direction: AlignDirection) => {
-      if (!hasChildren || !singleNode) return;
-      alignChildren(sg, singleNode.id, direction);
-    },
-    [sg, singleNode, hasChildren],
-  );
-
-  const handleAlignNodes = useCallback(
-    (direction: AlignDirection) => { alignNodes(sg, selectedIds, direction) },
-    [sg, selectedIds],
-  );
-
-  const handleDistribute = useCallback(
-    (direction: DistributeDirection) => { distributeNodes(sg, selectedIds, direction) },
-    [sg, selectedIds],
-  );
-
-  // Multi-select: always enabled. Single-select: only for containers with children.
-  const alignDisabled = !isMulti && !hasChildren;
-  const handleAlign = isMulti ? handleAlignNodes : handleAlignChildren;
-  const canDistribute = geoCount >= 3;
   const tidyMenu = MenuV2.useMenu();
   // Call getTriggerProps() unconditionally — it contains useMergeRefs (a hook)
   // so calling it conditionally violates the Rules of Hooks.
@@ -325,14 +299,14 @@ function PositionSection({ singleNode, selectedIds, geoCount }: { singleNode: Sc
     <PropertySection title="Position">
       <PropertyRow>
         <IconButtonGroup>
-          <IconButtonGroup.Button aria-label="Align left" disabled={alignDisabled} onClick={() => handleAlign('left')}><Icon24LayoutAlignLeft /></IconButtonGroup.Button>
-          <IconButtonGroup.Button aria-label="Align horizontal center" disabled={alignDisabled} onClick={() => handleAlign('center-h')}><Icon24LayoutAlignHorizontalCenter /></IconButtonGroup.Button>
-          <IconButtonGroup.Button aria-label="Align right" disabled={alignDisabled} onClick={() => handleAlign('right')}><Icon24LayoutAlignRight /></IconButtonGroup.Button>
+          <IconButtonGroup.Button aria-label="Align left" disabled={!alignEnabled} onClick={() => handleAlign('left')}><Icon24LayoutAlignLeft /></IconButtonGroup.Button>
+          <IconButtonGroup.Button aria-label="Align horizontal center" disabled={!alignEnabled} onClick={() => handleAlign('center-h')}><Icon24LayoutAlignHorizontalCenter /></IconButtonGroup.Button>
+          <IconButtonGroup.Button aria-label="Align right" disabled={!alignEnabled} onClick={() => handleAlign('right')}><Icon24LayoutAlignRight /></IconButtonGroup.Button>
         </IconButtonGroup>
         <IconButtonGroup>
-          <IconButtonGroup.Button aria-label="Align top" disabled={alignDisabled} onClick={() => handleAlign('top')}><Icon24LayoutAlignTop /></IconButtonGroup.Button>
-          <IconButtonGroup.Button aria-label="Align vertical center" disabled={alignDisabled} onClick={() => handleAlign('center-v')}><Icon24LayoutAlignVerticalCenter /></IconButtonGroup.Button>
-          <IconButtonGroup.Button aria-label="Align bottom" disabled={alignDisabled} onClick={() => handleAlign('bottom')}><Icon24LayoutAlignBottom /></IconButtonGroup.Button>
+          <IconButtonGroup.Button aria-label="Align top" disabled={!alignEnabled} onClick={() => handleAlign('top')}><Icon24LayoutAlignTop /></IconButtonGroup.Button>
+          <IconButtonGroup.Button aria-label="Align vertical center" disabled={!alignEnabled} onClick={() => handleAlign('center-v')}><Icon24LayoutAlignVerticalCenter /></IconButtonGroup.Button>
+          <IconButtonGroup.Button aria-label="Align bottom" disabled={!alignEnabled} onClick={() => handleAlign('bottom')}><Icon24LayoutAlignBottom /></IconButtonGroup.Button>
         </IconButtonGroup>
         {isMulti ? (
           <>
@@ -343,10 +317,10 @@ function PositionSection({ singleNode, selectedIds, geoCount }: { singleNode: Sc
               <MenuV2.Item onClick={() => {}} lead={<Icon24LayoutTidyUpGrid />} trail="^⌥T">
                 Tidy up
               </MenuV2.Item>
-              <MenuV2.Item onClick={() => handleDistribute('vertical')} disabled={!canDistribute} lead={<Icon24LayoutDistributeVerticalSpacing />} trail="^⌥V">
+              <MenuV2.Item onClick={() => handleDistribute('vertical')} disabled={!distributeEnabled} lead={<Icon24LayoutDistributeVerticalSpacing />} trail="^⌥V">
                 Distribute vertical spacing
               </MenuV2.Item>
-              <MenuV2.Item onClick={() => handleDistribute('horizontal')} disabled={!canDistribute} lead={<Icon24LayoutDistributeHorizontalSpacing />} trail="^⌥H">
+              <MenuV2.Item onClick={() => handleDistribute('horizontal')} disabled={!distributeEnabled} lead={<Icon24LayoutDistributeHorizontalSpacing />} trail="^⌥H">
                 Distribute horizontal spacing
               </MenuV2.Item>
             </MenuV2.Root>
@@ -396,6 +370,8 @@ function TextLayoutSection() {
   const [textAutoResize, setTextAutoResize] = useSelectionProperty('textAutoResize');
   const [width] = useSelectionProperty('width');
   const [height] = useSelectionProperty('height');
+  const mixedW = useMixedChangeHandler('width');
+  const mixedH = useMixedChangeHandler('height');
 
   const handleW = useCallback(
     (v: number, opts: NumericFieldChangeOpts) => {
@@ -419,8 +395,8 @@ function TextLayoutSection() {
     [setProperties, textAutoResize],
   );
 
-  const wDisabled = textAutoResize === 'WIDTH_AND_HEIGHT';
-  const hDisabled = textAutoResize !== 'NONE';
+  const wDisabled = !isMixed(textAutoResize) && textAutoResize === 'WIDTH_AND_HEIGHT';
+  const hDisabled = !isMixed(textAutoResize) && textAutoResize !== 'NONE';
 
   return (
     <PropertySection
@@ -446,6 +422,7 @@ function TextLayoutSection() {
           label="W"
           value={width ?? 0}
           onChange={handleW}
+          onMixedChange={mixedW}
           formatter={positiveFormatter}
           disabled={wDisabled}
         />
@@ -453,6 +430,7 @@ function TextLayoutSection() {
           label="H"
           value={height ?? 0}
           onChange={handleH}
+          onMixedChange={mixedH}
           formatter={positiveFormatter}
           disabled={hDisabled}
         />
@@ -466,27 +444,57 @@ function TextLayoutSection() {
 
 // ── Typography ──────────────────────────────────────────────────────
 
+const WEIGHT_LABELS: Record<number, string> = {
+  100: 'Thin',
+  200: 'Extra Light',
+  300: 'Light',
+  400: 'Regular',
+  500: 'Medium',
+  600: 'Semi Bold',
+  700: 'Bold',
+  800: 'Extra Bold',
+  900: 'Black',
+}
+
 function TypographySection() {
   const [fontFamily, setFontFamily] = useSelectionProperty('fontFamily');
   const [fontWeight, setFontWeight] = useSelectionProperty('fontWeight');
   const [fontSize, setFontSize] = useSelectionProperty('fontSize');
   const [lineHeight, setLineHeight] = useSelectionProperty('lineHeight');
   const [letterSpacing, setLetterSpacing] = useSelectionProperty('letterSpacing');
+  const mixedLineHeight = useMixedChangeHandler('lineHeight');
+  const mixedLetterSpacing = useMixedChangeHandler('letterSpacing');
   const [textAlignHorizontal, setTextAlignHorizontal] = useSelectionProperty('textAlignHorizontal');
   const [textAlignVertical, setTextAlignVertical] = useSelectionProperty('textAlignVertical');
+  const { supported: localFontsSupported, fonts: localFonts, getWeights, requestAccess } = useLocalFonts();
+  const availableWeights = !isMixed(fontFamily) && fontFamily ? (getWeights(fontFamily) ?? getFontOptionWeights(fontFamily)) : null;
 
   return (
     <PropertySection title="Typography">
       {/* Font family + weight */}
       <PropertyRow columns="1fr 24px">
-        <Select.Root value={!isMixed(fontFamily) ? (fontFamily ?? 'Inter') : undefined} onChange={(v) => v && setFontFamily(v)}>
+        <Select.Root
+          value={!isMixed(fontFamily) ? (fontFamily ?? 'Inter') : undefined}
+          onChange={(v) => {
+            if (v === '__load_system_fonts__') {
+              requestAccess()
+              return
+            }
+            if (v) setFontFamily(v)
+          }}
+        >
           <Select.Trigger label={<HiddenLabel>Font family</HiddenLabel>} width="fill" />
           <Select.Container>
-            <Select.Option value="Inter">Inter</Select.Option>
-            <Select.Option value="Roboto">Roboto</Select.Option>
-            <Select.Option value="Arial">Arial</Select.Option>
-            <Select.Option value="Georgia">Georgia</Select.Option>
-            <Select.Option value="monospace">Monospace</Select.Option>
+            {localFonts.length > 0
+              ? localFonts.map((font) => (
+                  <Select.Option key={font} value={font}>{font}</Select.Option>
+                ))
+              : FONT_OPTIONS.map((font) => (
+                  <Select.Option key={font.value} value={font.value}>{font.label}</Select.Option>
+                ))}
+            {localFontsSupported && localFonts.length === 0 && (
+              <Select.Option value="__load_system_fonts__">Load system fonts...</Select.Option>
+            )}
           </Select.Container>
         </Select.Root>
         <div />
@@ -497,11 +505,17 @@ function TypographySection() {
         <Select.Root value={!isMixed(fontWeight) ? String(fontWeight ?? 400) : undefined} onChange={(v) => v && setFontWeight(Number(v))}>
           <Select.Trigger label={<HiddenLabel>Font weight</HiddenLabel>} width="fill" />
           <Select.Container>
-            <Select.Option value="300">Light</Select.Option>
-            <Select.Option value="400">Regular</Select.Option>
-            <Select.Option value="500">Medium</Select.Option>
-            <Select.Option value="600">Semi Bold</Select.Option>
-            <Select.Option value="700">Bold</Select.Option>
+            {availableWeights
+              ? availableWeights.map((w) => (
+                  <Select.Option key={w} value={String(w)}>{WEIGHT_LABELS[w] ?? String(w)}</Select.Option>
+                ))
+              : <>
+                  <Select.Option value="300">Light</Select.Option>
+                  <Select.Option value="400">Regular</Select.Option>
+                  <Select.Option value="500">Medium</Select.Option>
+                  <Select.Option value="600">Semi Bold</Select.Option>
+                  <Select.Option value="700">Bold</Select.Option>
+                </>}
           </Select.Container>
         </Select.Root>
         <SplitInput
@@ -534,6 +548,7 @@ function TypographySection() {
           label="Line height"
           value={lineHeight ?? 20}
           onChange={setLineHeight}
+          onMixedChange={mixedLineHeight}
           formatter={positiveFormatter}
           icon={<Icon24TextLineHeight />}
         />
@@ -541,6 +556,7 @@ function TypographySection() {
           label="Letter spacing"
           value={letterSpacing ?? 0}
           onChange={setLetterSpacing}
+          onMixedChange={mixedLetterSpacing}
           icon={<Icon24TextLetterSpacing />}
         />
         <div />
@@ -850,7 +866,7 @@ function FillRow({
 
   const handleOpacityChange = useCallback(
     (value: number) => {
-      onUpdate(paint, { ...paint, opacity: value / 100 });
+      onUpdate(paint, { ...paint, opacity: value });
     },
     [paint, onUpdate],
   );
@@ -971,7 +987,7 @@ function StrokeRow({
 
   const handleOpacityChange = useCallback(
     (value: number) => {
-      onUpdate(paint, { ...paint, opacity: value / 100 });
+      onUpdate(paint, { ...paint, opacity: value });
     },
     [paint, onUpdate],
   );

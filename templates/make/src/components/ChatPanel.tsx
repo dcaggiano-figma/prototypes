@@ -95,7 +95,6 @@ function ChatPanelItem({
       }
       return (
         <ChatMessage sender="ai">
-          {/* eslint-disable-next-line react/no-danger -- rendering markdown-converted HTML from AI */}
           <span dangerouslySetInnerHTML={{ __html: item.content }} />
         </ChatMessage>
       );
@@ -136,7 +135,6 @@ function ChatPanelItem({
         <div className="flex items-center gap-1">
           <IconButton aria-label="Thumbs up" onClick={() => {}}><Icon24ThumbUp className="fill-icon-secondary" /></IconButton>
           <IconButton aria-label="Thumbs down" onClick={() => {}}><Icon24ThumbDown className="fill-icon-secondary" /></IconButton>
-          {/* eslint-disable-next-line react/jsx-props-no-spreading */}
           <IconButton aria-label="AI credits" {...toggleTipManager.getTriggerProps()}><Icon24AiCredit className="fill-icon-secondary" /></IconButton>
           <ToggleTip.Container manager={toggleTipManager}>
             <ToggleTip.Content>
@@ -191,7 +189,6 @@ function TransientElement({
                 <table className="w-full border-collapse font-mono text-bodyMd">
                   <tbody>
                     {lines.map((line, i) => (
-                      // eslint-disable-next-line react/no-array-index-key
                       <tr key={`line-${i}`}>
                         <td className="select-none text-right px-3 text-text-tertiary w-[1%] whitespace-nowrap align-top">
                           {i + 1}
@@ -421,7 +418,6 @@ export function ChatPanel({
       {/* Scrollable message area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3">
         {/* Completed conversations */}
-        {/* eslint-disable react/forbid-dom-props -- dynamic px height from JS measurement */}
         {completedConversations.map((conv) => {
           const isCollapsing = collapsingConvVersion === conv.versionNumber;
           const collapseStyle = isCollapsing
@@ -511,7 +507,6 @@ export function ChatPanel({
             </>
           )}
         </div>
-        {/* eslint-enable react/forbid-dom-props */}
       </div>
 
       {/* Bottom prompt input */}

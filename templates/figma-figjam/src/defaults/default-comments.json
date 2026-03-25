@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "threads": [
+    {
+      "id": "thread_1",
+      "anchor": {
+        "worldX": 834.2410337470516,
+        "worldY": 283.31640625,
+        "nodeId": "11",
+        "nodeOffsetX": 176.24103374705157,
+        "nodeOffsetY": 93.31640625
+      },
+      "comments": [
+        {
+          "authorName": "Josh Ferrell",
+          "authorInitial": "J",
+          "color": "yellow",
+          "body": "test",
+          "createdAt": 1774304183144,
+          "id": "comment_1",
+          "threadId": "thread_1"
+        }
+      ],
+      "resolved": false,
+      "createdAt": 1774304183145
+    }
+  ]
+}

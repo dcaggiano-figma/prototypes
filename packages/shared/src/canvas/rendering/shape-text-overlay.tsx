@@ -11,8 +11,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { NodeId } from '../../scene-graph/node-id'
 import type { Paint } from '../../scene-graph/types'
-import { useSceneGraph } from '../scene-graph/provider'
+import { useSceneGraph, useNode } from '../scene-graph/provider'
 import { useTextEditing } from '../text-editing/provider'
+import { formatFontFamily } from './font-utils'
 import { CURSORS } from '../../cursors'
 import { getFirstVisibleFill } from './style-helpers'
 
@@ -57,7 +58,12 @@ function autoContrastColor(fill: Paint | undefined): string {
   return luminance > 0.5 ? 'rgb(0, 0, 0)' : 'rgb(255, 255, 255)'
 }
 
-export function ShapeTextOverlay({ node }: { node: ShapeTextOverlayNode }) {
+export function ShapeTextOverlay({ node: nodeProp }: { node: ShapeTextOverlayNode }) {
+  // Subscribe to field changes so font/text updates propagate reactively
+  // (useRootNodes only fires on structural changes, not field changes).
+  const reactiveNode = useNode(nodeProp.id)
+  const node = (reactiveNode as ShapeTextOverlayNode | undefined) ?? nodeProp
+
   const sg = useSceneGraph()
   const { editingNodeId, stopEditing, selectAllRef } = useTextEditing()
   const isEditing = editingNodeId === node.id
@@ -153,7 +159,7 @@ export function ShapeTextOverlay({ node }: { node: ShapeTextOverlayNode }) {
             padding: `${padding.vertical}px ${padding.horizontal}px`,
             color: textColor,
             opacity: 0.3,
-            fontFamily: node.fontFamily,
+            fontFamily: formatFontFamily(node.fontFamily ?? 'Inter'),
             fontSize: node.fontSize,
             fontWeight: node.fontWeight,
             lineHeight: 1.4,
@@ -184,7 +190,7 @@ export function ShapeTextOverlay({ node }: { node: ShapeTextOverlayNode }) {
                   ? 'flex-end'
                   : 'center',
             padding: `${padding.vertical}px ${padding.horizontal}px`,
-            fontFamily: node.fontFamily,
+            fontFamily: formatFontFamily(node.fontFamily ?? 'Inter'),
             fontSize: node.fontSize,
             fontWeight: node.fontWeight,
             textAlign: ((node.textAlignHorizontal ?? 'CENTER').toLowerCase()) as

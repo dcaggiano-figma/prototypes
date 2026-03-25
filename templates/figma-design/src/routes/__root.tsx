@@ -29,7 +29,8 @@ import { MinimizeUIProvider } from '../components/MinimizeUIContext';
 import { FloatingFileHeader } from '../components/FloatingFileHeader';
 import { MinimizedRightPanel } from '../components/MinimizedRightPanel';
 import { clearSceneGraphStorage } from '@prototype/shared/canvas';
-import { DesignMainMenu } from '../components/DesignMainMenu';
+import { SaveAsDefaultModal, UserConfigModal } from '@prototype/shared';
+import { MainMenu } from '../components/MainMenu';
 import { FilePanel, SearchPanel, AiChatPanel, AssetsPanel } from '../components/panels';
 import { VariablesPanel } from '../components/variables';
 import { LibraryWindow } from '../components/LibraryWindow';
@@ -103,6 +104,8 @@ function EditorContent() {
   const [variablesViewMode, setVariablesViewMode] = useState<VariablesViewMode>('hidden');
   const [showLibrary, setShowLibrary] = useState(false);
   const [showPatternLibrary, setShowPatternLibrary] = useState(false);
+  const [showSaveAsDefault, setShowSaveAsDefault] = useState(false);
+  const [showUserConfig, setShowUserConfig] = useState(false);
 
   // Minimize UI state
   const [isMinimized, setIsMinimized] = useState(false);
@@ -231,12 +234,14 @@ function EditorContent() {
       {/* Left icon rail — hidden when minimized */}
       {!isMinimized && (
         <LeftSidebar.Rail>
-          <DesignMainMenu
+          <MainMenu
             themeSetting={themeSetting}
             onThemeChange={setThemeSetting}
             onOpenActions={() => setIsActionsOpen(true)}
             onToggleMinimize={toggleMinimized}
             onOpenPatternLibrary={() => setShowPatternLibrary(true)}
+            onSaveAsDefault={() => setShowSaveAsDefault(true)}
+            onOpenUserConfig={() => setShowUserConfig(true)}
           />
           <LeftSidebar.Divider />
           <LeftSidebar.NavGroup>
@@ -316,6 +321,12 @@ function EditorContent() {
           </MenuV2.Item>
       </MenuV2.Root>
       {featuresModal.modal}
+      <SaveAsDefaultModal
+        open={showSaveAsDefault}
+        onClose={() => setShowSaveAsDefault(false)}
+        onCopy={() => showToast({ message: 'JSON copied to clipboard' })}
+      />
+      <UserConfigModal open={showUserConfig} onClose={() => setShowUserConfig(false)} />
       <CommentOverlay
         interaction={interaction}
         setInteraction={setInteraction}

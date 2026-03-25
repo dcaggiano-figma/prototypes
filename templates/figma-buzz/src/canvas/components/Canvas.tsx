@@ -16,6 +16,7 @@ import {
   useTextEditing,
   useUndoActions,
   useNudgeActions,
+  useReorderActions,
   useUndoManager,
   useBehaviorManager,
   findNodeAtWorldPoint,
@@ -27,7 +28,7 @@ import { useBehaviorChain } from '../behaviors';
 import { CURSORS } from '../cursors';
 import { CanvasRenderer } from './canvas-renderer';
 import { CommentPinLayer, useComments } from '@prototype/shared';
-import { copyNodes, cutNodes, pasteNodes, pasteExternalNodes, duplicateNodes, hasFigmaClipboardData, decodeFigmaClipboard } from '@prototype/shared/canvas';
+import { copyNodes, cutNodes, pasteNodes, pasteExternalNodes, duplicateNodes, hasFigmaClipboardData, decodeFigmaClipboard, hasRecentInternalCopy, clearInternalCopyFlag } from '@prototype/shared/canvas';
 import { useViewMode } from '../../components/ViewModeContext';
 import { type DropTarget, getDropIndicatorX, recomputeGridLayout } from '../scene-graph/grid';
 
@@ -191,6 +192,11 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
   useAction('nudge.left.big', nudge.nudgeLeftBig);
   useAction('nudge.right.big', nudge.nudgeRightBig);
 
+  // Register layer order actions
+  const reorder = useReorderActions();
+  useAction('bring-to-front', reorder.bringToFront);
+  useAction('send-to-back', reorder.sendToBack);
+
   // Register selection actions
   useAction(
     'select-all',
@@ -253,8 +259,9 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
       const center = screenToWorld(rect.width / 2, rect.height / 2);
 
       const html = e.clipboardData?.getData('text/html');
-      if (html && hasFigmaClipboardData(html)) {
+      if (html && hasFigmaClipboardData(html) && !hasRecentInternalCopy()) {
         e.preventDefault();
+        clearInternalCopyFlag();
         decodeFigmaClipboard(html).then((result) => {
           if (!result) return;
           const newIds = pasteExternalNodes(
@@ -1070,6 +1077,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     <div
       ref={containerRef}
       className="fixed inset-0 overflow-hidden"
+      data-tool={effectiveTool}
       style={{ backgroundColor: isDefaultPageBackground(pageBg) ? 'var(--color-fsCanvasDefaultFill)' : `rgb(${pageBg.color.r}, ${pageBg.color.g}, ${pageBg.color.b})`, cursor: cursorStyle }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

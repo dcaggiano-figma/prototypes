@@ -1,0 +1,786 @@
+{
+  "version": 1,
+  "sessionId": 0,
+  "maxLocalId": 32,
+  "documentId": 1,
+  "nodes": [
+    [
+      1,
+      {
+        "id": 1,
+        "name": "Document",
+        "type": "DOCUMENT",
+        "parentId": null,
+        "children": [
+          2
+        ],
+        "visible": true,
+        "locked": false,
+        "compoundOwner": null
+      }
+    ],
+    [
+      2,
+      {
+        "name": "Page 1",
+        "visible": true,
+        "locked": false,
+        "children": [
+          23,
+          24,
+          32
+        ],
+        "compoundOwner": null,
+        "backgroundColor": {
+          "r": 245,
+          "g": 244,
+          "b": 243
+        },
+        "backgroundVisible": true,
+        "id": 2,
+        "type": "CANVAS",
+        "parentId": 1
+      }
+    ],
+    [
+      4,
+      {
+        "id": 4,
+        "name": "Text",
+        "type": "TEXT",
+        "parentId": 3,
+        "children": [],
+        "visible": true,
+        "locked": false,
+        "compoundOwner": 3,
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p11"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "characters": "",
+        "fontFamily": "Inter",
+        "fontSize": 16,
+        "fontWeight": 400,
+        "lineHeight": 20,
+        "letterSpacing": 0,
+        "textAlignHorizontal": "CENTER",
+        "textAlignVertical": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      }
+    ],
+    [
+      3,
+      {
+        "name": "Sticky note 3",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 112,
+        "y": 279,
+        "width": 240,
+        "height": 240,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 168,
+              "g": 218,
+              "b": 255
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p12"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "authorName": "Josh Ferrell",
+        "showAuthor": true,
+        "id": 3,
+        "type": "STICKY_NOTE",
+        "parentId": 32,
+        "slots": {
+          "text": 4
+        },
+        "characters": "How might we make the admin panel easier to understand for non-traditional admins?"
+      }
+    ],
+    [
+      7,
+      {
+        "name": "Text 7",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 139,
+        "y": 77,
+        "width": 1393,
+        "height": 80,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p8"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "characters": "How do we feature plants on the Twigma site?",
+        "fontFamily": "Inter",
+        "fontSize": 64,
+        "fontWeight": 400,
+        "lineHeight": 80,
+        "letterSpacing": 0,
+        "textAlignHorizontal": "LEFT",
+        "textAlignVertical": "TOP",
+        "textAutoResize": "WIDTH_AND_HEIGHT",
+        "id": 7,
+        "type": "TEXT",
+        "parentId": 32
+      }
+    ],
+    [
+      11,
+      {
+        "name": "Sticky note 3",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 788,
+        "y": 285,
+        "width": 240,
+        "height": 240,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 255,
+              "g": 211,
+              "b": 168
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p18"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "authorName": "Sarah Chen",
+        "showAuthor": true,
+        "type": "STICKY_NOTE",
+        "slots": {
+          "text": 4
+        },
+        "characters": "Does ratings have any role to play here?",
+        "id": 11,
+        "parentId": 32,
+        "fontFamily": "Inter"
+      }
+    ],
+    [
+      13,
+      {
+        "id": 13,
+        "name": "Text",
+        "type": "TEXT",
+        "parentId": 12,
+        "children": [],
+        "visible": true,
+        "locked": false,
+        "compoundOwner": 12,
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p21"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "characters": "",
+        "fontFamily": "Inter",
+        "fontSize": 16,
+        "fontWeight": 400,
+        "lineHeight": 20,
+        "letterSpacing": 0,
+        "textAlignHorizontal": "CENTER",
+        "textAlignVertical": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      }
+    ],
+    [
+      12,
+      {
+        "name": "Sticky note 12",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 1277,
+        "y": 432,
+        "width": 240,
+        "height": 240,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 255,
+              "g": 168,
+              "b": 219
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p26"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "authorName": "Marcus Webb",
+        "showAuthor": true,
+        "id": 12,
+        "type": "STICKY_NOTE",
+        "parentId": 32,
+        "slots": {
+          "text": 13
+        },
+        "characters": "How much should Twigma weight ratings vs. what inventory we want to clear?"
+      }
+    ],
+    [
+      15,
+      {
+        "id": 15,
+        "name": "Text",
+        "type": "TEXT",
+        "parentId": 14,
+        "children": [],
+        "visible": true,
+        "locked": false,
+        "compoundOwner": 14,
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p25"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "characters": "",
+        "fontFamily": "Inter",
+        "fontSize": 16,
+        "fontWeight": 400,
+        "lineHeight": 20,
+        "letterSpacing": 0,
+        "textAlignHorizontal": "CENTER",
+        "textAlignVertical": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      }
+    ],
+    [
+      14,
+      {
+        "name": "Sticky note 14",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 220,
+        "y": 660,
+        "width": 240,
+        "height": 240,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 255,
+              "g": 226,
+              "b": 153
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p24"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "authorName": "Priya Patel",
+        "showAuthor": true,
+        "id": 14,
+        "type": "STICKY_NOTE",
+        "parentId": 32,
+        "slots": {
+          "text": 15
+        },
+        "characters": "How do we determine what is popular vs. what want to promote to customers?"
+      }
+    ],
+    [
+      19,
+      {
+        "name": "Sticky note 3",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 1010,
+        "y": 762,
+        "width": 240,
+        "height": 240,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 179,
+              "g": 239,
+              "b": 189
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p34"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "authorName": "Alex Rivera",
+        "showAuthor": true,
+        "type": "STICKY_NOTE",
+        "slots": {
+          "text": 4
+        },
+        "characters": "How might we make the admin panel easier to understand for non-traditional admins?",
+        "id": 19,
+        "parentId": 32
+      }
+    ],
+    [
+      21,
+      {
+        "name": "Vector 21",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 1126.5792423857251,
+        "y": 174.16493470292082,
+        "width": 265.3716109839344,
+        "height": 20,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 255,
+              "g": 240,
+              "b": 0
+            },
+            "opacity": 0.5,
+            "visible": true,
+            "id": "p33"
+          }
+        ],
+        "strokeWeight": 20,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "paths": [
+          {
+            "d": "M0,0.7559055352845689C34.91660425082396,1.1704343772148154 165.27102367428805,3.3690628427468092 209.49962550494377,3.243078586866048C253.72822733559948,3.1170943309852865 256.16663228813036,-0.19778173503861515 265.3716109839344,0C274.5765896797384,0.19778173503861515 264.8365165637956,3.6914741642481155 264.72949767976786,4.429768997097739"
+          }
+        ],
+        "pathWidth": 265.3716109839344,
+        "pathHeight": 20,
+        "id": 21,
+        "type": "VECTOR",
+        "parentId": 32
+      }
+    ],
+    [
+      22,
+      {
+        "name": "Vector 22",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 316,
+        "y": 349,
+        "width": 88.38405151273552,
+        "height": 105.16840560265632,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 242,
+              "g": 72,
+              "b": 34
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p35"
+          }
+        ],
+        "strokeWeight": 4,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "paths": [
+          {
+            "d": "M23.652528039549424,72.54254733779334C20.566591105179803,67.59935863124603 8.971975555895531,50.382864996960045 5.136906433331703,42.883415098509545C1.301837310767875,35.383965200059045 1.3926001617787378,31.80628326692901 0.6421133041664575,27.54584794709035C-0.10837355344582278,23.28541262725169 -0.5269664036302875,21.055626765104034 0.633985287658021,17.320803179477593C1.7949369789463294,13.585979593851155 4.332232798996509,8.02370696324465 7.607823451896309,5.136906433331717C10.883414104796108,2.2501059034187847 16.27228904988932,0.11650156995425694 20.287529205056813,0C24.302769360224307,-0.11650156995425694 28.84633058844016,2.5359411506320937 31.699264382901276,4.437897013606175C34.55219817736239,6.339852876580257 34.8691908211914,5.705867588922255 37.40513197182351,11.411735177844491C39.94107312245561,17.117602766766726 44.90729120911016,36.36474585874371 46.91491128669391,38.67310254713959C48.92253136427765,40.981459235535475 46.91491128669389,29.633393520340395 49.45085243732599,25.26187530821977C51.98679358795809,20.890357096099148 58.38896125776969,14.950131697850347 62.1305581904865,12.443993274415845C65.8721551232033,9.937854850981344 69.00415081778739,10.172212660307915 71.90043403362684,10.225044767612758C74.79671724946628,10.2778768749176 76.7609879056717,10.330708982222461 79.50825748552315,12.760985918244899C82.2555270653746,15.191262854267336 87.01177139222787,20.642452592591894 88.38405151273552,24.806706383747382C89.75633163324318,28.97096017490287 89.88096121970587,32.10295586948695 87.74193820856907,37.74650866517783C85.60291519743227,43.39006146086871 79.8049300880811,52.60858685085345 75.54991344591473,58.66802315789266C71.29489680374836,64.72745946493187 70.63381812772886,66.35306276661915 62.21183835557086,74.1031265074131C53.78985858341286,81.85319024820704 31.217002070067398,99.99085908678245 25.018034812966704,105.16840560265632"
+          }
+        ],
+        "pathWidth": 88.38405151273552,
+        "pathHeight": 105.16840560265632,
+        "id": 22,
+        "type": "VECTOR",
+        "parentId": 32
+      }
+    ],
+    [
+      23,
+      {
+        "name": "Connector 23",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 330,
+        "y": 310,
+        "width": 328,
+        "height": 370.0935792211362,
+        "rotation": 0,
+        "opacity": 1,
+        "startEndpoint": {
+          "type": "edge",
+          "nodeId": 14,
+          "xFraction": 1,
+          "yFraction": 0.4795565800880676
+        },
+        "endEndpoint": {
+          "type": "connected",
+          "nodeId": 11,
+          "pointIndex": 3
+        },
+        "lineShape": "CURVE",
+        "startCap": "NONE",
+        "endCap": "FILLED_ARROW",
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 100,
+              "g": 100,
+              "b": 100
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p36"
+          }
+        ],
+        "strokeWeight": 3,
+        "strokeAlign": "CENTER",
+        "strokeDashPattern": [],
+        "elbowMidpointOffset": 0.5,
+        "id": 23,
+        "type": "CONNECTOR",
+        "parentId": 2
+      }
+    ],
+    [
+      24,
+      {
+        "name": "Connector 24",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 898,
+        "y": 310,
+        "width": 374,
+        "height": 206.10271814692692,
+        "rotation": 0,
+        "opacity": 1,
+        "startEndpoint": {
+          "type": "connected",
+          "nodeId": 11,
+          "pointIndex": 1
+        },
+        "endEndpoint": {
+          "type": "edge",
+          "nodeId": 12,
+          "xFraction": 0,
+          "yFraction": 0.5295946589455288
+        },
+        "lineShape": "CURVE",
+        "startCap": "NONE",
+        "endCap": "FILLED_ARROW",
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 100,
+              "g": 100,
+              "b": 100
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p37"
+          }
+        ],
+        "strokeWeight": 3,
+        "strokeAlign": "CENTER",
+        "strokeDashPattern": [],
+        "elbowMidpointOffset": 0.5,
+        "id": 24,
+        "type": "CONNECTOR",
+        "parentId": 2
+      }
+    ],
+    [
+      26,
+      {
+        "id": 26,
+        "name": "Text",
+        "type": "TEXT",
+        "parentId": 25,
+        "children": [],
+        "visible": true,
+        "locked": false,
+        "compoundOwner": 25,
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p40"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "characters": "",
+        "fontFamily": "Inter",
+        "fontSize": 16,
+        "fontWeight": 400,
+        "lineHeight": 20,
+        "letterSpacing": 0,
+        "textAlignHorizontal": "CENTER",
+        "textAlignVertical": "CENTER",
+        "textAutoResize": "WIDTH_AND_HEIGHT"
+      }
+    ],
+    [
+      25,
+      {
+        "name": "Sticky note 25",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 685.1974696421566,
+        "y": 665.9200972103733,
+        "width": 240,
+        "height": 240,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 179,
+              "g": 244,
+              "b": 239
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p42"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "authorName": "Taylor Kim",
+        "showAuthor": true,
+        "id": 25,
+        "type": "STICKY_NOTE",
+        "parentId": 32,
+        "slots": {
+          "text": 26
+        },
+        "characters": "How do we make sure that the featured plants have nice image assets?"
+      }
+    ],
+    [
+      32,
+      {
+        "name": "Twigma Featured Products",
+        "visible": true,
+        "locked": false,
+        "children": [
+          3,
+          7,
+          11,
+          12,
+          14,
+          19,
+          21,
+          22,
+          25
+        ],
+        "compoundOwner": null,
+        "x": -130,
+        "y": -95,
+        "width": 1692.7789424941031,
+        "height": 1091,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 8,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 255,
+              "g": 255,
+              "b": 255
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p48"
+          }
+        ],
+        "strokes": [
+          {
+            "paint": {
+              "type": "SOLID",
+              "color": {
+                "r": 217,
+                "g": 217,
+                "b": 217
+              },
+              "opacity": 1,
+              "visible": true,
+              "id": "p49"
+            },
+            "weight": 1,
+            "position": "INSIDE"
+          }
+        ],
+        "strokeWeight": 1,
+        "strokeAlign": "INSIDE",
+        "effects": [],
+        "id": 32,
+        "type": "SECTION",
+        "parentId": 2
+      }
+    ]
+  ]
+}

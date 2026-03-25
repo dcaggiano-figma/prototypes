@@ -1,5 +1,7 @@
 import { ByteBuffer, compileSchemaJS, decodeBinarySchema } from 'kiwi-schema'
 
+import type { StrokeAlign } from '../../scene-graph/types'
+import { createPaint } from '../../scene-graph/types'
 import type { ExternalNode } from './clipboard'
 import { vectorBlobToPaths } from './vector-network'
 
@@ -50,6 +52,7 @@ interface FigmaNodeChange {
   strokeWeight?: number
   strokeAlign?: string
   characters?: string
+  textData?: { characters: string }
   fontSize?: number
   fontName?: { family: string; style: string }
   textAlignHorizontal?: string
@@ -271,7 +274,7 @@ function mapFills(paints?: FigmaPaint[]) {
   if (!paints) return []
   return paints
     .filter((p) => p.type === 'SOLID' && p.visible !== false && p.color)
-    .map((p) => ({
+    .map((p) => createPaint({
       type: 'SOLID' as const,
       color: mapColor(p.color!),
       opacity: p.opacity ?? 1,
@@ -279,28 +282,20 @@ function mapFills(paints?: FigmaPaint[]) {
     }))
 }
 
-function mapStrokes(
-  paints?: FigmaPaint[],
-  weight?: number,
-  align?: string,
-) {
-  if (!paints || !weight) return []
+function mapStrokes(paints?: FigmaPaint[]) {
+  if (!paints) return []
   return paints
     .filter((p) => p.type === 'SOLID' && p.visible !== false && p.color)
-    .map((p) => ({
-      paint: {
-        type: 'SOLID' as const,
-        color: mapColor(p.color!),
-        opacity: p.opacity ?? 1,
-        visible: true,
-      },
-      weight,
-      position: (align === 'CENTER'
-        ? 'CENTER'
-        : align === 'OUTSIDE'
-          ? 'OUTSIDE'
-          : 'INSIDE') as 'INSIDE' | 'CENTER' | 'OUTSIDE',
+    .map((p) => createPaint({
+      type: 'SOLID' as const,
+      color: mapColor(p.color!),
+      opacity: p.opacity ?? 1,
+      visible: true,
     }))
+}
+
+function mapStrokeAlign(align?: string): StrokeAlign {
+  return align === 'CENTER' ? 'CENTER' : align === 'OUTSIDE' ? 'OUTSIDE' : 'INSIDE'
 }
 
 function guidKey(guid: { sessionID: number; localID: number }) {
@@ -449,12 +444,16 @@ function convertToExternalNodes(message: FigmaMessage): ExternalNode[] {
   const booleanAppearance = new Map<string, {
     fills: ReturnType<typeof mapFills>
     strokes: ReturnType<typeof mapStrokes>
+    strokeWeight: number
+    strokeAlign: StrokeAlign
   }>()
   for (const c of sorted) {
     if (c.type === 'BOOLEAN_OPERATION') {
       booleanAppearance.set(guidKey(c.guid), {
         fills: mapFills(c.fillPaints),
-        strokes: mapStrokes(c.strokePaints, c.strokeWeight, c.strokeAlign),
+        strokes: mapStrokes(c.strokePaints),
+        strokeWeight: c.strokeWeight ?? 1,
+        strokeAlign: mapStrokeAlign(c.strokeAlign),
       })
     }
   }
@@ -501,7 +500,9 @@ function convertToExternalNodes(message: FigmaMessage): ExternalNode[] {
     const appearance = {
       cornerRadius: c.cornerRadius ?? 0,
       fills: isBooleanOp ? [] : (inheritedAppearance?.fills ?? mapFills(c.fillPaints)),
-      strokes: isBooleanOp ? [] : (inheritedAppearance?.strokes ?? mapStrokes(c.strokePaints, c.strokeWeight, c.strokeAlign)),
+      strokes: isBooleanOp ? [] : (inheritedAppearance?.strokes ?? mapStrokes(c.strokePaints)),
+      strokeWeight: inheritedAppearance?.strokeWeight ?? c.strokeWeight ?? 1,
+      strokeAlign: inheritedAppearance?.strokeAlign ?? mapStrokeAlign(c.strokeAlign),
       effects: [],
     }
 
@@ -535,37 +536,80 @@ function convertToExternalNodes(message: FigmaMessage): ExternalNode[] {
       case 'ELLIPSE':
         nodes.push({ ...base, type: 'ELLIPSE', ...geometry, ...appearance })
         break
-      case 'TEXT':
+      case 'TEXT': {
+        const autoResize =
+          (c.textAutoResize as 'WIDTH_AND_HEIGHT' | 'HEIGHT' | 'NONE') ??
+          'WIDTH_AND_HEIGHT'
+        const textGeometry = { ...geometry }
+        // Figma reports size=0 for auto-sized dimensions; use a sensible fallback
+        // so the ResizeObserver can measure and update correctly after render.
+        if (autoResize === 'WIDTH_AND_HEIGHT' || autoResize === 'HEIGHT') {
+          if (textGeometry.height === 0) {
+            textGeometry.height = Math.ceil((c.fontSize ?? 14) * 1.5)
+          }
+        }
+        if (autoResize === 'WIDTH_AND_HEIGHT') {
+          if (textGeometry.width === 0) {
+            textGeometry.width = 120
+          }
+        }
+
+        // Characters live in textData.characters, not at the top level
+        const characters = c.textData?.characters ?? c.characters ?? ''
+
+        // lineHeight: RAW means multiplier (e.g. 1 = 1× fontSize),
+        // PIXELS is absolute, PERCENT is relative to fontSize
+        const fontSize = c.fontSize ?? 14
+        let lineHeight: number
+        if (c.lineHeight) {
+          if (c.lineHeight.units === 'RAW') {
+            lineHeight = Math.round(c.lineHeight.value * fontSize)
+          } else if (c.lineHeight.units === 'PERCENT') {
+            lineHeight = Math.round((c.lineHeight.value / 100) * fontSize)
+          } else {
+            lineHeight = c.lineHeight.value
+          }
+        } else {
+          lineHeight = Math.round(fontSize * 1.2)
+        }
+
+        // letterSpacing: PERCENT is relative to fontSize, PIXELS is absolute
+        let letterSpacing = 0
+        if (c.letterSpacing) {
+          if (c.letterSpacing.units === 'PERCENT') {
+            letterSpacing = (c.letterSpacing.value / 100) * fontSize
+          } else {
+            letterSpacing = c.letterSpacing.value
+          }
+        }
+
         nodes.push({
           ...base,
           type: 'TEXT',
-          ...geometry,
+          ...textGeometry,
           ...appearance,
-          characters: c.characters ?? '',
+          characters,
           fontFamily: c.fontName?.family ?? 'Inter',
-          fontSize: c.fontSize ?? 14,
+          fontSize,
           fontWeight: 400,
-          lineHeight: c.lineHeight?.value ?? 0,
-          letterSpacing: c.letterSpacing?.value ?? 0,
+          lineHeight,
+          letterSpacing,
           textAlignHorizontal:
             (c.textAlignHorizontal as 'LEFT' | 'CENTER' | 'RIGHT') ?? 'LEFT',
           textAlignVertical:
             (c.textAlignVertical as 'TOP' | 'CENTER' | 'BOTTOM') ?? 'TOP',
-          textAutoResize:
-            (c.textAutoResize as 'WIDTH_AND_HEIGHT' | 'HEIGHT' | 'NONE') ??
-            'WIDTH_AND_HEIGHT',
+          textAutoResize: autoResize,
         })
         break
+      }
       case 'LINE':
         nodes.push({
           ...base,
           type: 'LINE',
           ...geometry,
-          strokes: mapStrokes(
-            c.strokePaints,
-            c.strokeWeight ?? 1,
-            c.strokeAlign,
-          ),
+          strokes: mapStrokes(c.strokePaints),
+          strokeWeight: c.strokeWeight ?? 1,
+          strokeAlign: mapStrokeAlign(c.strokeAlign),
         })
         break
       case 'VECTOR': {

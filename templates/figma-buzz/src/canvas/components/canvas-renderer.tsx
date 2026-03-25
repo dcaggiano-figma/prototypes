@@ -18,6 +18,7 @@ import {
   ShapeTextOverlay,
   ConnectorRenderer,
   useLabelEditing,
+  formatFontFamily,
 } from '@prototype/shared/canvas';
 import type {
   ConnectorNode,
@@ -282,7 +283,7 @@ function TextRenderer({ node }: { node: TextNode }) {
         opacity: node.opacity,
         ...nodePosition(node.x, node.y, node.rotation),
         color: fill ? colorToCSS(fill.color, fill.opacity) : 'rgb(0,0,0)',
-        fontFamily: `"${node.fontFamily}"`,
+        fontFamily: formatFontFamily(node.fontFamily),
         fontSize: node.fontSize,
         fontWeight: node.fontWeight,
         textAlign: node.textAlignHorizontal.toLowerCase() as 'left' | 'center' | 'right',

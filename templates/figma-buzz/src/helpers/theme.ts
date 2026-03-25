@@ -29,7 +29,7 @@ export type ThemeSetting = 'light' | 'dark' | 'system';
 const STORAGE_KEY = 'editor-shell-theme';
 
 /** Read the persisted color theme from localStorage, falling back to `fallback`. */
-export function readStoredTheme(fallback: ThemeSetting = 'light'): ThemeSetting {
+export function readStoredTheme(fallback: ThemeSetting = 'system'): ThemeSetting {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark' || stored === 'system') {

@@ -402,7 +402,6 @@ function CodeViewer({ content }: { content: string }) {
       <table className="w-full border-collapse font-mono">
         <tbody>
           {lines.map((line, i) => (
-            // eslint-disable-next-line react/no-array-index-key
             <tr key={`line-${i}`} className="hover:bg-bg-transparent-hover">
               <td className="select-none text-right pr-16px pl-16px text-text-tertiary w-[1%] whitespace-nowrap align-top">
                 {i + 1}

@@ -14,6 +14,7 @@ import {
   useViewportState,
   useUndoActions,
   useNudgeActions,
+  useReorderActions,
   useUndoManager,
   useBehaviorManager,
   getWorldPosition,
@@ -27,7 +28,7 @@ import { useActiveTool } from '../tools/provider';
 import { useBehaviorChain } from '../behaviors';
 import { CURSORS } from '../cursors';
 import { CanvasRenderer } from './canvas-renderer';
-import { copyNodes, cutNodes, pasteNodes, pasteExternalNodes, duplicateNodes, hasFigmaClipboardData, decodeFigmaClipboard } from '@prototype/shared/canvas';
+import { copyNodes, cutNodes, pasteNodes, pasteExternalNodes, duplicateNodes, hasFigmaClipboardData, decodeFigmaClipboard, hasRecentInternalCopy, clearInternalCopyFlag } from '@prototype/shared/canvas';
 
 interface CanvasProps {
   onOpenContextMenu?: (type: 'node' | 'canvas', x: number, y: number) => void;
@@ -152,6 +153,11 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
   useAction('nudge.left.big', nudge.nudgeLeftBig);
   useAction('nudge.right.big', nudge.nudgeRightBig);
 
+  // Register layer order actions
+  const reorder = useReorderActions();
+  useAction('bring-to-front', reorder.bringToFront);
+  useAction('send-to-back', reorder.sendToBack);
+
   // Register selection actions
   useAction(
     'select-all',
@@ -206,14 +212,25 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
   // Handle all paste via the native event — Figma clipboard or internal
   useEffect(
     () => addListener(document, 'paste', (e: ClipboardEvent) => {
+      // Don't intercept paste for text inputs — let the browser handle natively
+      const target = e.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
       const center = screenToWorld(rect.width / 2, rect.height / 2);
 
       const html = e.clipboardData?.getData('text/html');
-      if (html && hasFigmaClipboardData(html)) {
+      if (html && hasFigmaClipboardData(html) && !hasRecentInternalCopy()) {
         e.preventDefault();
+        clearInternalCopyFlag();
         decodeFigmaClipboard(html).then((result) => {
           if (!result) return;
           const newIds = pasteExternalNodes(
@@ -544,6 +561,7 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
     <div
       ref={containerRef}
       className="fixed inset-0 overflow-hidden"
+      data-tool={effectiveTool}
       style={{
         backgroundColor: pageBg.visible
           ? (isDefaultPageBackground(pageBg) ? 'var(--color-fsCanvasDefaultFill)' : `rgb(${pageBg.color.r}, ${pageBg.color.g}, ${pageBg.color.b})`)

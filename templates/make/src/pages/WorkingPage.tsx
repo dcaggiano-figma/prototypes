@@ -30,7 +30,7 @@ import {
 } from '@figma/fpl-icons';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
-import { useResizablePanel, UserAvatar, ResizeHandle, type Attachment, type InspectedElement } from '@prototype/shared';
+import { useResizablePanel, UserAvatar, ResizeHandle, PatternLibraryWindow, UserConfigModal, type Attachment, type InspectedElement } from '@prototype/shared';
 import { ChatPanel } from '../components/ChatPanel';
 import { LoadingView } from '../components/LoadingView';
 import { CodeView } from '../components/CodeView';
@@ -104,6 +104,10 @@ export function WorkingPage() {
   const settingsMenu = MenuV2.useMenu();
   const deviceMenu = MenuV2.useMenu();
 
+  /* Prototype modals */
+  const [showPatternLibrary, setShowPatternLibrary] = useState(false);
+  const [showUserConfig, setShowUserConfig] = useState(false);
+
   /* Device preview */
   const [devicePreview, setDevicePreview] = useState('desktop');
 
@@ -141,7 +145,6 @@ export function WorkingPage() {
             <IconButton
                 aria-label="Figma"
                 size="lg"
-                // eslint-disable-next-line react/jsx-props-no-spreading
                 {...chevronMenu.getTriggerProps()}
               >
                 <Icon24FigmaLarge />
@@ -207,16 +210,20 @@ export function WorkingPage() {
                     <MenuV2.Item onClick={() => console.log('account')}>Account settings</MenuV2.Item>
                   </MenuV2.SubMenu>
 
-                {/* Debug */}
-                <MenuV2.SubMenu title="Debug">
-                    <MenuV2.Item onClick={() => console.log('console')}>Open console</MenuV2.Item>
-                    <MenuV2.Item onClick={() => console.log('network')}>Network log</MenuV2.Item>
-                    <MenuV2.Item onClick={() => console.log('performance')}>Performance</MenuV2.Item>
+                {/* Prototype */}
+                <MenuV2.SubMenu title="Prototype">
+                    <MenuV2.Group>
+                      <MenuV2.Item onClick={() => { ws.reset(); navigate({ to: '/' }); }}>Reset prototype</MenuV2.Item>
+                    </MenuV2.Group>
+                    <MenuV2.Group>
+                      <MenuV2.Item onClick={() => setShowPatternLibrary(true)}>Pattern library</MenuV2.Item>
+                      <MenuV2.Item onClick={() => setShowUserConfig(true)}>User config...</MenuV2.Item>
+                    </MenuV2.Group>
                   </MenuV2.SubMenu>
             </MenuV2.Root>
 
             {/* File name button group */}
-            {isEditingFileName ? (
+            {isEditingFileName && (
               <div className="w-[120px]">
                 <Input
                   className="text-bodyLg text-text"
@@ -233,38 +240,36 @@ export function WorkingPage() {
                   }}
                 />
               </div>
-            ) : (
-              <>
-                <ButtonGroup aria-label="File actions">
-                  <Button size="lg" variant="ghost" onClick={startEditingFileName}>
-                    <span className="text-bodyLg text-text max-w-[120px] block truncate">{ws.fileName}</span>
-                  </Button>
-                  <ButtonGroup.Trigger
-                    size="lg"
-                    // eslint-disable-next-line react/jsx-props-no-spreading
-                    {...fileMenu.getTriggerProps() as React.ComponentProps<typeof ButtonGroup.Trigger>}
-                    aria-label="File options"
-                  >
-                    <Icon16ChevronDown />
-                  </ButtonGroup.Trigger>
-                </ButtonGroup>
-                <MenuV2.Root manager={fileMenu.manager}>
-                  <MenuV2.Group>
-                    <MenuV2.SubMenu title="Add to sidebar">
-                        <MenuV2.Group>
-                          <MenuV2.Item onClick={() => console.log('starred')}>Starred</MenuV2.Item>
-                        </MenuV2.Group>
-                      </MenuV2.SubMenu>
-                  </MenuV2.Group>
-                  <MenuV2.Group>
-                    <MenuV2.Item onClick={() => console.log('duplicate')}>Duplicate</MenuV2.Item>
-                    <MenuV2.Item onClick={() => console.log('rename')}>Rename</MenuV2.Item>
-                    <MenuV2.Item onClick={() => console.log('move-file')}>Move file…</MenuV2.Item>
-                    <MenuV2.Item onClick={() => console.log('move-to-trash')}>Move to trash</MenuV2.Item>
-                  </MenuV2.Group>
-                </MenuV2.Root>
-              </>
             )}
+            <div className={isEditingFileName ? 'hidden' : ''}>
+            <ButtonGroup aria-label="File actions">
+              <Button size="lg" variant="ghost" onClick={startEditingFileName}>
+                <span className="text-bodyLg text-text max-w-[120px] block truncate">{ws.fileName}</span>
+              </Button>
+              <ButtonGroup.Trigger
+                size="lg"
+                {...fileMenu.getTriggerProps() as React.ComponentProps<typeof ButtonGroup.Trigger>}
+                aria-label="File options"
+              >
+                <Icon16ChevronDown />
+              </ButtonGroup.Trigger>
+            </ButtonGroup>
+            </div>
+            <MenuV2.Root manager={fileMenu.manager}>
+              <MenuV2.Group>
+                <MenuV2.SubMenu title="Add to sidebar">
+                    <MenuV2.Group>
+                      <MenuV2.Item onClick={() => console.log('starred')}>Starred</MenuV2.Item>
+                    </MenuV2.Group>
+                  </MenuV2.SubMenu>
+              </MenuV2.Group>
+              <MenuV2.Group>
+                <MenuV2.Item onClick={() => console.log('duplicate')}>Duplicate</MenuV2.Item>
+                <MenuV2.Item onClick={() => console.log('rename')}>Rename</MenuV2.Item>
+                <MenuV2.Item onClick={() => console.log('move-file')}>Move file…</MenuV2.Item>
+                <MenuV2.Item onClick={() => console.log('move-to-trash')}>Move to trash</MenuV2.Item>
+              </MenuV2.Group>
+            </MenuV2.Root>
           </div>
         </header>
 
@@ -323,7 +328,6 @@ export function WorkingPage() {
             <IconButton
                 size="md"
                 aria-label="Device preview"
-                // eslint-disable-next-line react/jsx-props-no-spreading
                 {...deviceMenu.getTriggerProps()}
               >
                 <Icon24LayoutSet />
@@ -365,7 +369,6 @@ export function WorkingPage() {
               <IconButton
                   size="lg"
                   aria-label="Settings"
-                  // eslint-disable-next-line react/jsx-props-no-spreading
                   {...settingsMenu.getTriggerProps()}
                 >
                   <Icon24SettingsLarge />
@@ -405,7 +408,6 @@ export function WorkingPage() {
 
         {/* ---- Body content ---- */}
         <main className="flex-1 flex bg-bg-secondary overflow-hidden">
-          {/* eslint-disable-next-line no-nested-ternary */}
           {ws.viewMode === 'code' ? <CodeView /> : ws.workComplete ? <PreviewView /> : <LoadingView />}
         </main>
       </div>
@@ -426,6 +428,9 @@ export function WorkingPage() {
           triggerRect={snapshotTriggerRect}
         />
       )}
+
+      {showPatternLibrary && <PatternLibraryWindow onClose={() => setShowPatternLibrary(false)} />}
+      <UserConfigModal open={showUserConfig} onClose={() => setShowUserConfig(false)} />
     </div>
   );
 }

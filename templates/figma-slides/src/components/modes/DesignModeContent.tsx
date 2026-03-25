@@ -57,9 +57,11 @@ import {
 } from '@figma/fpl-icons';
 
 import {
-  alignNodes,
-  distributeNodes,
+  FONT_OPTIONS,
+  getFontOptionWeights,
+  useAlignHandler,
   useCanvasId,
+  useLocalFonts,
   useNode,
   usePageBackground,
   useSceneGraph,
@@ -68,10 +70,8 @@ import {
   createPaint,
 } from '../../canvas';
 import type {
-  AlignDirection,
   AppearanceNode,
   Color,
-  DistributeDirection,
   FrameNode,
   GeometryNode,
   NodeId,
@@ -118,8 +118,7 @@ export function DesignModeContent() {
 
       {/* Design tab content */}
       <Tabs.TabPanel {...tabPanelPropsMap.design} height="fill">
-        <div className="flex flex-col flex-1 overflow-y-auto">
-          <ScrollContainer scroll="y" fill>
+        <ScrollContainer scroll="y" fill>
             {singleId ? (
               <NodePropertiesById nodeId={singleId} />
             ) : selectedIds.size > 1 ? (
@@ -128,7 +127,6 @@ export function DesignModeContent() {
               <NoSelectionState />
             )}
           </ScrollContainer>
-        </div>
       </Tabs.TabPanel>
 
       {/* Animate tab content - placeholder */}
@@ -223,19 +221,7 @@ function MultiSelectionProperties({ selectedIds }: { selectedIds: ReadonlySet<No
   const allAreAppearance = appearanceNodes.length === selectedIds.size;
   const allHaveStrokes = nodesWithStrokes.length === selectedIds.size;
 
-  const handleAlign = useCallback(
-    (direction: AlignDirection) => {
-      alignNodes(store, selectedIds, direction);
-    },
-    [store, selectedIds],
-  );
-
-  const handleDistribute = useCallback(
-    (direction: DistributeDirection) => {
-      distributeNodes(store, selectedIds, direction);
-    },
-    [store, selectedIds],
-  );
+  const { handleAlign, handleDistribute, alignEnabled } = useAlignHandler(store, selectedIds);
 
   // Multi-fill color change: apply to all appearance nodes
   const handleFillColorChange = useCallback(
@@ -320,7 +306,7 @@ function MultiSelectionProperties({ selectedIds }: { selectedIds: ReadonlySet<No
       </div>
 
       {/* Alignment section — always shown for 2+ geometry nodes */}
-      {geometryNodes.length >= 2 && (
+      {(alignEnabled || geometryNodes.length >= 2) && (
         <PropertySection title="Alignment">
           <PropertyRow>
             <IconButtonGroup>
@@ -597,8 +583,22 @@ function TextLayoutSection({ node }: { node: TextNode }) {
   );
 }
 
+const WEIGHT_LABELS: Record<number, string> = {
+  100: 'Thin',
+  200: 'Extra Light',
+  300: 'Light',
+  400: 'Regular',
+  500: 'Medium',
+  600: 'Semi Bold',
+  700: 'Bold',
+  800: 'Extra Bold',
+  900: 'Black',
+}
+
 function TypographySection({ node }: { node: TextNode }) {
   const store = useSceneGraph();
+  const { supported: localFontsSupported, fonts: localFonts, getWeights, requestAccess } = useLocalFonts();
+  const availableWeights = node.fontFamily ? (getWeights(node.fontFamily) ?? getFontOptionWeights(node.fontFamily)) : null;
 
   const updateField = useCallback(
     (field: string, value: number | string) => {
@@ -611,14 +611,28 @@ function TypographySection({ node }: { node: TextNode }) {
     <PropertySection title="Typography">
       {/* Font family + weight */}
       <PropertyRow columns="1fr 24px">
-        <Select.Root value={node.fontFamily} onChange={(v) => v && updateField('fontFamily', v)}>
+        <Select.Root
+          value={node.fontFamily ?? 'Inter'}
+          onChange={(v) => {
+            if (v === '__load_system_fonts__') {
+              requestAccess()
+              return
+            }
+            if (v) updateField('fontFamily', v)
+          }}
+        >
           <Select.Trigger label={<HiddenLabel>Font family</HiddenLabel>} width="fill" />
           <Select.Container>
-            <Select.Option value="Inter">Inter</Select.Option>
-            <Select.Option value="Roboto">Roboto</Select.Option>
-            <Select.Option value="Arial">Arial</Select.Option>
-            <Select.Option value="Georgia">Georgia</Select.Option>
-            <Select.Option value="monospace">Monospace</Select.Option>
+            {localFonts.length > 0
+              ? localFonts.map((font) => (
+                  <Select.Option key={font} value={font}>{font}</Select.Option>
+                ))
+              : FONT_OPTIONS.map((font) => (
+                  <Select.Option key={font.value} value={font.value}>{font.label}</Select.Option>
+                ))}
+            {localFontsSupported && localFonts.length === 0 && (
+              <Select.Option value="__load_system_fonts__">Load system fonts...</Select.Option>
+            )}
           </Select.Container>
         </Select.Root>
         <div />
@@ -626,14 +640,20 @@ function TypographySection({ node }: { node: TextNode }) {
 
       {/* Font size + line height */}
       <PropertyRow columns="1fr 1fr 24px">
-        <Select.Root value={String(node.fontWeight)} onChange={(v) => v && updateField('fontWeight', Number(v))}>
+        <Select.Root value={String(node.fontWeight ?? 400)} onChange={(v) => v && updateField('fontWeight', Number(v))}>
           <Select.Trigger label={<HiddenLabel>Font weight</HiddenLabel>} width="fill" />
           <Select.Container>
-            <Select.Option value="300">Light</Select.Option>
-            <Select.Option value="400">Regular</Select.Option>
-            <Select.Option value="500">Medium</Select.Option>
-            <Select.Option value="600">Semi Bold</Select.Option>
-            <Select.Option value="700">Bold</Select.Option>
+            {availableWeights
+              ? availableWeights.map((w) => (
+                  <Select.Option key={w} value={String(w)}>{WEIGHT_LABELS[w] ?? String(w)}</Select.Option>
+                ))
+              : <>
+                  <Select.Option value="300">Light</Select.Option>
+                  <Select.Option value="400">Regular</Select.Option>
+                  <Select.Option value="500">Medium</Select.Option>
+                  <Select.Option value="600">Semi Bold</Select.Option>
+                  <Select.Option value="700">Bold</Select.Option>
+                </>}
           </Select.Container>
         </Select.Root>
         <SplitInput
