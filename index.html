@@ -45,40 +45,36 @@ const T = {
 };
 
 // ─── MOCK DATA ────────────────────────────────────────────────────────────────
-const MEMBERS = [
-  { id:1,  name:"DeAnna Caggiano",   email:"deanna.caggiano@figma.com",    role:"Admin",   seat:"Full",   lastActive:"Today",       avatar:"D", color:"#7c3aed", group:"Growth and Monetization" },
-  { id:2,  name:"Avantika Mathur",   email:"avantika@figma.com",           role:"Admin",   seat:"Full",   lastActive:"Today",       avatar:"A", color:"#0891b2", group:"Asian Diaspora" },
-  { id:3,  name:"Brad Chen",         email:"brad.chen@figma.com",          role:"Member",  seat:"Full",   lastActive:"Yesterday",   avatar:"B", color:"#059669", group:"Brad's Test Workspace" },
-  { id:4,  name:"Conor Brady",       email:"conor.brady@figma.com",        role:"Member",  seat:"Full",   lastActive:"2 days ago",  avatar:"C", color:"#d97706", group:"Conor B" },
-  { id:5,  name:"Jason Park",        email:"jason.park@figma.com",         role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"J", color:"#dc2626", group:"Jason's Test Workspace" },
-  { id:6,  name:"Jenning Wu",        email:"jenning.wu@figma.com",         role:"Member",  seat:"Full",   lastActive:"3 days ago",  avatar:"J", color:"#7c3aed", group:"jenning workspace" },
-  { id:7,  name:"Josh Anderson",     email:"josh.anderson@figma.com",      role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"J", color:"#0891b2", group:"Josh's Test Workspace" },
-  { id:8,  name:"Kris Thompson",     email:"kris.thompson@figma.com",      role:"Member",  seat:"Full",   lastActive:"1 week ago",  avatar:"K", color:"#059669", group:"Kris's Test Workspace" },
-  { id:9,  name:"Madelene Torres",   email:"madelene@figma.com",           role:"Member",  seat:"Full",   lastActive:"Yesterday",   avatar:"M", color:"#be185d", group:"Madelene's test" },
-  { id:10, name:"Ndunge Kamau",      email:"ndunge@figma.com",             role:"Member",  seat:"Full",   lastActive:"4 days ago",  avatar:"N", color:"#d97706", group:"ndunge test 1" },
-  { id:11, name:"Sarah Kim",         email:"sarah.kim@figma.com",          role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"S", color:"#dc2626", group:"Growth and Monetization" },
-  { id:12, name:"Marcus Williams",   email:"marcus.w@figma.com",           role:"Member",  seat:"Full",   lastActive:"2 days ago",  avatar:"M", color:"#7c3aed", group:"Growth and Monetization" },
-  { id:13, name:"Priya Sharma",      email:"priya.sharma@figma.com",       role:"Viewer",  seat:"Viewer", lastActive:"5 days ago",  avatar:"P", color:"#0891b2", group:"Asian Diaspora" },
-  { id:14, name:"Tom Baker",         email:"tom.baker@figma.com",          role:"Viewer",  seat:"Viewer", lastActive:"1 week ago",  avatar:"T", color:"#059669", group:"Growth and Monetization" },
-  { id:15, name:"Leila Hassan",      email:"leila.hassan@figma.com",       role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"L", color:"#be185d", group:"Asian Diaspora" },
-  { id:16, name:"Carlos Rivera",     email:"carlos.r@figma.com",           role:"Member",  seat:"Full",   lastActive:"3 days ago",  avatar:"C", color:"#d97706", group:"Growth and Monetization" },
-  { id:17, name:"Emma Zhao",         email:"emma.zhao@figma.com",          role:"Member",  seat:"Full",   lastActive:"Yesterday",   avatar:"E", color:"#7c3aed", group:"Growth and Monetization" },
-  { id:18, name:"Dev Patel",         email:"dev.patel@figma.com",          role:"Viewer",  seat:"Viewer", lastActive:"2 weeks ago", avatar:"D", color:"#0891b2", group:"Asian Diaspora" },
-  { id:19, name:"Fiona MacLeod",     email:"fiona.m@figma.com",            role:"Member",  seat:"Full",   lastActive:"Today",       avatar:"F", color:"#059669", group:"Growth and Monetization" },
-  { id:20, name:"Omar Abdullah",     email:"omar.a@figma.com",             role:"Member",  seat:"Full",   lastActive:"Yesterday",   avatar:"O", color:"#dc2626", group:"Growth and Monetization" },
-];
-
-const GUESTS = [
-  { id:101, name:"Alex Torres",    email:"a.torres@acme.com",       role:"Guest", lastActive:"Today",      avatar:"A", color:"#6b7280" },
-  { id:102, name:"Wei Zhang",      email:"wei@partnerco.io",        role:"Guest", lastActive:"3 days ago", avatar:"W", color:"#6b7280" },
-  { id:103, name:"contractor@ext.com", email:"contractor@ext.com", role:"Guest", lastActive:"1 week ago", avatar:"C", color:"#6b7280" },
-  { id:104, name:"Ravi Menon",     email:"ravi.m@vendor.com",       role:"Guest", lastActive:"2 weeks ago",avatar:"R", color:"#6b7280" },
-];
-
-const PENDING = [
-  { id:201, email:"new.designer@figma.com",  role:"Member", seat:"Full",   invited:"DeAnna Caggiano", sentAt:"Today" },
-  { id:202, email:"contractor2@ext.com",     role:"Viewer", seat:"Viewer", invited:"Sarah Kim",       sentAt:"Yesterday" },
-  { id:203, email:"newadmin@figma.com",       role:"Admin",  seat:"Full",   invited:"DeAnna Caggiano", sentAt:"2 days ago" },
+// status: active | pending | blocked
+// badge: null | "Guest" | "Blocked" | "Admin"
+// seat: "View" | "Full" | "Dev"
+const PEOPLE = [
+  { id:1,  name:"../../testing<input>/../../..", email:"muesugi+testpathissue@figma.com",    status:"active",  badge:null,      seat:"View", workspace:"Conor B",                billingGroup:"billing group",     costCenter:"–", lastActive:"2 years ago",  av:"m", color:"#6b7280" },
+  { id:2,  name:"[jye] Enterprise Test Account", email:"jye+test_e397f391-0a1b@figma.com",  status:"active",  badge:"Guest",   seat:"Full", workspace:"Unassigned",             billingGroup:"Unassigned",        costCenter:"–", lastActive:"21 hours ago", av:"j", color:"#0891b2" },
+  { id:3,  name:"[Test] Tiff",                   email:"twang@test.figma.com",              status:"blocked", badge:"Blocked", seat:"Dev",  workspace:"Unassigned",             billingGroup:"Unassigned",        costCenter:"–", lastActive:"–",            av:"T", color:"#7c3aed" },
+  { id:4,  name:"[DEV] Levi Villarreal",         email:"lvillarreal@dev.figma.com",         status:"active",  badge:"Guest",   seat:"View", workspace:"Testing workspaces w/r...",billingGroup:"FigJam",          costCenter:"–", lastActive:"14 days ago",  av:"L", color:"#059669" },
+  { id:5,  name:"[Test] schyou",                 email:"schyou+test@figma.com",             status:"active",  badge:null,      seat:"View", workspace:"Testing workspaces w/r...",billingGroup:"Unassigned",      costCenter:"–", lastActive:"1 year ago",   av:"s", color:"#d97706" },
+  { id:6,  name:"[Test] Silvia C",               email:"schyou@test.figma.com",             status:"blocked", badge:"Blocked", seat:"View", workspace:"Unassigned",             billingGroup:"Unassigned",        costCenter:"–", lastActive:"2 years ago",  av:"S", color:"#be185d" },
+  { id:7,  name:"<a href=\"google.com\">hi</a>", email:"jbui+1@figma.com",                  status:"active",  badge:null,      seat:"Full", workspace:"Conor B",                billingGroup:"友達",               costCenter:"–", lastActive:"4 years ago",  av:"<", color:"#0891b2" },
+  { id:8,  name:"",                              email:"0@figma.com",                       status:"pending", badge:null,      seat:"View", workspace:"–",                      billingGroup:"–",                 costCenter:"–", lastActive:"–",            av:"0", color:"#aaa" },
+  { id:9,  name:"",                              email:"000@figma.com",                     status:"pending", badge:null,      seat:"View", workspace:"–",                      billingGroup:"–",                 costCenter:"–", lastActive:"–",            av:"0", color:"#aaa" },
+  { id:10, name:"",                              email:"0000test@gmail.com",                status:"pending", badge:null,      seat:"View", workspace:"–",                      billingGroup:"–",                 costCenter:"–", lastActive:"–",            av:"0", color:"#bbb" },
+  { id:11, name:"0206",                          email:"cwong+0206@figma.com",              status:"active",  badge:null,      seat:"Full", workspace:"Product Education",      billingGroup:"Product Education", costCenter:"–", lastActive:"3 years ago",  av:"0", color:"#6366f1" },
+  { id:12, name:"1",                             email:"scornuelle+3281@dev.figma.com",     status:"blocked", badge:"Blocked", seat:"View", workspace:"Collab Tools",           billingGroup:"FigJam",            costCenter:"–", lastActive:"4 years ago",  av:"1", color:"#d97706" },
+  { id:13, name:"1017Cody",                      email:"cwong+10174@figma.com",             status:"active",  badge:null,      seat:"Full", workspace:"Unassigned",             billingGroup:"Monetization",      costCenter:"–", lastActive:"3 years ago",  av:"1", color:"#7c3aed" },
+  { id:14, name:"102121",                        email:"rlee+102121@figma.com",             status:"active",  badge:"Admin",   seat:"Full", workspace:"Unassigned",             billingGroup:"Product",           costCenter:"–", lastActive:"4 years ago",  av:"1", color:"#059669" },
+  { id:15, name:"111",                           email:"miltskevich+1234@dev.figma.com",    status:"blocked", badge:"Blocked", seat:"View", workspace:"Unassigned",             billingGroup:"Unassigned",        costCenter:"–", lastActive:"–",            av:"1", color:"#dc2626" },
+  { id:16, name:"",                              email:"1213@figma.com",                    status:"pending", badge:null,      seat:"View", workspace:"–",                      billingGroup:"–",                 costCenter:"–", lastActive:"–",            av:"1", color:"#aaa" },
+  { id:17, name:"DeAnna Caggiano",               email:"deanna.caggiano@figma.com",         status:"active",  badge:"Admin",   seat:"Full", workspace:"Growth and Monetization",billingGroup:"Growth and Monetization",costCenter:"–",lastActive:"Today",      av:"D", color:"#7c3aed" },
+  { id:18, name:"Avantika Mathur",               email:"avantika@figma.com",                status:"active",  badge:"Admin",   seat:"Full", workspace:"Asian Diaspora",         billingGroup:"Asian Diaspora",    costCenter:"–", lastActive:"Today",        av:"A", color:"#0891b2" },
+  { id:19, name:"Brad Chen",                     email:"brad.chen@figma.com",               status:"active",  badge:null,      seat:"Full", workspace:"Brad's Test Workspace",  billingGroup:"Brad's Test",       costCenter:"–", lastActive:"Yesterday",    av:"B", color:"#059669" },
+  { id:20, name:"Jason Park",                    email:"jason.park@figma.com",              status:"active",  badge:null,      seat:"Full", workspace:"Jason's Test Workspace", billingGroup:"Jason's Test",      costCenter:"–", lastActive:"Today",        av:"J", color:"#dc2626" },
+  { id:21, name:"Jenning Wu",                    email:"jenning.wu@figma.com",              status:"active",  badge:null,      seat:"Full", workspace:"jenning workspace",      billingGroup:"jenning workspace",  costCenter:"–", lastActive:"3 days ago",   av:"J", color:"#7c3aed" },
+  { id:22, name:"Josh Anderson",                 email:"josh.anderson@figma.com",           status:"active",  badge:null,      seat:"Full", workspace:"Josh's Test Workspace",  billingGroup:"Josh's Test",       costCenter:"–", lastActive:"Today",        av:"J", color:"#0891b2" },
+  { id:23, name:"Kris Thompson",                 email:"kris.thompson@figma.com",           status:"active",  badge:null,      seat:"Dev",  workspace:"Kris's Test Workspace",  billingGroup:"Kris's Test",       costCenter:"–", lastActive:"1 week ago",   av:"K", color:"#059669" },
+  { id:24, name:"Madelene Torres",               email:"madelene@figma.com",                status:"active",  badge:null,      seat:"Full", workspace:"Madelene's test",        billingGroup:"Madelene's test",   costCenter:"–", lastActive:"Yesterday",    av:"M", color:"#be185d" },
+  { id:25, name:"Ndunge Kamau",                  email:"ndunge@figma.com",                  status:"active",  badge:null,      seat:"View", workspace:"ndunge test 1",          billingGroup:"ndunge test 1",     costCenter:"–", lastActive:"4 days ago",   av:"N", color:"#d97706" },
+  { id:26, name:"Sarah Kim",                     email:"sarah.kim@figma.com",               status:"active",  badge:null,      seat:"Full", workspace:"Growth and Monetization",billingGroup:"Growth and Monetization",costCenter:"–",lastActive:"Today",      av:"S", color:"#dc2626" },
 ];
 
 const INVOICES = [
@@ -546,146 +542,281 @@ const DashboardPage = ({ onNav }) => {
   );
 };
 
+// ─── SEAT ICONS ──────────────────────────────────────────────────────────────
+const SeatIcon = ({ type, size=16, pending=false }) => {
+  const op = pending ? 0.35 : 1;
+  if (type === "Full") return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ opacity:op, flexShrink:0 }}>
+      <circle cx="5.5" cy="5.5" r="2.8" fill="#18a0fb" />
+      <circle cx="10.5" cy="5.5" r="2.8" fill="#ff7262" />
+      <circle cx="5.5" cy="10.5" r="2.8" fill="#0acf83" />
+      <circle cx="10.5" cy="10.5" r="2.8" fill="#a259ff" />
+    </svg>
+  );
+  if (type === "Dev") return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ opacity:op, flexShrink:0 }}>
+      <circle cx="8" cy="8" r="6" fill="#f59e0b" opacity="0.15" />
+      <circle cx="8" cy="3"  r="2" fill="#f59e0b" />
+      <circle cx="13" cy="8" r="2" fill="#f59e0b" />
+      <circle cx="8" cy="13" r="2" fill="#f59e0b" />
+      <circle cx="3" cy="8"  r="2" fill="#f59e0b" />
+    </svg>
+  );
+  // View — gray ring with center dot, dashed when pending
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ opacity:op, flexShrink:0 }}>
+      <circle cx="8" cy="8" r="5.5" stroke="#aaa" strokeWidth="1.5"
+        strokeDasharray={pending ? "2.5 2" : "none"} fill="none" />
+      <circle cx="8" cy="8" r="1.5" fill="#aaa" />
+    </svg>
+  );
+};
+
+const SeatStatIcon = ({ type, size=14 }) => {
+  if (type === "Full") return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
+      <circle cx="5.5" cy="5.5" r="2.8" fill="#18a0fb" />
+      <circle cx="10.5" cy="5.5" r="2.8" fill="#ff7262" />
+      <circle cx="5.5" cy="10.5" r="2.8" fill="#0acf83" />
+      <circle cx="10.5" cy="10.5" r="2.8" fill="#a259ff" />
+    </svg>
+  );
+  if (type === "Dev") return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
+      <circle cx="8" cy="3"  r="2" fill="#f59e0b" />
+      <circle cx="13" cy="8" r="2" fill="#f59e0b" />
+      <circle cx="8" cy="13" r="2" fill="#f59e0b" />
+      <circle cx="3" cy="8"  r="2" fill="#f59e0b" />
+    </svg>
+  );
+  if (type === "Total") return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
+      <circle cx="8" cy="8" r="6" fill="none" stroke="#3d52d5" strokeWidth="1.5" />
+      <circle cx="8" cy="4" r="1.2" fill="#3d52d5" />
+      <circle cx="11.5" cy="6.5" r="1.2" fill="#3d52d5" />
+      <circle cx="11.5" cy="9.5" r="1.2" fill="#3d52d5" />
+      <circle cx="8" cy="12" r="1.2" fill="#3d52d5" />
+      <circle cx="4.5" cy="9.5" r="1.2" fill="#3d52d5" />
+      <circle cx="4.5" cy="6.5" r="1.2" fill="#3d52d5" />
+    </svg>
+  );
+  // View
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
+      <circle cx="8" cy="8" r="5.5" stroke="#aaa" strokeWidth="1.5" fill="none" />
+      <circle cx="8" cy="8" r="1.5" fill="#aaa" />
+    </svg>
+  );
+};
+
 // ─── PEOPLE PAGE ─────────────────────────────────────────────────────────────
 const PeoplePage = () => {
-  const [tab, setTab] = useState("Members");
+  const [tab, setTab] = useState("People");
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
+  const [bgFilter, setBgFilter] = useState("all");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Member");
-  const [members, setMembers] = useState(MEMBERS);
+
+  const viewCount  = PEOPLE.filter(p => p.seat === "View").length;
+  const fullCount  = PEOPLE.filter(p => p.seat === "Full").length;
+  const devCount   = PEOPLE.filter(p => p.seat === "Dev").length;
+  const totalCount = PEOPLE.length;
 
   const filtered = useMemo(() => {
-    let list = tab === "Members" ? members : tab === "Guests" ? GUESTS : PENDING;
-    if (search) {
+    return PEOPLE.filter(p => {
       const q = search.toLowerCase();
-      list = list.filter(m => (m.name||m.email||"").toLowerCase().includes(q) || (m.email||"").toLowerCase().includes(q));
-    }
-    if (roleFilter !== "all" && tab === "Members") {
-      list = list.filter(m => m.role.toLowerCase() === roleFilter);
-    }
-    return list;
-  }, [tab, search, roleFilter, members]);
+      const matchSearch = !q || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
+      const matchBg = bgFilter === "all" || p.billingGroup === bgFilter;
+      return matchSearch && matchBg;
+    });
+  }, [search, bgFilter]);
 
-  const MemberRow = ({ m }) => (
-    <tr style={{ borderBottom:`1px solid ${T.border}` }}
-      onMouseEnter={e => e.currentTarget.style.background=T.bgHover}
-      onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-      <td style={{ padding:"10px 16px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <Avatar name={m.name||m.email} color={m.color} size={28} />
-          <div>
-            <div style={{ fontWeight:500 }}>{m.name || m.email}</div>
-            {m.name && <div style={{ fontSize:12, color:T.text3 }}>{m.email}</div>}
-          </div>
-        </div>
-      </td>
-      <td style={{ padding:"10px 16px" }}>
-        <Badge color={m.role==="Admin"?"blue":m.role==="Viewer"?"gray":"gray"}>{m.role}</Badge>
-      </td>
-      {tab === "Members" && <>
-        <td style={{ padding:"10px 16px", color:T.text2 }}>{m.seat}</td>
-        <td style={{ padding:"10px 16px", color:T.text2 }}>{m.lastActive}</td>
-        <td style={{ padding:"10px 16px", color:T.text2 }}>{m.group}</td>
-      </>}
-      {tab === "Guests" && <>
-        <td style={{ padding:"10px 16px", color:T.text2 }}>{m.lastActive}</td>
-      </>}
-      <td style={{ padding:"10px 16px", textAlign:"right" }}>
-        <Btn variant="ghost" style={{ padding:"3px 8px" }}><Ico name="dots" size={14} stroke={T.text2} /></Btn>
-      </td>
-    </tr>
+  const bgOptions = [
+    { value:"all", label:"All billing groups" },
+    ...BILLING_GROUPS_DATA.map(g => ({ value:g.name, label:g.name })),
+  ];
+
+  const badgeColors = { Guest:"amber", Blocked:"gray", Admin:"blue" };
+  const badgeBg     = { Guest:"#fff3e0", Blocked:"#f5f5f5", Admin:T.blueLt };
+  const badgeText   = { Guest:"#e65100", Blocked:"#666",    Admin:T.blue };
+
+  const InlineBadge = ({ label }) => label ? (
+    <span style={{ display:"inline-flex", alignItems:"center", padding:"1px 6px", borderRadius:4,
+      background:badgeBg[label]||"#f0f0f0", color:badgeText[label]||"#555",
+      fontSize:10, fontWeight:500, marginLeft:5, whiteSpace:"nowrap" }}>
+      {label}
+    </span>
+  ) : null;
+
+  const WorkspaceCell = ({ val }) => val === "–" ? (
+    <span style={{ color:T.text3 }}>–</span>
+  ) : (
+    <button style={{ background:"none", border:"none", cursor:"pointer", display:"flex", alignItems:"center",
+      gap:3, color:T.text1, fontFamily:"inherit", fontSize:13, padding:0 }}>
+      <span style={{ maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{val}</span>
+      <Ico name="chevD" size={11} stroke={T.text3} />
+    </button>
   );
 
-  const PendingRow = ({ m }) => (
+  const PersonRow = ({ p }) => (
     <tr style={{ borderBottom:`1px solid ${T.border}` }}
       onMouseEnter={e => e.currentTarget.style.background=T.bgHover}
       onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-      <td style={{ padding:"10px 16px" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:28, height:28, borderRadius:"50%", background:"#f0f0f0",
-            display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <Ico name="people" size={13} stroke={T.text3} />
+
+      {/* Checkbox */}
+      <td style={{ padding:"0 0 0 16px", width:32 }}>
+        <input type="checkbox" style={{ cursor:"pointer", accentColor:T.blue }} />
+      </td>
+
+      {/* Name / email */}
+      <td style={{ padding:"10px 12px 10px 8px", minWidth:220 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+          <Avatar name={p.status==="pending" ? p.email : (p.name||p.email)} color={p.color} size={26} />
+          <div style={{ minWidth:0 }}>
+            {p.status === "pending" ? (
+              <div style={{ color:T.text3, fontSize:12 }}>Pending</div>
+            ) : (
+              <div style={{ display:"flex", alignItems:"center", flexWrap:"wrap" }}>
+                <span style={{ fontWeight:500, fontSize:13, color:p.status==="blocked"?T.text3:T.text1,
+                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:180 }}>
+                  {p.name || p.email}
+                </span>
+                <InlineBadge label={p.badge} />
+              </div>
+            )}
+            <div style={{ fontSize:12, color:T.text3, overflow:"hidden", textOverflow:"ellipsis",
+              whiteSpace:"nowrap", maxWidth:200 }}>{p.email}</div>
           </div>
-          <span style={{ color:T.text2 }}>{m.email}</span>
         </div>
       </td>
-      <td style={{ padding:"10px 16px" }}><Badge color="amber">{m.role}</Badge></td>
-      <td style={{ padding:"10px 16px", color:T.text2 }}>{m.seat}</td>
-      <td style={{ padding:"10px 16px", color:T.text2 }}>Invited by {m.invited}</td>
-      <td style={{ padding:"10px 16px", color:T.text2 }}>{m.sentAt}</td>
-      <td style={{ padding:"10px 16px", textAlign:"right" }}>
-        <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
-          <Btn variant="ghost" style={{ padding:"3px 8px", fontSize:12 }}>Resend</Btn>
-          <Btn variant="ghost" style={{ padding:"3px 8px", fontSize:12, color:T.red }}>Revoke</Btn>
+
+      {/* Seat type */}
+      <td style={{ padding:"10px 16px", width:90 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <SeatIcon type={p.seat} size={15} pending={p.status==="pending"} />
+          <span style={{ fontSize:13, color:p.status==="pending"?T.text3:T.text2 }}>{p.seat}</span>
         </div>
+      </td>
+
+      {/* Workspace */}
+      <td style={{ padding:"10px 16px", maxWidth:160 }}>
+        <WorkspaceCell val={p.workspace} />
+      </td>
+
+      {/* Billing group */}
+      <td style={{ padding:"10px 16px", maxWidth:160 }}>
+        <WorkspaceCell val={p.billingGroup} />
+      </td>
+
+      {/* Cost center */}
+      <td style={{ padding:"10px 16px", color:T.text3, width:100 }}>{p.costCenter}</td>
+
+      {/* Last active */}
+      <td style={{ padding:"10px 16px", color:T.text3, fontSize:12, width:110, whiteSpace:"nowrap" }}>
+        {p.lastActive}
       </td>
     </tr>
   );
 
   return (
-    <div style={{ padding:"28px 32px" }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
-        <div>
-          <h1 style={{ fontSize:18, fontWeight:600, marginBottom:2 }}>People</h1>
-          <p style={{ color:T.text2, fontSize:13 }}>{MEMBERS.length} members · {GUESTS.length} guests · {PENDING.length} pending</p>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
+      {/* Page title */}
+      <div style={{ padding:"20px 32px 0" }}>
+        <h1 style={{ fontSize:20, fontWeight:600, marginBottom:14 }}>People</h1>
+
+        {/* Tabs row + stats + invite */}
+        <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between",
+          borderBottom:`1px solid ${T.border}` }}>
+          <div style={{ display:"flex" }}>
+            {["People","User groups"].map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{
+                padding:"8px 14px", border:"none", background:"none", cursor:"pointer",
+                fontFamily:"inherit", fontSize:13, fontWeight:tab===t?500:400,
+                color:tab===t?T.text1:T.text2,
+                borderBottom: tab===t?`2px solid ${T.text1}`:"2px solid transparent",
+                marginBottom:-1,
+              }}>{t}</button>
+            ))}
+          </div>
+
+          {/* Seat stats + invite */}
+          <div style={{ display:"flex", alignItems:"center", gap:14, paddingBottom:10 }}>
+            {[
+              { count:viewCount,  type:"View",  label:"View" },
+              { count:fullCount,  type:"Full",  label:"Full" },
+              { count:devCount,   type:"Dev",   label:"Dev" },
+              { count:totalCount, type:"Total", label:"Total" },
+            ].map(s => (
+              <div key={s.type} style={{ display:"flex", alignItems:"center", gap:4, color:T.text1 }}>
+                <span style={{ fontWeight:500, fontSize:13 }}>{s.count.toLocaleString()}</span>
+                <SeatStatIcon type={s.type} size={14} />
+              </div>
+            ))}
+            <Btn variant="primary" onClick={() => setInviteOpen(true)}
+              style={{ padding:"5px 12px", fontSize:13 }}>
+              + Invite users
+            </Btn>
+          </div>
         </div>
-        <Btn variant="primary" icon="plus" onClick={() => setInviteOpen(true)}>Invite people</Btn>
       </div>
 
-      <TabBar tabs={["Members","Guests","Pending invites"]} active={tab} onChange={t => { setTab(t); setSearch(""); }} style={{ marginBottom:0 }} />
-
-      <Card style={{ borderTopLeftRadius:0, borderTopRightRadius:0, borderTop:"none" }}>
-        {/* Filters */}
-        <div style={{ padding:"12px 16px", display:"flex", gap:8, borderBottom:`1px solid ${T.border}` }}>
-          <Input value={search} onChange={setSearch} placeholder="Search by name or email" icon="search" style={{ width:260 }} />
-          {tab === "Members" && (
-            <Select value={roleFilter} onChange={setRoleFilter}
-              options={[{value:"all",label:"All roles"},{value:"admin",label:"Admin"},{value:"member",label:"Member"},{value:"viewer",label:"Viewer"}]} />
-          )}
+      {/* Toolbar */}
+      <div style={{ padding:"10px 32px", display:"flex", alignItems:"center", gap:8,
+        borderBottom:`1px solid ${T.border}` }}>
+        <Input value={search} onChange={setSearch} placeholder="Search people..." icon="search" style={{ width:200 }} />
+        <div style={{ flex:1 }} />
+        <button style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:`1px solid ${T.border}`,
+          borderRadius:6, padding:"4px 10px", cursor:"pointer", fontSize:12, color:T.text2, fontFamily:"inherit" }}>
+          <span style={{ fontSize:14, lineHeight:1 }}>⊕</span> New charges since last invoice
+        </button>
+        <div style={{ display:"flex", alignItems:"center", gap:0, border:`1px solid ${T.border}`,
+          borderRadius:6, overflow:"hidden", height:30 }}>
+          <span style={{ padding:"0 8px", fontSize:12, color:T.text2, background:T.bgAlt,
+            borderRight:`1px solid ${T.border}`, height:"100%", display:"flex", alignItems:"center",
+            whiteSpace:"nowrap" }}>Billing group:</span>
+          <select value={bgFilter} onChange={e => setBgFilter(e.target.value)}
+            style={{ border:"none", outline:"none", fontSize:12, padding:"0 6px", height:"100%",
+              background:"#fff", color:T.text1, fontFamily:"inherit", cursor:"pointer" }}>
+            {bgOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
+        <button style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:6,
+          width:30, height:30, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+          <Ico name="people" size={13} stroke={T.text2} />
+        </button>
+        <button style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:6,
+          width:30, height:30, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+          <Ico name="download" size={13} stroke={T.text2} />
+        </button>
+      </div>
 
-        {/* Table */}
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          <thead>
-            <tr style={{ borderBottom:`1px solid ${T.border}`, background:T.bgAlt }}>
-              {tab === "Members" && <>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Name</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Role</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Seat</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Last active</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Group</th>
-                <th style={{ padding:"8px 16px" }}></th>
-              </>}
-              {tab === "Guests" && <>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Name</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Role</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Last active</th>
-                <th style={{ padding:"8px 16px" }}></th>
-              </>}
-              {tab === "Pending invites" && <>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Email</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Role</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Seat</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Invited by</th>
-                <th style={{ padding:"8px 16px", textAlign:"left", fontWeight:500, color:T.text2, fontSize:12 }}>Sent</th>
-                <th style={{ padding:"8px 16px" }}></th>
-              </>}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0
-              ? <tr><td colSpan={6} style={{ padding:0 }}><EmptyState icon="people" title="No results found" subtitle="Try adjusting your search or filters." /></td></tr>
-              : filtered.map(m =>
-                  tab === "Pending invites" ? <PendingRow key={m.id} m={m} /> : <MemberRow key={m.id} m={m} />
-                )}
-          </tbody>
-        </table>
-      </Card>
+      {/* Table */}
+      {tab === "People" ? (
+        <div style={{ flex:1, overflowY:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            <thead style={{ position:"sticky", top:0, zIndex:1 }}>
+              <tr style={{ background:T.bg, borderBottom:`1px solid ${T.border}` }}>
+                <th style={{ width:32, padding:"8px 0 8px 16px" }}></th>
+                {["Name","Seat type","Workspace","Billing group","Cost center","Last active"].map(h => (
+                  <th key={h} style={{ padding:"8px 16px", textAlign:"left", fontWeight:500,
+                    color:T.text3, fontSize:12, whiteSpace:"nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0
+                ? <tr><td colSpan={7}><EmptyState icon="people" title="No results" subtitle="Try adjusting your search." /></td></tr>
+                : filtered.map(p => <PersonRow key={p.id} p={p} />)}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState icon="group" title="No user groups" subtitle="Create groups to manage members and billing together." />
+      )}
 
       {/* Invite modal */}
-      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite people">
+      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite users">
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
           <div>
             <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:6 }}>Email address</label>
@@ -700,7 +831,7 @@ const PeoplePage = () => {
           <div>
             <label style={{ display:"block", fontSize:12, fontWeight:500, color:T.text2, marginBottom:6 }}>Seat type</label>
             <Select value="Full" onChange={() => {}} style={{ width:"100%" }}
-              options={[{value:"Full",label:"Full seat"},{value:"Viewer",label:"View-only seat (free)"}]} />
+              options={[{value:"Full",label:"Full seat"},{value:"Dev",label:"Dev seat"},{value:"View",label:"View-only seat (free)"}]} />
           </div>
           <div style={{ display:"flex", gap:8, justifyContent:"flex-end", paddingTop:4 }}>
             <Btn onClick={() => setInviteOpen(false)}>Cancel</Btn>
