@@ -144,6 +144,10 @@ export function computeKeyframeStyle(
   const style: CSSProperties = {};
   const transforms: string[] = [];
 
+  // Track size deltas for center-point compensation
+  let widthDelta = 0;
+  let heightDelta = 0;
+
   for (const [prop, kfs] of nodeKeyframes) {
     if (kfs.length < 2) continue;
     const val = interpolateKeyframes(kfs, currentMs);
@@ -153,8 +157,10 @@ export function computeKeyframeStyle(
       style.opacity = val;
     } else if (prop === 'width') {
       style.width = val;
+      widthDelta = val - (baseNode?.width ?? val);
     } else if (prop === 'height') {
       style.height = val;
+      heightDelta = val - (baseNode?.height ?? val);
     } else if (prop in KF_TRANSFORM_PROPS) {
       const def = KF_TRANSFORM_PROPS[prop]!;
       const baseVal = baseNode ? baseNode[prop as 'x' | 'y' | 'rotation'] : 0;
@@ -163,6 +169,11 @@ export function computeKeyframeStyle(
         transforms.push(`${def.fn}(${delta}${def.unit})`);
       }
     }
+  }
+
+  // Compensate position so size changes happen from the center point
+  if (Math.abs(widthDelta) > 0.001 || Math.abs(heightDelta) > 0.001) {
+    transforms.push(`translate(${-widthDelta / 2}px, ${-heightDelta / 2}px)`);
   }
 
   if (transforms.length > 0) {
