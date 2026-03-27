@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import clsx from 'clsx';
 import {
-  ButtonPrimitive, Checkbox, FormattedInput, HiddenLabel, HiddenLegend, IconButton, Input, Label, ScrollContainer, SegmentedControl, Select, Tabs, ToggleButton,
+  ButtonPrimitive, Checkbox, FormattedInput, HiddenLabel, HiddenLegend, IconButton, Input, Label, ScrollContainer, SegmentedControl, Select, Tabs,
 } from '@figma/fpl-components';
 import { MenuV2, SplitInput } from '@figma/fpl-components/beta';
 import {
@@ -105,8 +104,8 @@ function KeyframeDiamondIcon({ active }: { active?: boolean }) {
     <svg width={10} height={10} viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
       <path
         d="M4.23218 0.646484C4.42743 0.451336 4.74397 0.451311 4.93921 0.646484L8.52515 4.23242C8.7203 4.42766 8.7203 4.74421 8.52515 4.93945L4.93921 8.52539C4.74397 8.72057 4.42743 8.72054 4.23218 8.52539L0.64624 4.93945C0.451075 4.74421 0.451075 4.42767 0.64624 4.23242L4.23218 0.646484Z"
-        fill={active ? '#0D99FF' : 'none'}
-        stroke={active ? '#0D99FF' : 'currentColor'}
+        fill={active ? 'var(--color-icon-selected' : 'none'}
+        stroke={active ? 'var(--color-icon-selected' : 'currentColor'}
         strokeOpacity={active ? 1 : 0.5}
       />
     </svg>
@@ -125,19 +124,19 @@ function KeyframePropToggle({ nodeId, property, value }: { nodeId: string; prope
   const hasKeyframeHere = kfs.some((kf) => Math.abs(kf.timeMs - currentMs) < 5);
 
   return (
-    <ToggleButton
+    <ButtonPrimitive
       aria-label={`Toggle keyframe for ${property}`}
-      offIcon={<KeyframeDiamondIcon />}
-      onIcon={<KeyframeDiamondIcon active />}
-      checked={hasKeyframeHere}
-      onChange={() => {
+      className="flex items-center justify-center size-24px shrink-0 p-0 cursor-pointer bg-bg outline-1 outline -outline-offset-1 outline-border rounded-md text-icon-secondary hover:text-icon focus-visible:outline focus-visible:outline-1 focus-visible:outline-border-selected"
+      onClick={() => {
         if (!isEnabled) {
           kfStore.togglePropertyKeyframing(nodeId, property, value, currentMs);
         } else {
           kfStore.addKeyframe(nodeId, property, currentMs, value);
         }
       }}
-    />
+    >
+      <KeyframeDiamondIcon active={hasKeyframeHere} />
+    </ButtonPrimitive>
   );
 }
 
@@ -265,7 +264,7 @@ function NoSelectionState() {
 
 // ── Selection properties (unified for single + multi) ─────────────────
 
-function SelectionProperties({ selectedIds, animateMode }: { selectedIds: ReadonlySet<NodeId>; animateMode?: boolean }) {
+function SelectionProperties({ selectedIds, animateMode, animationSection }: { selectedIds: ReadonlySet<NodeId>; animateMode?: boolean; animationSection?: React.ReactNode }) {
   const sg = useSceneGraph();
 
   // Classify which node types are in the selection
@@ -296,6 +295,7 @@ function SelectionProperties({ selectedIds, animateMode }: { selectedIds: Readon
   return (
     <>
       <SelectionHeader singleNode={singleNode} count={selectedIds.size} />
+      {animationSection}
 
       {/* Position — always shown when all are geometry */}
       {allGeometry && <PositionSection selectedIds={selectedIds} geoCount={geoCount} animateMode={animateMode} />}
@@ -448,43 +448,31 @@ function PositionSection({ selectedIds, geoCount, animateMode }: { selectedIds: 
         )}
       </PropertyRow>
       <PropertyRow>
-        <div className="flex items-center min-w-0">
-          <div className={clsx('flex-1 min-w-0', showKf && '[&_input]:rounded-r-none')}>
-            <NumericField
-              label="X"
-              value={showKf ? displayX : (x ?? 0)}
-              onChange={handleX}
-              onMixedChange={mixedX}
-            />
-          </div>
-          {showKf && <KeyframePropToggle nodeId={singleId} property="x" value={typeof x === 'number' ? x : 0} />}
-        </div>
-        <div className="flex items-center min-w-0">
-          <div className={clsx('flex-1 min-w-0', showKf && '[&_input]:rounded-r-none')}>
-            <NumericField
-              label="Y"
-              value={showKf ? displayY : (y ?? 0)}
-              onChange={handleY}
-              onMixedChange={mixedY}
-            />
-          </div>
-          {showKf && <KeyframePropToggle nodeId={singleId} property="y" value={typeof y === 'number' ? y : 0} />}
-        </div>
+        <NumericField
+          label="X"
+          value={showKf ? displayX : (x ?? 0)}
+          onChange={handleX}
+          onMixedChange={mixedX}
+          trailingAction={showKf ? <KeyframePropToggle nodeId={singleId} property="x" value={typeof x === 'number' ? x : 0} /> : undefined}
+        />
+        <NumericField
+          label="Y"
+          value={showKf ? displayY : (y ?? 0)}
+          onChange={handleY}
+          onMixedChange={mixedY}
+          trailingAction={showKf ? <KeyframePropToggle nodeId={singleId} property="y" value={typeof y === 'number' ? y : 0} /> : undefined}
+        />
         <div />
       </PropertyRow>
       <PropertyRow>
-        <div className="flex items-center min-w-0">
-          <div className={clsx('flex-1 min-w-0', showKf && '[&_input]:rounded-r-none')}>
-            <NumericField
-              label="Rotation"
-              value={showKf ? displayRotation : (rotation ?? 0)}
-              onChange={handleRotation}
-              onMixedChange={mixedRotation}
-              icon={<Icon24Rotation />}
-            />
-          </div>
-          {showKf && <KeyframePropToggle nodeId={singleId} property="rotation" value={typeof rotation === 'number' ? rotation : 0} />}
-        </div>
+        <NumericField
+          label="Rotation"
+          value={showKf ? displayRotation : (rotation ?? 0)}
+          onChange={handleRotation}
+          onMixedChange={mixedRotation}
+          icon={<Icon24Rotation />}
+          trailingAction={showKf ? <KeyframePropToggle nodeId={singleId} property="rotation" value={typeof rotation === 'number' ? rotation : 0} /> : undefined}
+        />
         <IconButtonGroup>
           <IconButtonGroup.Button aria-label="Rotate"><Icon24Rotate /></IconButtonGroup.Button>
           <IconButtonGroup.Button aria-label="Flip horizontal"><Icon24FlipHorizontal /></IconButtonGroup.Button>
@@ -811,52 +799,23 @@ function LayoutSection({ singleNode, animateMode }: { singleNode: GeometryNode |
       ) : undefined}
     >
       {isFrame && singleNode && <FrameLayoutRows />}
-      <PropertyRow columns={showKf ? undefined : '1fr 1fr 24px'}>
-        {showKf ? (
-          <>
-            <div className="flex items-center min-w-0">
-              <div className="flex-1 min-w-0 [&_input]:rounded-r-none">
-                <NumericField
-                  label="W"
-                  value={displayW}
-                  onChange={handleW}
-                  formatter={positiveFormatter}
-                  onMixedChange={mixedW}
-                />
-              </div>
-              <KeyframePropToggle nodeId={nodeId} property="width" value={w} />
-            </div>
-            <div className="flex items-center min-w-0">
-              <div className="flex-1 min-w-0 [&_input]:rounded-r-none">
-                <NumericField
-                  label="H"
-                  value={displayH}
-                  onChange={handleH}
-                  formatter={positiveFormatter}
-                  onMixedChange={mixedH}
-                />
-              </div>
-              <KeyframePropToggle nodeId={nodeId} property="height" value={h} />
-            </div>
-          </>
-        ) : (
-          <>
-            <NumericField
-              label="W"
-              value={width ?? 0}
-              onChange={constrained ? (v, opts) => updateSize('width', v, opts) : setWidth}
-              formatter={positiveFormatter}
-              onMixedChange={mixedW}
-            />
-            <NumericField
-              label="H"
-              value={height ?? 0}
-              onChange={constrained ? (v, opts) => updateSize('height', v, opts) : setHeight}
-              formatter={positiveFormatter}
-              onMixedChange={mixedH}
-            />
-          </>
-        )}
+      <PropertyRow columns="1fr 1fr 24px">
+        <NumericField
+          label="W"
+          value={showKf ? displayW : (width ?? 0)}
+          onChange={showKf ? handleW : (constrained ? (v, opts) => updateSize('width', v, opts) : setWidth)}
+          formatter={positiveFormatter}
+          onMixedChange={mixedW}
+          trailingAction={showKf ? <KeyframePropToggle nodeId={nodeId} property="width" value={w} /> : undefined}
+        />
+        <NumericField
+          label="H"
+          value={showKf ? displayH : (height ?? 0)}
+          onChange={showKf ? handleH : (constrained ? (v, opts) => updateSize('height', v, opts) : setHeight)}
+          formatter={positiveFormatter}
+          onMixedChange={mixedH}
+          trailingAction={showKf ? <KeyframePropToggle nodeId={nodeId} property="height" value={h} /> : undefined}
+        />
         <IconButton
           aria-label={constrained ? 'Unlock proportions' : 'Lock proportions'}
           onClick={() => setConstrained(!constrained)}
@@ -979,19 +938,15 @@ function AppearanceSection({ singleNode, allAppearance, animateMode }: { singleN
       )}
     >
       <PropertyRow>
-        <div className="flex items-center min-w-0">
-          <div className={clsx('flex-1 min-w-0', showKf && '[&_input]:rounded-r-none')}>
-            <NumericField
-              label="Opacity"
-              icon={<Icon24Opacity />}
-              value={showKf ? Math.round(displayOpacity * 100) : (isMixed(opacity) ? opacity : Math.round((opacity ?? 1) * 100))}
-              onChange={handleOpacityChange}
-              formatter={percentFormatter}
-              onMixedChange={mixedOpacity}
-            />
-          </div>
-          {showKf && <KeyframePropToggle nodeId={nodeId} property="opacity" value={rawOpacity} />}
-        </div>
+        <NumericField
+          label="Opacity"
+          icon={<Icon24Opacity />}
+          value={showKf ? Math.round(displayOpacity * 100) : (isMixed(opacity) ? opacity : Math.round((opacity ?? 1) * 100))}
+          onChange={handleOpacityChange}
+          formatter={percentFormatter}
+          onMixedChange={mixedOpacity}
+          trailingAction={showKf ? <KeyframePropToggle nodeId={nodeId} property="opacity" value={rawOpacity} /> : undefined}
+        />
         {allAppearance ? (
           <NumericField
             label="Corner radius"
@@ -1321,12 +1276,13 @@ export function AnimateModeContent() {
               onBack={() => setPresetsForNodeId(null)}
             />
           ) : selectedIds.size > 0 ? (
-            <>
-              {showAnimationSection && singleIdStr && (
+            <SelectionProperties
+              selectedIds={selectedIds}
+              animateMode
+              animationSection={showAnimationSection && singleIdStr ? (
                 <AnimationSection nodeId={singleIdStr} onOpenPresets={() => setPresetsForNodeId(singleIdStr)} />
-              )}
-              <SelectionProperties selectedIds={selectedIds} animateMode />
-            </>
+              ) : undefined}
+            />
           ) : (
             <NoSelectionState />
           )}

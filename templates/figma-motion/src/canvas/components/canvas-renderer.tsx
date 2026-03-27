@@ -44,7 +44,11 @@ import type {
   VectorNode,
 } from '@prototype/shared/canvas';
 import { CURSORS } from '../cursors';
-import { useAnimatedStyle } from '../animation-utils';
+import { useAnimatedStyle, type BaseNodeForKf } from '../animation-utils';
+
+function toBaseNode(node: { x: number; y: number; rotation: number; opacity: number; width: number; height: number }): BaseNodeForKf {
+  return { x: node.x, y: node.y, rotation: node.rotation, opacity: node.opacity, width: node.width, height: node.height };
+}
 
 export function CanvasRenderer() {
   const canvasId = useCanvasId();
@@ -129,7 +133,7 @@ function RectangleRenderer({ node }: { node: RectangleNode }) {
   const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const animStyle = useAnimatedStyle(node.id);
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
 
   return (
     <div
@@ -153,7 +157,7 @@ function TextRenderer({ node }: { node: TextNode }) {
   const { nodeRegistry } = useRendering();
   const fill = getFirstVisibleFill(node.fills);
   const store = useSceneGraph();
-  const animStyle = useAnimatedStyle(node.id);
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
   const { editingNodeId, stopEditing } = useTextEditing();
   const isEditing = editingNodeId === node.id;
   const elRef = useRef<HTMLDivElement>(null);
@@ -286,7 +290,7 @@ function EllipseRenderer({ node }: { node: EllipseNode }) {
   const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const animStyle = useAnimatedStyle(node.id);
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
   const rx = node.width / 2;
   const ry = node.height / 2;
 
@@ -331,7 +335,7 @@ function FrameRenderer({
   const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
-  const animStyle = useAnimatedStyle(node.id);
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
   const childNodes = node.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[];
 
   return (

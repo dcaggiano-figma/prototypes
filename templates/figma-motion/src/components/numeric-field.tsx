@@ -35,6 +35,8 @@ export interface NumericFieldProps {
    * are applied to each node's individual value instead of clobbering.
    */
   onMixedChange?: MixedChangeHandler
+  /** Optional trailing action rendered inside the input root (e.g. keyframe toggle) */
+  trailingAction?: React.ReactNode
 }
 
 /** 24x24px box for a text-based icon character (X, Y, W, H, R, %, etc.) */
@@ -47,7 +49,7 @@ export function CharIcon({ children }: { children: React.ReactNode }) {
 }
 
 export function NumericField({
-  label, value, onChange, formatter, icon, disabled, onMixedChange,
+  label, value, onChange, formatter, icon, disabled, onMixedChange, trailingAction,
 }: NumericFieldProps) {
   const baseFmt = formatter ?? defaultFormatter;
 
@@ -73,6 +75,7 @@ export function NumericField({
         onChange={(v, opts) => onChange(v, { commit: opts.commit })}
         disabled={disabled}
       />
+      {trailingAction}
     </ScrubbableInput.Root>
   );
 }

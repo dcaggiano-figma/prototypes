@@ -151,6 +151,10 @@ export function computeKeyframeStyle(
 
     if (prop === 'opacity') {
       style.opacity = val;
+    } else if (prop === 'width') {
+      style.width = val;
+    } else if (prop === 'height') {
+      style.height = val;
     } else if (prop in KF_TRANSFORM_PROPS) {
       const def = KF_TRANSFORM_PROPS[prop]!;
       const baseVal = baseNode ? baseNode[prop as 'x' | 'y' | 'rotation'] : 0;
@@ -209,13 +213,12 @@ export function useAnimatedStyle(nodeId: string | number, baseNode?: BaseNodeFor
     if (!hasKfs) return clipStyle;
     if (!hasAnims) return kfStyle;
 
-    // Merge clip-based and keyframe-based styles
-    const merged = { ...clipStyle };
-    if (kfStyle.opacity !== undefined) merged.opacity = kfStyle.opacity;
-    if (kfStyle.transform) {
+    // Merge clip-based and keyframe-based styles (keyframe wins)
+    const merged = { ...clipStyle, ...kfStyle };
+    // Concatenate transforms from both sources
+    if (clipStyle.transform && kfStyle.transform) {
       merged.transform = [clipStyle.transform, kfStyle.transform].filter(Boolean).join(' ');
     }
-    if (kfStyle.backgroundColor) merged.backgroundColor = kfStyle.backgroundColor;
     return merged;
   }, [playback?.currentMs, playback?.isPlaying, nodeAnims, nodeKeyframes, baseNode?.x, baseNode?.y, baseNode?.rotation, baseNode?.opacity, baseNode?.width, baseNode?.height]);
 }
