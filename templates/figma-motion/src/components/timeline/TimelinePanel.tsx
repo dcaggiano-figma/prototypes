@@ -132,7 +132,8 @@ function LayerChevronIcon({ className }: { className?: string }) {
 }
 
 /** Record icon: rounded square outline + red center dot (24px). */
-function Icon24Record({ className }: { className?: string }) {
+/** Auto-keyframe icon: diamond outline + filled red center when active. */
+function Icon24AutoKeyframe({ active, className }: { active?: boolean; className?: string }) {
   return (
     <svg className={className} width={24} height={24} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
       <path
@@ -140,7 +141,9 @@ function Icon24Record({ className }: { className?: string }) {
         fill="currentColor"
         fillOpacity={0.9}
       />
-      <path d="M12 10C13.1046 10 14 10.8954 14 12C14 13.1046 13.1046 14 12 14C10.8954 14 10 13.1046 10 12C10 10.8954 10.8954 10 12 10Z" fill="#DC3412" />
+      {active && (
+        <path d="M12 10C13.1046 10 14 10.8954 14 12C14 13.1046 13.1046 14 12 14C10.8954 14 10 13.1046 10 12C10 10.8954 10.8954 10 12 10Z" fill="#DC3412" />
+      )}
     </svg>
   );
 }
@@ -1237,11 +1240,6 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
     setIsPlaying((p: boolean) => !p);
   }, [currentMs, endMs, setCurrentMs, setIsPlaying]);
 
-  const handleStop = useCallback(() => {
-    setIsPlaying(false);
-    setCurrentMs(0);
-  }, [setIsPlaying, setCurrentMs]);
-
   const handleLoop = useCallback(() => setLoop((l: boolean) => !l), [setLoop]);
 
   const toggleCollapse = useCallback((nodeId: string) => {
@@ -1279,8 +1277,15 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
             <IconButton aria-label={isPlaying ? 'Pause' : 'Play'} size="md" onClick={handlePlay}>
               {isPlaying ? <Icon24Pause /> : <Icon24Play />}
             </IconButton>
-            <IconButton aria-label="Stop" size="md" onClick={handleStop}>
-              <Icon24Record />
+            <IconButton
+              aria-label="Toggle auto-keyframe"
+              aria-pressed={kfStore.autoKeyframeActive}
+              size="md"
+              onClick={() => kfStore.setAutoKeyframeActive((prev: boolean) => !prev)}
+            >
+              <span style={kfStore.autoKeyframeActive ? { color: '#DC3412' } : undefined}>
+                <Icon24AutoKeyframe active={kfStore.autoKeyframeActive} />
+              </span>
             </IconButton>
             <TimelineTimeInput
               currentMs={currentMs}

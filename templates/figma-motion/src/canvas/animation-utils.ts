@@ -131,6 +131,12 @@ export function interpolateKeyframes(kfs: Keyframe[], currentMs: number): number
 }
 
 
+const KF_TRANSFORM_PROPS: Partial<Record<KeyframeableProperty, { fn: string; unit: string }>> = {
+  x: { fn: 'translateX', unit: 'px' },
+  y: { fn: 'translateY', unit: 'px' },
+  rotation: { fn: 'rotate', unit: 'deg' },
+};
+
 export function computeKeyframeStyle(
   nodeKeyframes: Map<KeyframeableProperty, Keyframe[]>,
   currentMs: number,
@@ -139,54 +145,23 @@ export function computeKeyframeStyle(
   const style: CSSProperties = {};
   const transforms: string[] = [];
 
-  // First pass: collect all interpolated values
-  const values = new Map<KeyframeableProperty, number>();
   for (const [prop, kfs] of nodeKeyframes) {
     if (kfs.length < 2) continue;
     const val = interpolateKeyframes(kfs, currentMs);
-    if (val !== undefined) values.set(prop, val);
-  }
+    if (val === undefined) continue;
 
-  // Size deltas for center-point compensation
-  const widthDelta = values.has('width') ? values.get('width')! - (baseNode?.width ?? 0) : 0;
-  const heightDelta = values.has('height') ? values.get('height')! - (baseNode?.height ?? 0) : 0;
-
-  for (const [prop, val] of values) {
     if (prop === 'opacity') {
       style.opacity = val;
-    } else if (prop === 'width') {
-      style.width = val;
-    } else if (prop === 'height') {
-      style.height = val;
-    } else if (prop === 'x') {
-      // Fold center compensation into x translate
-      const baseVal = baseNode?.x ?? 0;
-      const delta = val - baseVal - widthDelta / 2;
-      if (Math.abs(delta) > 0.001) {
-        transforms.push(`translateX(${delta}px)`);
-      }
-    } else if (prop === 'y') {
-      // Fold center compensation into y translate
-      const baseVal = baseNode?.y ?? 0;
-      const delta = val - baseVal - heightDelta / 2;
-      if (Math.abs(delta) > 0.001) {
-        transforms.push(`translateY(${delta}px)`);
-      }
-    } else if (prop === 'rotation') {
-      const baseVal = baseNode?.rotation ?? 0;
+    } else if (prop in KF_TRANSFORM_PROPS) {
+      const def = KF_TRANSFORM_PROPS[prop]!;
+      const baseVal = baseNode ? baseNode[prop as 'x' | 'y' | 'rotation'] : 0;
       const delta = val - baseVal;
       if (Math.abs(delta) > 0.001) {
-        transforms.push(`rotate(${delta}deg)`);
+        transforms.push(`${def.fn}(${delta}${def.unit})`);
       }
     }
-  }
-
-  // If size changed but no x/y keyframes exist, still compensate position
-  if (!values.has('x') && Math.abs(widthDelta) > 0.001) {
-    transforms.push(`translateX(${-widthDelta / 2}px)`);
-  }
-  if (!values.has('y') && Math.abs(heightDelta) > 0.001) {
-    transforms.push(`translateY(${-heightDelta / 2}px)`);
+    // width/height are not animated via CSS — they are committed to the
+    // scene graph when playback stops or the playhead is scrubbed.
   }
 
   if (transforms.length > 0) {

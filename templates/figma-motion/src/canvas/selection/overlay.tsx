@@ -39,16 +39,6 @@ function useCommitKeyframesOnStop() {
         }
       }
 
-      // Adjust position to keep center point fixed when size changes
-      if (updates.width !== undefined) {
-        const dx = (updates.width - node.width) / 2;
-        updates.x = (updates.x ?? node.x) - dx;
-      }
-      if (updates.height !== undefined) {
-        const dy = (updates.height - node.height) / 2;
-        updates.y = (updates.y ?? node.y) - dy;
-      }
-
       if (Object.keys(updates).length > 0) {
         sg.updateNode(nodeId, updates);
       }
