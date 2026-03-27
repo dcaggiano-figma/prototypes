@@ -42,6 +42,7 @@ import { TimelineVisibilityProvider } from '../contexts/TimelineVisibilityContex
 import { AnimationStoreProvider } from '../contexts/AnimationStoreContext';
 import { PlaybackProvider } from '../contexts/PlaybackContext';
 import { KeyframeStoreProvider } from '../contexts/KeyframeStoreContext';
+import { CanvasWorkspaceInsetsProvider, type CanvasWorkspaceInsets } from '../contexts/CanvasWorkspaceInsetsContext';
 import { TimelinePanel, TIMELINE_PANEL_HEIGHT_PX, TIMELINE_COLLAPSED_HEIGHT_PX } from '../components/timeline';
 
 // ---------------------------------------------------------------------------
@@ -357,6 +358,17 @@ function EditorContent() {
   const MainContent = viewConfig?.mainContent;
   const showRightPanel = viewConfig?.showRightPanel ?? true;
 
+  // Workspace insets for canvas framing
+  const RAIL_WIDTH = 48;
+  const DEFAULT_PANEL_WIDTH = 240;
+  const canvasInsets = useMemo<CanvasWorkspaceInsets>(() => ({
+    leftPx: isMinimized ? 0 : RAIL_WIDTH + DEFAULT_PANEL_WIDTH,
+    rightPx: showRightPanel && !isMinimized ? DEFAULT_PANEL_WIDTH : 0,
+    topPx: 0,
+    bottomPx: effectiveTimelineHeight,
+    animateToolbarActive: activeMode === 'animate',
+  }), [isMinimized, showRightPanel, effectiveTimelineHeight, activeMode]);
+
   return (
     <TimelineVisibilityProvider
       visible={timelineHeightReached}
@@ -366,6 +378,7 @@ function EditorContent() {
     <ModeAnimationSync activeMode={activeMode} />
     <LeftSidebar.Provider activeItem={activeRailItem} onItemChange={handleRailItemChange}>
     <MinimizeUIProvider value={minimizeCtx}>
+    <CanvasWorkspaceInsetsProvider value={canvasInsets}>
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Top row: canvas + left + main + right (shrinks when timeline is visible) */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -511,6 +524,7 @@ function EditorContent() {
       {/* Portal target for toolbar — z-50 so toolbar stays on top of timeline */}
       <div id="toolbar-portal" className="fixed inset-0 pointer-events-none z-50" aria-hidden="true" />
     </div>
+    </CanvasWorkspaceInsetsProvider>
     </MinimizeUIProvider>
     </LeftSidebar.Provider>
     </TimelineVisibilityProvider>

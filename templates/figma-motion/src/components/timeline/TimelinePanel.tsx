@@ -11,7 +11,8 @@ import { useAction } from '../../actions/provider';
 import { useSceneGraph, useSelection } from '../../canvas';
 import type { SceneNode } from '../../canvas';
 import type { AnimationType, TimelineAnimation } from '../../contexts/AnimationStoreContext';
-import { CURSORS } from '@prototype/shared';
+import { Avatar, CURSORS, useComments } from '@prototype/shared';
+import type { CommentThread } from '@prototype/shared';
 import {
   Icon16Frame,
   Icon16Rectangle,
@@ -60,6 +61,8 @@ const TIMELINE_ZOOM_FACTOR = 0.01;
 const SNAP_THRESHOLD_PX = 6;
 const TIMELINE_PAD_FRAC = 0.015;
 const PLAYHEAD_HIT_PX = 12;
+/** Group comment pins within this many ms (same position = one marker). */
+const COMMENT_PIN_BUCKET_MS = 1;
 
 const KEYFRAMEABLE_PROP_LABELS: Record<KeyframeableProperty, string> = {
   x: 'X',
@@ -95,6 +98,25 @@ const RULER_NOTCH_LABEL_STYLE: React.CSSProperties = { padding: '0 2px' };
 
 /** Ruler notch tick mark style. */
 const RULER_NOTCH_TICK_STYLE: React.CSSProperties = { height: 6, transform: 'translateX(-0.5px)' };
+
+/** Comment pin button height. */
+const COMMENT_PIN_HEIGHT = 20;
+
+/** Comment pin style for single comment. */
+const COMMENT_PIN_STYLE_SINGLE: React.CSSProperties = {
+  width: 'fit-content',
+  height: COMMENT_PIN_HEIGHT,
+  paddingLeft: 1,
+  paddingRight: 1,
+};
+
+/** Comment pin style for multi-comment groups. */
+const COMMENT_PIN_STYLE_MULTI: React.CSSProperties = {
+  width: 'fit-content',
+  height: COMMENT_PIN_HEIGHT,
+  paddingLeft: 2,
+  paddingRight: 2,
+};
 
 /** Ruler guide label style (includes red color). */
 const RULER_GUIDE_LABEL_STYLE: React.CSSProperties = { color: '#F24822', padding: '0 2px' };
@@ -644,6 +666,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
     }
     return () => clearTimeout(expandTimerRef.current);
   }, [expanded]);
+  const { store: commentsStore, threads: commentThreads, setSelectedThreadId, setInteraction } = useComments();
   const store = useSceneGraph();
   // Revision counter — bumped on structural scene graph changes so memos recompute
   const [sgRevision, setSgRevision] = useState(0);
@@ -702,6 +725,60 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
   const { marks: rulerMarks, ticks: rulerTicks } = useMemo(
     () => computeRulerMarks(visibleStartMs, visibleEndMs, visibleDurationMs, layoutEndMs),
     [visibleStartMs, visibleEndMs, visibleDurationMs, layoutEndMs],
+  );
+
+  /** Comment threads with a timestamp in the visible range -- show mini pins on the ruler */
+  const visibleCommentPins = useMemo(() => {
+    if (visibleDurationMs <= 0) return [];
+    return commentThreads.filter(
+      (t) =>
+        t.anchor.timestampMs != null &&
+        t.anchor.timestampMs >= visibleStartMs &&
+        t.anchor.timestampMs <= visibleEndMs,
+    );
+  }, [commentThreads, visibleStartMs, visibleEndMs, visibleDurationMs]);
+
+  /** Comment pins for collapsed strip: all threads with timestamp in [0, layoutEndMs] */
+  const collapsedCommentPins = useMemo(() => {
+    if (layoutEndMs <= 0) return [];
+    return commentThreads.filter(
+      (t) =>
+        t.anchor.timestampMs != null &&
+        t.anchor.timestampMs >= 0 &&
+        t.anchor.timestampMs <= layoutEndMs,
+    );
+  }, [commentThreads, layoutEndMs]);
+
+  /** Group threads by time bucket for combined pins (avatar + count) */
+  const groupCommentThreads = useCallback((threads: CommentThread[]): { timestampMs: number; threads: CommentThread[] }[] => {
+    if (threads.length === 0) return [];
+    const sorted = [...threads].sort((a, b) => (a.anchor.timestampMs ?? 0) - (b.anchor.timestampMs ?? 0));
+    const groups: { timestampMs: number; threads: CommentThread[] }[] = [];
+    let current: CommentThread[] = [sorted[0]];
+    let bucket = Math.floor((sorted[0].anchor.timestampMs ?? 0) / COMMENT_PIN_BUCKET_MS) * COMMENT_PIN_BUCKET_MS;
+    for (let i = 1; i < sorted.length; i++) {
+      const t = sorted[i];
+      const ts = t.anchor.timestampMs ?? 0;
+      const b = Math.floor(ts / COMMENT_PIN_BUCKET_MS) * COMMENT_PIN_BUCKET_MS;
+      if (b === bucket) {
+        current.push(t);
+      } else {
+        groups.push({ timestampMs: current[0].anchor.timestampMs!, threads: current });
+        current = [t];
+        bucket = b;
+      }
+    }
+    groups.push({ timestampMs: current[0].anchor.timestampMs!, threads: current });
+    return groups;
+  }, []);
+
+  const groupedVisibleCommentPins = useMemo(
+    () => groupCommentThreads(visibleCommentPins),
+    [groupCommentThreads, visibleCommentPins],
+  );
+  const groupedCollapsedCommentPins = useMemo(
+    () => groupCommentThreads(collapsedCommentPins),
+    [groupCommentThreads, collapsedCommentPins],
   );
 
   const activeFrameId = useMemo(() => {
@@ -826,6 +903,53 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
     setVisibleMs(prev => prev ?? endMs);
   }, [endMs]);
   const handleClipDragEnd = useCallback(() => setFrozenEndMs(null), []);
+
+  /** When dragging a comment pin group: thread ids and current drag position (ms) */
+  const [draggingCommentGroup, setDraggingCommentGroup] = useState<{ threadIds: string[]; dragMs: number } | null>(null);
+  const commentPinDidDragRef = useRef(false);
+
+  const handleTimelineCommentPinClick = useCallback(
+    (threadId: string, timestampMs: number) => {
+      setCurrentMs(timestampMs);
+      setSelectedThreadId(threadId);
+      setInteraction({ type: 'viewing', threadId });
+    },
+    [setCurrentMs, setSelectedThreadId, setInteraction],
+  );
+
+  const handleCommentPinPointerDown = useCallback(
+    (e: React.PointerEvent, threadIds: string[], pinMs: number, clientXToMsFn: (x: number) => number) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      commentPinDidDragRef.current = false;
+      setDraggingCommentGroup({ threadIds, dragMs: pinMs });
+      const onMove = (e2: PointerEvent) => {
+        commentPinDidDragRef.current = true;
+        setDraggingCommentGroup((prev) => (prev ? { ...prev, dragMs: clientXToMsFn(e2.clientX) } : null));
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        setDraggingCommentGroup((prev) => {
+          if (!prev) return null;
+          const clamped = Math.max(0, Math.min(layoutEndMs, prev.dragMs));
+          prev.threadIds.forEach((id) => commentsStore.updateAnchor(id, { timestampMs: clamped }));
+          return null;
+        });
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [layoutEndMs, commentsStore],
+  );
+
+  const handleCommentPinClick = useCallback(
+    (threadId: string, ts: number) => {
+      if (commentPinDidDragRef.current) return;
+      handleTimelineCommentPinClick(threadId, ts);
+    },
+    [handleTimelineCommentPinClick],
+  );
 
   const trackStripRef = useRef<HTMLDivElement | null>(null);
   const collapsedStripRef = useRef<HTMLDivElement>(null);
@@ -1348,6 +1472,72 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                   <PlayheadThumb />
                   <PlayheadLine />
                 </div>
+                {groupedCollapsedCommentPins.map((group) => {
+                  const ts = group.timestampMs;
+                  const isDraggingPin = draggingCommentGroup?.threadIds.includes(group.threads[0].id);
+                  const displayMs = isDraggingPin && draggingCommentGroup ? draggingCommentGroup.dragMs : ts;
+                  const leftPercent = cLeft(displayMs);
+                  const threadIds = group.threads.map((t) => t.id);
+                  const first = group.threads[0];
+                  const firstComment = first?.comments[0];
+                  const isMultiComment = group.threads.length >= 2 || (first && first.comments.length > 1);
+                  return (
+                    <ButtonPrimitive
+                      key={group.threads.map((t) => t.id).join(',')}
+                      type="button"
+                      className="absolute top-1/2 flex -translate-y-1/2 -translate-x-1/2 cursor-grab active:cursor-grabbing items-center justify-center gap-1 rounded-full border border-border bg-bg shadow-100 hover:scale-110"
+                      style={{
+                        left: `${leftPercent}%`,
+                        zIndex: 20,
+                        ...(isMultiComment ? COMMENT_PIN_STYLE_MULTI : COMMENT_PIN_STYLE_SINGLE),
+                      }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        handleCommentPinPointerDown(e, threadIds, ts, clientXToMsCollapsed);
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCommentPinClick(first.id, ts);
+                      }}
+                      aria-label={
+                        group.threads.length === 1
+                          ? `Comment at ${Math.round(ts / 1000)}s`
+                          : `${group.threads.length} comments at ${Math.round(ts / 1000)}s`
+                      }
+                    >
+                      {firstComment && (
+                        <>
+                          <Avatar
+                            size="sm"
+                            initial={firstComment.authorInitial}
+                            src={firstComment.avatarUrl}
+                            color={firstComment.color}
+                            alt={firstComment.authorName}
+                          />
+                          {group.threads.length === 1 && first.comments.length > 1 && (
+                            <span className="text-bodySm text-text-secondary leading-none">+{first.comments.length - 1}</span>
+                          )}
+                          {group.threads.length >= 2 && (
+                            <>
+                              {group.threads[1]?.comments[0] && (
+                                <Avatar
+                                  size="sm"
+                                  initial={group.threads[1].comments[0].authorInitial}
+                                  src={group.threads[1].comments[0].avatarUrl}
+                                  color={group.threads[1].comments[0].color}
+                                  alt={group.threads[1].comments[0].authorName}
+                                />
+                              )}
+                              {group.threads.length > 2 && (
+                                <span className="text-bodySm text-text-secondary leading-none -ml-1">+{group.threads.length - 2}</span>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
+                    </ButtonPrimitive>
+                  );
+                })}
               </div>
             );
           })()}
@@ -1409,6 +1599,70 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                   {label}
                 </span>
               ))}
+              {/* Comment pins on ruler */}
+              {groupedVisibleCommentPins.map((group) => {
+                const ts = group.timestampMs;
+                const isDraggingPin = draggingCommentGroup?.threadIds.includes(group.threads[0].id);
+                const displayMs = isDraggingPin && draggingCommentGroup ? draggingCommentGroup.dragMs : ts;
+                const leftPercent = visibleDurationMs > 0 ? ((displayMs - visibleStartMs) / visibleDurationMs) * 100 : 0;
+                const threadIds = group.threads.map((t) => t.id);
+                const first = group.threads[0];
+                const firstComment = first?.comments[0];
+                const isMultiComment = group.threads.length >= 2 || (first && first.comments.length > 1);
+                return (
+                  <ButtonPrimitive
+                    key={group.threads.map((t) => t.id).join(',')}
+                    type="button"
+                    className="absolute top-1/2 flex -translate-y-1/2 -translate-x-1/2 cursor-grab active:cursor-grabbing items-center justify-center gap-1 rounded-full border border-border bg-bg shadow-100 hover:scale-110"
+                    style={{
+                      left: `${leftPercent}%`,
+                      zIndex: 10,
+                      ...(isMultiComment ? COMMENT_PIN_STYLE_MULTI : COMMENT_PIN_STYLE_SINGLE),
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      handleCommentPinPointerDown(e, threadIds, ts, clientXToMsRuler);
+                    }}
+                    onClick={() => handleCommentPinClick(first.id, ts)}
+                    aria-label={
+                      group.threads.length === 1
+                        ? `Comment at ${Math.round(ts / 1000)}s`
+                        : `${group.threads.length} comments at ${Math.round(ts / 1000)}s`
+                    }
+                  >
+                    {firstComment && (
+                      <>
+                        <Avatar
+                          size="sm"
+                          initial={firstComment.authorInitial}
+                          src={firstComment.avatarUrl}
+                          color={firstComment.color}
+                          alt={firstComment.authorName}
+                        />
+                        {group.threads.length === 1 && first.comments.length > 1 && (
+                          <span className="text-bodySm text-text-secondary leading-none">+{first.comments.length - 1}</span>
+                        )}
+                        {group.threads.length >= 2 && (
+                          <>
+                            {group.threads[1]?.comments[0] && (
+                              <Avatar
+                                size="sm"
+                                initial={group.threads[1].comments[0].authorInitial}
+                                src={group.threads[1].comments[0].avatarUrl}
+                                color={group.threads[1].comments[0].color}
+                                alt={group.threads[1].comments[0].authorName}
+                              />
+                            )}
+                            {group.threads.length > 2 && (
+                              <span className="text-bodySm text-text-secondary leading-none -ml-1">+{group.threads.length - 2}</span>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </ButtonPrimitive>
+                );
+              })}
               {/* Ruler cursor position notch */}
               {isRulerHovered && rulerCursorMs !== null && draggingGuideIdx === null && visibleDurationMs > 0 && (
                 <div
