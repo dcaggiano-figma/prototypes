@@ -26,6 +26,7 @@
     "@figma/fpl-icons": "catalog:",
     "@figma/ppg-dev-tools": "catalog:",
     "@figma/ppg-proto-cli": "catalog:",
+    "@figma/ppg-screenshot": "catalog:",
     "tsx": "^4.19.2"
   },
   "scripts": {
