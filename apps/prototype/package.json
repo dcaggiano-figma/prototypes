@@ -10,7 +10,8 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:file": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm build && pnpm lint && pnpm typecheck"
+    "verify": "pnpm build && pnpm lint && pnpm typecheck",
+    "logs": "cat $(ls -t logs/vite-*.log 2>/dev/null | head -1) 2>/dev/null || echo 'No log files found in logs/'"
   },
   "dependencies": {
     "@figma/fpl-components": "catalog:",
