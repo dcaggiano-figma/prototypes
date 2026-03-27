@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import {
-  ButtonPrimitive, Checkbox, FormattedInput, HiddenLabel, HiddenLegend, IconButton, Input, Label, ScrollContainer, SegmentedControl, Select, Tabs,
+  ButtonPrimitive, Checkbox, FormattedInput, HiddenLabel, HiddenLegend, IconButton, Input, Label, ScrollContainer, SegmentedControl, Select, Tabs, ToggleButton,
 } from '@figma/fpl-components';
 import { MenuV2, SplitInput } from '@figma/fpl-components/beta';
 import {
@@ -120,18 +120,24 @@ function KeyframePropToggle({ nodeId, property, value }: { nodeId: string; prope
   if (!kfStore) return null;
 
   const isEnabled = kfStore.autoKeyframeActive || kfStore.isPropertyEnabled(nodeId, property);
+  const kfs = kfStore.getKeyframes(nodeId, property);
+  const currentMs = playback?.currentMs ?? 0;
+  const hasKeyframeHere = kfs.some((kf) => Math.abs(kf.timeMs - currentMs) < 5);
 
   return (
-    <ButtonPrimitive
+    <ToggleButton
       aria-label={`Toggle keyframe for ${property}`}
-      className="flex items-center justify-center size-24px shrink-0 p-0 cursor-pointer rounded-r rounded-l-none border border-solid bg-bg border-border hover:bg-bg-hover"
-      style={isEnabled ? { borderColor: 'var(--color-border-selected, #0D99FF)' } : undefined}
-      onClick={() => {
-        kfStore.togglePropertyKeyframing(nodeId, property, value, playback?.currentMs ?? 0);
+      offIcon={<KeyframeDiamondIcon />}
+      onIcon={<KeyframeDiamondIcon active />}
+      checked={hasKeyframeHere}
+      onChange={() => {
+        if (!isEnabled) {
+          kfStore.togglePropertyKeyframing(nodeId, property, value, currentMs);
+        } else {
+          kfStore.addKeyframe(nodeId, property, currentMs, value);
+        }
       }}
-    >
-      <KeyframeDiamondIcon active={isEnabled} />
-    </ButtonPrimitive>
+    />
   );
 }
 
@@ -370,27 +376,33 @@ function PositionSection({ selectedIds, geoCount, animateMode }: { selectedIds: 
 
   const handleX = useCallback(
     (v: number, opts?: NumericFieldChangeOpts) => {
-      const oldVal = typeof x === 'number' ? x : 0;
-      setX(v, opts);
-      if (showKf) stampKeyframe('x', v, oldVal);
+      if (showKf) {
+        stampKeyframe('x', v, typeof x === 'number' ? x : 0);
+      } else {
+        setX(v, opts);
+      }
     },
     [setX, showKf, stampKeyframe, x],
   );
 
   const handleY = useCallback(
     (v: number, opts?: NumericFieldChangeOpts) => {
-      const oldVal = typeof y === 'number' ? y : 0;
-      setY(v, opts);
-      if (showKf) stampKeyframe('y', v, oldVal);
+      if (showKf) {
+        stampKeyframe('y', v, typeof y === 'number' ? y : 0);
+      } else {
+        setY(v, opts);
+      }
     },
     [setY, showKf, stampKeyframe, y],
   );
 
   const handleRotation = useCallback(
     (v: number, opts?: NumericFieldChangeOpts) => {
-      const oldVal = typeof rotation === 'number' ? rotation : 0;
-      setRotation(v, opts);
-      if (showKf) stampKeyframe('rotation', v, oldVal);
+      if (showKf) {
+        stampKeyframe('rotation', v, typeof rotation === 'number' ? rotation : 0);
+      } else {
+        setRotation(v, opts);
+      }
     },
     [setRotation, showKf, stampKeyframe, rotation],
   );
@@ -761,26 +773,31 @@ function LayoutSection({ singleNode, animateMode }: { singleNode: GeometryNode |
 
   const handleW = useCallback(
     (v: number, opts: NumericFieldChangeOpts) => {
-      if (constrained) {
+      if (showKf) {
+        // Only stamp keyframe — don't mutate scene graph; canvas reads from keyframes
+        stampKeyframe('width', v, w);
+        if (constrained) stampKeyframe('height', v / aspectRatio, h);
+      } else if (constrained) {
         updateSize('width', v, opts);
       } else {
         setWidth(v, opts);
-        if (showKf) stampKeyframe('width', v, w);
       }
     },
-    [constrained, updateSize, setWidth, showKf, stampKeyframe, w],
+    [constrained, updateSize, setWidth, showKf, stampKeyframe, w, h, aspectRatio],
   );
 
   const handleH = useCallback(
     (v: number, opts: NumericFieldChangeOpts) => {
-      if (constrained) {
+      if (showKf) {
+        stampKeyframe('height', v, h);
+        if (constrained) stampKeyframe('width', v * aspectRatio, w);
+      } else if (constrained) {
         updateSize('height', v, opts);
       } else {
         setHeight(v, opts);
-        if (showKf) stampKeyframe('height', v, h);
       }
     },
-    [constrained, updateSize, setHeight, showKf, stampKeyframe, h],
+    [constrained, updateSize, setHeight, showKf, stampKeyframe, w, h, aspectRatio],
   );
 
   return (
@@ -931,10 +948,12 @@ function AppearanceSection({ singleNode, allAppearance, animateMode }: { singleN
 
   const handleOpacityChange = useCallback(
     (v: number, opts?: NumericFieldChangeOpts) => {
-      const oldOpacity = rawOpacity;
       const val = v / 100;
-      setOpacity(val, opts);
-      if (showKf) stampKeyframe('opacity', val, oldOpacity);
+      if (showKf) {
+        stampKeyframe('opacity', val, rawOpacity);
+      } else {
+        setOpacity(val, opts);
+      }
     },
     [setOpacity, showKf, stampKeyframe, rawOpacity],
   );
