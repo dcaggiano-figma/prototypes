@@ -22,14 +22,19 @@ export function getEffectiveEndMs(animations: { startMs: number; durationMs: num
   );
 }
 
+export const SPEED_OPTIONS = [0.25, 0.5, 1, 1.5, 2] as const;
+export type PlaybackSpeed = (typeof SPEED_OPTIONS)[number];
+
 interface PlaybackValue {
   currentMs: number;
   isPlaying: boolean;
   loop: boolean;
+  speed: PlaybackSpeed;
   endMs: number;
   setCurrentMs: (ms: number) => void;
   setIsPlaying: (playing: boolean | ((prev: boolean) => boolean)) => void;
   setLoop: (loop: boolean | ((prev: boolean) => boolean)) => void;
+  cycleSpeed: () => void;
 }
 
 const PlaybackContext = createContext<PlaybackValue | null>(null);
@@ -50,6 +55,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
   const [loop, setLoop] = useState(false);
+  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
 
   useEffect(() => {
     if (designTab?.activeTab !== 'animation') {
@@ -63,6 +69,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   isPlayingRef.current = isPlaying;
   const endMsRef = useRef(endMs);
   endMsRef.current = endMs;
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -70,7 +78,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     let baseMs = currentMs;
     const tick = (now: number) => {
       const effectiveEnd = endMsRef.current;
-      const elapsed = now - startTime;
+      const elapsed = (now - startTime) * speedRef.current;
       let next = baseMs + elapsed;
       if (next >= effectiveEnd) {
         if (loop) {
@@ -98,18 +106,26 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     (v: boolean | ((prev: boolean) => boolean)) => setLoop(v),
     [],
   );
+  const cycleSpeed = useCallback(() => {
+    setSpeed((prev) => {
+      const idx = SPEED_OPTIONS.indexOf(prev);
+      return SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length];
+    });
+  }, []);
 
   const value = useMemo<PlaybackValue>(
     () => ({
       currentMs,
       isPlaying,
       loop,
+      speed,
       endMs,
       setCurrentMs: stableSetCurrentMs,
       setIsPlaying: stableSetIsPlaying,
       setLoop: stableSetLoop,
+      cycleSpeed,
     }),
-    [currentMs, isPlaying, loop, endMs, stableSetCurrentMs, stableSetIsPlaying, stableSetLoop],
+    [currentMs, isPlaying, loop, speed, endMs, stableSetCurrentMs, stableSetIsPlaying, stableSetLoop, cycleSpeed],
   );
 
   return (

@@ -41,6 +41,7 @@ import { DesignTabProvider, useDesignTabOptional } from '../contexts/DesignTabCo
 import { TimelineVisibilityProvider } from '../contexts/TimelineVisibilityContext';
 import { AnimationStoreProvider } from '../contexts/AnimationStoreContext';
 import { PlaybackProvider } from '../contexts/PlaybackContext';
+import { KeyframeStoreProvider } from '../contexts/KeyframeStoreContext';
 import { TimelinePanel, TIMELINE_PANEL_HEIGHT_PX, TIMELINE_COLLAPSED_HEIGHT_PX } from '../components/timeline';
 
 // ---------------------------------------------------------------------------
@@ -120,9 +121,11 @@ function EditorLayout() {
     <Providers>
       <DesignTabProvider>
         <AnimationStoreProvider>
-          <PlaybackProvider>
-            <EditorContent />
-          </PlaybackProvider>
+          <KeyframeStoreProvider>
+            <PlaybackProvider>
+              <EditorContent />
+            </PlaybackProvider>
+          </KeyframeStoreProvider>
         </AnimationStoreProvider>
       </DesignTabProvider>
     </Providers>

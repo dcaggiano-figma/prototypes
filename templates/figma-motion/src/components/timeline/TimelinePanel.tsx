@@ -583,7 +583,7 @@ export interface TimelinePanelProps {
 const EXPAND_TRANSITION_MS = 300;
 
 export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps) {
-  const { animations, selectedClipId, setSelectedClipId, updateAnimation, removeAnimation, moveClipAndPush } = useAnimationStore();
+  const { animations, selectedClipIds, setSelectedClipIds, updateAnimation, removeAnimation, moveClipAndPush } = useAnimationStore();
   const { currentMs, isPlaying, loop, endMs, setCurrentMs, setIsPlaying, setLoop } = usePlayback();
   const [showBody, setShowBody] = useState(expanded);
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | number>(0);
@@ -830,7 +830,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
   const handleTrackPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
-      setSelectedClipId(null);
+      setSelectedClipIds(new Set());
       setIsDragging(true);
       setIsPlaying(false);
       setCurrentMs(clientXToMs(e.clientX));
@@ -847,7 +847,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
     },
-    [clientXToMs, setSelectedClipId, setIsPlaying, setCurrentMs],
+    [clientXToMs, setSelectedClipIds, setIsPlaying, setCurrentMs],
   );
 
   const handleTrackPointerMove = useCallback(
@@ -892,10 +892,12 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
   useAction('timeline.zoom-out', zoomOut);
 
   const handleDeleteClip = useCallback(() => {
-    if (!selectedClipId) return;
-    removeAnimation(selectedClipId);
-    setSelectedClipId(null);
-  }, [selectedClipId, removeAnimation, setSelectedClipId]);
+    if (selectedClipIds.size === 0) return;
+    for (const id of selectedClipIds) {
+      removeAnimation(id);
+    }
+    setSelectedClipIds(new Set());
+  }, [selectedClipIds, removeAnimation, setSelectedClipIds]);
 
   useAction('delete', handleDeleteClip);
 
@@ -1201,9 +1203,9 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                                 key={anim.id}
                                 anim={anim}
                                 isSelected={isLayerSelected}
-                                isClipSelected={selectedClipId === anim.id}
+                                isClipSelected={selectedClipIds.has(anim.id)}
                                 onSelect={() => {
-                                  setSelectedClipId(anim.id);
+                                  setSelectedClipIds(new Set([anim.id]));
                                   setSelectedLayerId(nodeId);
                                   selectLayer(Number(nodeId));
                                   trackStripRef.current?.focus();
@@ -1227,9 +1229,9 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                               <TimelineClipBar
                                 anim={anim}
                                 isSelected={isLayerSelected}
-                                isClipSelected={selectedClipId === anim.id}
+                                isClipSelected={selectedClipIds.has(anim.id)}
                                 onSelect={() => {
-                                  setSelectedClipId(anim.id);
+                                  setSelectedClipIds(new Set([anim.id]));
                                   setSelectedLayerId(nodeId);
                                   selectLayer(Number(nodeId));
                                   trackStripRef.current?.focus();

@@ -1041,7 +1041,7 @@ function isNodeInsideFrame(store: ReturnType<typeof useSceneGraph>, nodeId: numb
 export function AnimateModeContent() {
   const store = useSceneGraph();
   const { selectedIds } = useSelection();
-  const { animations, selectedClipId, setSelectedClipId } = useAnimationStore();
+  const { animations, selectedClipIds, setSelectedClipIds } = useAnimationStore();
 
   const singleId = useMemo(() => {
     if (selectedIds.size !== 1) return null;
@@ -1056,10 +1056,11 @@ export function AnimateModeContent() {
     singleId != null && isNodeInsideFrame(store, singleId),
   );
 
-  const selectedClip = useMemo(
-    () => (selectedClipId ? animations.find((a) => a.id === selectedClipId) ?? null : null),
-    [animations, selectedClipId],
-  );
+  const selectedClip = useMemo(() => {
+    if (selectedClipIds.size !== 1) return null;
+    const id = selectedClipIds.values().next().value as string;
+    return animations.find((a) => a.id === id) ?? null;
+  }, [animations, selectedClipIds]);
 
   return (
     <>
@@ -1077,7 +1078,7 @@ export function AnimateModeContent() {
           {selectedClip ? (
             <SelectedClipDetailView
               clip={selectedClip}
-              onBack={() => setSelectedClipId(null)}
+              onBack={() => setSelectedClipIds(new Set())}
             />
           ) : presetsForNodeId ? (
             <AnimationPresetsView
@@ -1167,7 +1168,7 @@ function AnimationPresetsView({ nodeId, onBack }: { nodeId: string; onBack: () =
           }
         }
         const from = fillColor ?? { r: 200, g: 200, b: 200 };
-        addAnimation(nodeId, type, undefined, from, from);
+        addAnimation(nodeId, type, undefined, undefined, from, from);
       } else {
         addAnimation(nodeId, type);
       }

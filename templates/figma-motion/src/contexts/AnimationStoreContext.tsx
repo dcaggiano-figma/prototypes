@@ -5,6 +5,8 @@ export type AnimationType =
   | 'slide-in' | 'slide-out'
   | 'spin'
   | 'translate-x'
+  | 'video'
+  | 'audio'
   | 'color';
 
 export type EasingType =
@@ -21,6 +23,10 @@ export interface TimelineAnimation {
   easing: EasingType;
   startMs: number;
   durationMs: number;
+  /** For video clips: how far into the source to start playback (ms). 0 = beginning. */
+  offsetMs: number;
+  /** For video clips: the intrinsic video duration (ms). Limits how far the clip can expand. */
+  maxDurationMs: number;
   /** For color animations: starting color. */
   colorFrom?: AnimationColor;
   /** For color animations: ending color. */
@@ -35,13 +41,15 @@ function nextId(): string {
 
 interface AnimationStoreValue {
   animations: TimelineAnimation[];
-  selectedClipId: string | null;
-  setSelectedClipId: (id: string | null) => void;
-  addAnimation: (nodeId: string, type: AnimationType, durationMs?: number, colorFrom?: AnimationColor, colorTo?: AnimationColor) => void;
+  selectedClipIds: Set<string>;
+  setSelectedClipIds: (ids: Set<string>) => void;
+  addAnimation: (nodeId: string, type: AnimationType, durationMs?: number, maxDurationMs?: number, colorFrom?: AnimationColor, colorTo?: AnimationColor) => void;
   removeAnimation: (id: string) => void;
-  updateAnimation: (id: string, patch: Partial<Pick<TimelineAnimation, 'startMs' | 'durationMs' | 'type' | 'easing' | 'colorFrom' | 'colorTo'>>) => void;
+  updateAnimation: (id: string, patch: Partial<Pick<TimelineAnimation, 'startMs' | 'durationMs' | 'type' | 'easing' | 'offsetMs' | 'colorFrom' | 'colorTo'>>) => void;
   /** Move/resize a clip and push overlapping clips on the same layer so they don't overlap. */
   moveClipAndPush: (id: string, newStartMs: number, newDurationMs?: number) => void;
+  /** Split a video or audio clip at a time (ms). Replaces the clip with two clips. */
+  splitClipAt: (animId: string, cutTimeMs: number) => void;
 }
 
 const AnimationStoreContext = createContext<AnimationStoreValue | null>(null);
@@ -60,11 +68,17 @@ interface AnimationStoreProviderProps {
   children: ReactNode;
 }
 
+const EMPTY_SET = new Set<string>();
+
 export function AnimationStoreProvider({ children }: AnimationStoreProviderProps) {
   const [animations, setAnimations] = useState<TimelineAnimation[]>([]);
-  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [selectedClipIds, setSelectedClipIdsRaw] = useState<Set<string>>(EMPTY_SET);
 
-  const addAnimation = useCallback((nodeId: string, type: AnimationType, durationMs?: number, colorFrom?: AnimationColor, colorTo?: AnimationColor) => {
+  const setSelectedClipIds = useCallback((ids: Set<string>) => {
+    setSelectedClipIdsRaw(ids.size === 0 ? EMPTY_SET : ids);
+  }, []);
+
+  const addAnimation = useCallback((nodeId: string, type: AnimationType, durationMs?: number, maxDurationMs?: number, colorFrom?: AnimationColor, colorTo?: AnimationColor) => {
     setAnimations((prev) => {
       const maxEnd = prev
         .filter((a) => a.nodeId === nodeId)
@@ -77,6 +91,8 @@ export function AnimationStoreProvider({ children }: AnimationStoreProviderProps
         easing: 'ease-out' as EasingType,
         startMs: maxEnd,
         durationMs: dur,
+        offsetMs: 0,
+        maxDurationMs: maxDurationMs ?? dur,
       };
       if (type === 'color') {
         const fallback = { r: 200, g: 200, b: 200 };
@@ -91,7 +107,7 @@ export function AnimationStoreProvider({ children }: AnimationStoreProviderProps
     setAnimations((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
-  const updateAnimation = useCallback((id: string, patch: Partial<Pick<TimelineAnimation, 'startMs' | 'durationMs' | 'type' | 'easing' | 'colorFrom' | 'colorTo'>>) => {
+  const updateAnimation = useCallback((id: string, patch: Partial<Pick<TimelineAnimation, 'startMs' | 'durationMs' | 'type' | 'easing' | 'offsetMs' | 'colorFrom' | 'colorTo'>>) => {
     setAnimations((prev) =>
       prev.map((a) => (a.id === id ? { ...a, ...patch } : a)),
     );
@@ -106,9 +122,36 @@ export function AnimationStoreProvider({ children }: AnimationStoreProviderProps
     });
   }, []);
 
+  const splitClipAt = useCallback((animId: string, cutTimeMs: number) => {
+    setAnimations((prev) => {
+      const anim = prev.find((a) => a.id === animId);
+      if (!anim || (anim.type !== 'video' && anim.type !== 'audio')) return prev;
+      const startMs = anim.startMs;
+      const endMs = anim.startMs + anim.durationMs;
+      if (cutTimeMs <= startMs || cutTimeMs >= endMs) return prev;
+
+      const firstDurationMs = cutTimeMs - startMs;
+      const secondDurationMs = endMs - cutTimeMs;
+      const secondOffsetMs = anim.offsetMs + firstDurationMs;
+      const secondMaxDurationMs = anim.maxDurationMs - firstDurationMs;
+
+      const first: TimelineAnimation = { ...anim, durationMs: firstDurationMs };
+      const second: TimelineAnimation = {
+        ...anim,
+        id: nextId(),
+        startMs: cutTimeMs,
+        durationMs: secondDurationMs,
+        offsetMs: secondOffsetMs,
+        maxDurationMs: secondMaxDurationMs,
+      };
+
+      return prev.map((a) => (a.id === animId ? first : a)).concat(second);
+    });
+  }, []);
+
   const value = useMemo<AnimationStoreValue>(
-    () => ({ animations, selectedClipId, setSelectedClipId, addAnimation, removeAnimation, updateAnimation, moveClipAndPush }),
-    [animations, selectedClipId, addAnimation, removeAnimation, updateAnimation, moveClipAndPush],
+    () => ({ animations, selectedClipIds, setSelectedClipIds, addAnimation, removeAnimation, updateAnimation, moveClipAndPush, splitClipAt }),
+    [animations, selectedClipIds, setSelectedClipIds, addAnimation, removeAnimation, updateAnimation, moveClipAndPush, splitClipAt],
   );
 
   return (
