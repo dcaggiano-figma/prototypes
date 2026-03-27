@@ -5,10 +5,12 @@ import { Icon24Play, Icon24Pause, Icon24ChevronDownLarge } from '@figma/fpl-icon
 
 import { useAnimationStore } from '../../contexts/AnimationStoreContext';
 import { usePlayback } from '../../contexts/PlaybackContext';
+import { useKeyframeStore } from '../../contexts/KeyframeStoreContext';
+import type { KeyframeableProperty, Keyframe as KfEntry } from '../../contexts/KeyframeStoreContext';
 import { useAction } from '../../actions/provider';
 import { useSceneGraph, useSelection } from '../../canvas';
 import type { SceneNode } from '../../canvas';
-import type { AnimationType } from '../../contexts/AnimationStoreContext';
+import type { AnimationType, TimelineAnimation } from '../../contexts/AnimationStoreContext';
 import { CURSORS } from '@prototype/shared';
 import {
   Icon16Frame,
@@ -57,6 +59,16 @@ const MAX_TIMELINE_ZOOM = 40;
 const TIMELINE_ZOOM_FACTOR = 0.01;
 const SNAP_THRESHOLD_PX = 6;
 const TIMELINE_PAD_FRAC = 0.015;
+const PLAYHEAD_HIT_PX = 12;
+
+const KEYFRAMEABLE_PROP_LABELS: Record<KeyframeableProperty, string> = {
+  x: 'X',
+  y: 'Y',
+  rotation: 'Rotation',
+  opacity: 'Opacity',
+  width: 'Width',
+  height: 'Height',
+};
 
 /** Reusable dot-grid background style for empty timeline areas. */
 const DOT_GRID_STYLE: React.CSSProperties = {
@@ -77,6 +89,35 @@ const TIME_FIELD_STYLE: React.CSSProperties = { width: 48 };
 
 /** z-index base layer style (no numeric z-index tokens in tailwind config). */
 const Z_BASE_STYLE: React.CSSProperties = { zIndex: 0 };
+
+/** Ruler notch label padding. */
+const RULER_NOTCH_LABEL_STYLE: React.CSSProperties = { padding: '0 2px' };
+
+/** Ruler notch tick mark style. */
+const RULER_NOTCH_TICK_STYLE: React.CSSProperties = { height: 6, transform: 'translateX(-0.5px)' };
+
+/** Ruler guide label style (includes red color). */
+const RULER_GUIDE_LABEL_STYLE: React.CSSProperties = { color: '#F24822', padding: '0 2px' };
+
+/** Keyframe diamond marker for the timeline. */
+function TimelineKeyframeDiamond({ filled }: { filled?: boolean }) {
+  return (
+    <svg width={10} height={10} viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path
+        d="M4.23218 0.646484C4.42743 0.451336 4.74397 0.451311 4.93921 0.646484L8.52515 4.23242C8.7203 4.42766 8.7203 4.74421 8.52515 4.93945L4.93921 8.52539C4.74397 8.72057 4.42743 8.72054 4.23218 8.52539L0.64624 4.93945C0.451075 4.74421 0.451075 4.42767 0.64624 4.23242L4.23218 0.646484Z"
+        fill={filled ? '#0D99FF' : 'none'}
+        stroke={filled ? '#0D99FF' : 'currentColor'}
+        strokeOpacity={filled ? 1 : 0.5}
+      />
+    </svg>
+  );
+}
+
+/** Row content type for marquee selection hit testing. */
+type RowContent =
+  | { type: 'layer-header'; nodeId: string; anims: TimelineAnimation[] }
+  | { type: 'clip'; nodeId: string; anim: TimelineAnimation }
+  | { type: 'keyframe-prop'; nodeId: string; prop: KeyframeableProperty; kfs: KfEntry[] };
 
 /** Chevron down for layer collapse -- 16x16, tertiary color. */
 function LayerChevronIcon({ className }: { className?: string }) {
@@ -377,6 +418,7 @@ function TimelineClipBar({
   allAnimations,
   trackAnimations,
   onSnapGuide,
+  rulerGuidesMs,
 }: {
   anim: import('../../contexts/AnimationStoreContext').TimelineAnimation;
   isSelected: boolean;
@@ -393,6 +435,7 @@ function TimelineClipBar({
   allAnimations: import('../../contexts/AnimationStoreContext').TimelineAnimation[];
   trackAnimations: import('../../contexts/AnimationStoreContext').TimelineAnimation[];
   onSnapGuide: (ms: number | null) => void;
+  rulerGuidesMs?: number[];
 }) {
   const startMsRef = useRef(anim.startMs);
   const durationMsRef = useRef(anim.durationMs);
@@ -415,6 +458,7 @@ function TimelineClipBar({
         if (a.id === anim.id) continue;
         snapTargets.push(a.startMs, a.startMs + a.durationMs);
       }
+      if (rulerGuidesMs) snapTargets.push(...rulerGuidesMs);
       const barRef_el = barRef.current;
       const parentW = barRef_el?.parentElement?.clientWidth ?? 800;
       const thresholdMs = parentW > 0 ? (SNAP_THRESHOLD_PX / parentW) * visibleDurationMs : 0;
@@ -467,7 +511,7 @@ function TimelineClipBar({
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
     },
-    [anim.id, anim.startMs, anim.durationMs, clientXToMs, moveClipAndPush, trackEndMs, onDragStart, onDragEnd, allAnimations, visibleDurationMs, onSnapGuide],
+    [anim.id, anim.startMs, anim.durationMs, clientXToMs, moveClipAndPush, trackEndMs, onDragStart, onDragEnd, allAnimations, visibleDurationMs, onSnapGuide, rulerGuidesMs],
   );
 
   const leftPercent = visibleDurationMs > 0 ? ((anim.startMs - visibleStartMs) / visibleDurationMs) * 100 : 0;
@@ -583,8 +627,9 @@ export interface TimelinePanelProps {
 const EXPAND_TRANSITION_MS = 300;
 
 export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps) {
-  const { animations, selectedClipIds, setSelectedClipIds, updateAnimation, removeAnimation, moveClipAndPush } = useAnimationStore();
-  const { currentMs, isPlaying, loop, endMs, setCurrentMs, setIsPlaying, setLoop } = usePlayback();
+  const { animations, selectedClipIds, setSelectedClipIds, updateAnimation, removeAnimation, moveClipAndPush, splitClipAt } = useAnimationStore();
+  const kfStore = useKeyframeStore();
+  const { currentMs, isPlaying, loop, speed, endMs, setCurrentMs, setIsPlaying, setLoop, cycleSpeed } = usePlayback();
   const [showBody, setShowBody] = useState(expanded);
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | number>(0);
   useEffect(() => {
@@ -608,6 +653,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
   }, [store]);
   const { selectedIds, select: selectLayer } = useSelection();
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  const [selectedKeyframes, setSelectedKeyframes] = useState<{ nodeId: string; prop: string; timeMs: number }[]>([]);
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const [isNearPlayhead, setIsNearPlayhead] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -615,7 +661,30 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
   const [scrollFraction, setScrollFraction] = useState(0);
   const [frozenEndMs, setFrozenEndMs] = useState<number | null>(null);
   const [snapGuideMs, setSnapGuideMs] = useState<number | null>(null);
-  const PLAYHEAD_HIT_PX = 12;
+  /** Ruler guide lines — vertical guides added by Shift+click on the ruler. */
+  const [rulerGuidesMs, setRulerGuidesMs] = useState<number[]>([]);
+  const [isRulerHovered, setIsRulerHovered] = useState(false);
+  const [isShiftHeld, setIsShiftHeld] = useState(false);
+  const [isOverExistingGuide, setIsOverExistingGuide] = useState(false);
+  const [draggingGuideIdx, setDraggingGuideIdx] = useState<number | null>(null);
+  const [rulerCursorMs, setRulerCursorMs] = useState<number | null>(null);
+  const [trackCursorMs, setTrackCursorMs] = useState<number | null>(null);
+  /** Marquee selection rectangle (local coords relative to track strip). */
+  const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null);
+  const marqueeActiveRef = useRef(false);
+  const rulerStripRef = useRef<HTMLDivElement>(null);
+  /** Track last pointer-down time for manual double-click detection on the ruler. */
+  const rulerLastClickRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => setIsShiftHeld(e.shiftKey);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKey);
+    };
+  }, []);
 
   const layoutEndMs = frozenEndMs ?? endMs;
   const rawVisibleDurationMs = visibleMs !== null ? visibleMs : (layoutEndMs > 0 ? layoutEndMs : 0);
@@ -679,8 +748,43 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
         order.push(a.nodeId);
       }
     }
+    // Include nodes that have keyframes but no animation clips
+    for (const [nodeId] of kfStore.keyframes) {
+      if (!seen.has(nodeId) && (!frameDescendantIds || frameDescendantIds.has(nodeId))) {
+        const nodeKfMap = kfStore.getNodeKeyframes(nodeId);
+        for (const kfs of nodeKfMap.values()) {
+          if (kfs.length > 0) {
+            seen.add(nodeId);
+            order.push(nodeId);
+            break;
+          }
+        }
+      }
+    }
     return order;
-  }, [frameAnimations]);
+  }, [frameAnimations, kfStore.keyframes, frameDescendantIds]);
+
+  /** Row content map for marquee selection hit testing. */
+  const rowContentMap = useMemo((): RowContent[] => {
+    const list: RowContent[] = [];
+    for (const nodeId of layers) {
+      const nodeAnims = frameAnimations.filter((a) => a.nodeId === nodeId);
+      const isCollapsed = collapsedNodes.has(nodeId);
+      list.push({ type: 'layer-header', nodeId, anims: nodeAnims });
+      if (!isCollapsed) {
+        for (const anim of nodeAnims) {
+          list.push({ type: 'clip', nodeId, anim });
+        }
+        const nodeKfMap = kfStore.getNodeKeyframes(nodeId);
+        for (const [prop, kfs] of nodeKfMap.entries()) {
+          if (kfs.length > 0) {
+            list.push({ type: 'keyframe-prop', nodeId, prop, kfs });
+          }
+        }
+      }
+    }
+    return list;
+  }, [layers, frameAnimations, collapsedNodes, kfStore]);
 
   const timelineFrameName = useMemo(() => {
     if (effectiveFrameId == null) return 'Timeline';
@@ -827,43 +931,305 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
     return Math.max(0, Math.min(layoutEndMs, t));
   }, [visibleStartMs, visibleDurationMs, layoutEndMs]);
 
-  const handleTrackPointerDown = useCallback(
+  /** Convert client X to ms using the header ruler strip. */
+  const clientXToMsRuler = useCallback(
+    (clientX: number): number => {
+      const el = rulerStripRef.current;
+      if (!el) return 0;
+      const rect = el.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const t = visibleStartMs + (x / rect.width) * visibleDurationMs;
+      return Math.max(0, Math.min(layoutEndMs, t));
+    },
+    [visibleStartMs, visibleDurationMs, layoutEndMs],
+  );
+
+  /** Snap targets for ruler guides: ruler marks, ticks, other guides, clip edges, keyframes. */
+  const rulerGuideSnapTargets = useMemo(() => {
+    const targets = [...rulerMarks.map((m) => m.ms), ...rulerTicks, ...rulerGuidesMs];
+    for (const a of frameAnimations) {
+      targets.push(a.startMs, a.startMs + a.durationMs);
+    }
+    for (const nodeId of layers) {
+      const nodeKfMap = kfStore.getNodeKeyframes(nodeId);
+      for (const [, kfs] of nodeKfMap.entries()) {
+        for (const kf of kfs) targets.push(kf.timeMs);
+      }
+    }
+    return targets;
+  }, [rulerMarks, rulerTicks, rulerGuidesMs, frameAnimations, layers, kfStore]);
+
+  const snapToRulerTick = useCallback(
+    (ms: number): number => {
+      const el = rulerStripRef.current;
+      if (!el) return ms;
+      const w = el.clientWidth;
+      const thresholdMs = w > 0 ? (SNAP_THRESHOLD_PX / w) * visibleDurationMs : 0;
+      return findSnapTarget(ms, rulerGuideSnapTargets, thresholdMs) ?? ms;
+    },
+    [visibleDurationMs, rulerGuideSnapTargets],
+  );
+
+  const findNearestGuideIdx = useCallback(
+    (clientX: number): number | null => {
+      if (rulerGuidesMs.length === 0) return null;
+      const el = rulerStripRef.current;
+      if (!el) return null;
+      const w = el.clientWidth;
+      const thresholdMs = w > 0 ? (SNAP_THRESHOLD_PX * 2 / w) * visibleDurationMs : 0;
+      const ms = clientXToMsRuler(clientX);
+      let bestIdx: number | null = null;
+      let bestDist = Infinity;
+      for (let i = 0; i < rulerGuidesMs.length; i++) {
+        const d = Math.abs(rulerGuidesMs[i] - ms);
+        if (d < thresholdMs && d < bestDist) { bestIdx = i; bestDist = d; }
+      }
+      return bestIdx;
+    },
+    [rulerGuidesMs, visibleDurationMs, clientXToMsRuler],
+  );
+
+  /** Handle pointer down on the ruler to create/drag guides. Double-click removes the nearest guide. */
+  const handleRulerGuidePointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
-      setSelectedClipIds(new Set());
-      setIsDragging(true);
-      setIsPlaying(false);
-      setCurrentMs(clientXToMs(e.clientX));
-      const playheadCursorOverride = document.createElement('style');
-      playheadCursorOverride.textContent = `* { cursor: ${CURSORS.resizeH} !important; }`;
-      document.head.appendChild(playheadCursorOverride);
-      const onMove = (e2: PointerEvent) => setCurrentMs(clientXToMs(e2.clientX));
-      const onUp = () => {
-        setIsDragging(false);
-        playheadCursorOverride.remove();
+      const target = e.target as HTMLElement;
+      if (target.closest('button')) return;
+      e.stopPropagation();
+      const rawMs = clientXToMsRuler(e.clientX);
+
+      // Manual double-click detection (removes nearest guide)
+      const now = Date.now();
+      const last = rulerLastClickRef.current;
+      if (now - last.time < 400 && Math.abs(e.clientX - last.x) < 10) {
+        rulerLastClickRef.current = { time: 0, x: 0 };
+        const clickMs = rawMs;
+        setRulerGuidesMs((prev) => {
+          if (prev.length === 0) return prev;
+          let closestIdx = 0;
+          let closestDist = Math.abs(prev[0] - clickMs);
+          for (let i = 1; i < prev.length; i++) {
+            const d = Math.abs(prev[i] - clickMs);
+            if (d < closestDist) { closestIdx = i; closestDist = d; }
+          }
+          return prev.filter((_, i) => i !== closestIdx);
+        });
+        return;
+      }
+      rulerLastClickRef.current = { time: now, x: e.clientX };
+
+      const existingIdx = findNearestGuideIdx(e.clientX);
+      const isMoving = existingIdx !== null;
+      if (!isMoving && !e.shiftKey) return;
+      const idx = isMoving ? existingIdx : rulerGuidesMs.length;
+      if (!isMoving) {
+        const ms = snapToRulerTick(rawMs);
+        if (ms <= 0) return;
+        setRulerGuidesMs((prev) => [...prev, ms]);
+      }
+
+      const cursorOverride = document.createElement('style');
+      const deletionZone = visibleDurationMs * 0.02;
+      const updateCursor = (ms: number) => {
+        const inDeleteZone = isMoving && (ms <= deletionZone || ms >= visibleEndMs - deletionZone);
+        cursorOverride.textContent = `* { cursor: ${inDeleteZone ? 'not-allowed' : CURSORS.resizeH} !important; }`;
+      };
+      const guideMs = isMoving ? rulerGuidesMs[idx] : snapToRulerTick(rawMs);
+      updateCursor(guideMs);
+      document.head.appendChild(cursorOverride);
+      setDraggingGuideIdx(idx);
+      const onMove = (e2: PointerEvent) => {
+        const snapped = snapToRulerTick(clientXToMsRuler(e2.clientX));
+        setRulerGuidesMs((prev) => prev.map((g, i) => (i === idx ? snapped : g)));
+        updateCursor(snapped);
+      };
+      const onUp = (e2: PointerEvent) => {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
+        cursorOverride.remove();
+        setDraggingGuideIdx(null);
+        const finalMs = snapToRulerTick(clientXToMsRuler(e2.clientX));
+        if (isMoving && (finalMs <= deletionZone || finalMs >= visibleEndMs - deletionZone)) {
+          setRulerGuidesMs((prev) => prev.filter((_, i) => i !== idx));
+        }
       };
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
     },
-    [clientXToMs, setSelectedClipIds, setIsPlaying, setCurrentMs],
+    [clientXToMsRuler, snapToRulerTick, findNearestGuideIdx, rulerGuidesMs, visibleEndMs, visibleDurationMs],
+  );
+
+  const handleRulerPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      setIsOverExistingGuide(findNearestGuideIdx(e.clientX) !== null);
+      setRulerCursorMs(clientXToMsRuler(e.clientX));
+    },
+    [findNearestGuideIdx, clientXToMsRuler],
+  );
+
+  const handleTrackPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
+
+      // Alt+click clip splitting: if Alt is held, try to split the clip under the playhead
+      if (e.altKey) {
+        const cutMs = clientXToMs(e.clientX);
+        for (const a of frameAnimations) {
+          if ((a.type === 'video' || a.type === 'audio') && cutMs > a.startMs && cutMs < a.startMs + a.durationMs) {
+            splitClipAt(a.id, cutMs);
+            setSelectedClipIds(new Set());
+            return;
+          }
+        }
+      }
+
+      setSelectedClipIds(new Set());
+
+      // Shift+click on empty area adds a ruler guide
+      if (e.shiftKey && !isNearPlayhead) {
+        const ms = snapToRulerTick(clientXToMs(e.clientX));
+        if (ms > 0) {
+          setRulerGuidesMs((prev) => [...prev, ms]);
+        }
+        return;
+      }
+
+      const el = trackStripRef.current;
+      if (el && isNearPlayhead) {
+        // Drag playhead
+        setSelectedKeyframes([]);
+        setIsDragging(true);
+        setIsPlaying(false);
+        setCurrentMs(snapToRulerTick(clientXToMs(e.clientX)));
+        const playheadCursorOverride = document.createElement('style');
+        playheadCursorOverride.textContent = `* { cursor: ${CURSORS.resizeH} !important; }`;
+        document.head.appendChild(playheadCursorOverride);
+        const onMove = (e2: PointerEvent) => setCurrentMs(snapToRulerTick(clientXToMs(e2.clientX)));
+        const onUp = () => {
+          setIsDragging(false);
+          playheadCursorOverride.remove();
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      } else {
+        // Marquee selection: start drag rect
+        if (!e.shiftKey) {
+          setSelectedKeyframes([]);
+        }
+        const rect = el?.getBoundingClientRect();
+        if (rect) {
+          const localX = e.clientX - rect.left;
+          const localY = e.clientY - rect.top;
+          setMarquee({ startX: localX, startY: localY, currentX: localX, currentY: localY });
+          marqueeActiveRef.current = true;
+          (e.target as HTMLElement)?.setPointerCapture?.(e.pointerId);
+        }
+      }
+    },
+    [clientXToMs, setSelectedClipIds, setIsPlaying, setCurrentMs, isNearPlayhead, snapToRulerTick, frameAnimations, splitClipAt],
   );
 
   const handleTrackPointerMove = useCallback(
     (e: React.PointerEvent) => {
       const el = trackStripRef.current;
       if (!el) return;
+
+      // During marquee drag, update the rectangle
+      if (marqueeActiveRef.current) {
+        const rect = el.getBoundingClientRect();
+        setMarquee((prev) => prev ? { ...prev, currentX: e.clientX - rect.left, currentY: e.clientY - rect.top } : prev);
+        return;
+      }
+
       const rect = el.getBoundingClientRect();
+      setTrackCursorMs(clientXToMs(e.clientX));
       const playheadX = rect.left + (playheadPercent / 100) * rect.width;
       const near = Math.abs(e.clientX - playheadX) <= PLAYHEAD_HIT_PX;
       setIsNearPlayhead(near);
     },
-    [playheadPercent],
+    [clientXToMs, playheadPercent],
+  );
+
+  /** Handle pointer up to finalize marquee selection. */
+  const handleTrackPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!marqueeActiveRef.current) return;
+      marqueeActiveRef.current = false;
+      const el = trackStripRef.current;
+      const m = marquee;
+      setMarquee(null);
+      if (!el || !m) return;
+
+      const dx = Math.abs(m.currentX - m.startX);
+      const dy = Math.abs(m.currentY - m.startY);
+      // If the drag was tiny, treat it as a click to scrub the playhead
+      if (dx < 3 && dy < 3) {
+        setCurrentMs(snapToRulerTick(clientXToMs(e.clientX)));
+        return;
+      }
+
+      const rect = el.getBoundingClientRect();
+      const minX = Math.min(m.startX, m.currentX);
+      const maxX = Math.max(m.startX, m.currentX);
+      const minY = Math.min(m.startY, m.currentY);
+      const maxY = Math.max(m.startY, m.currentY);
+
+      const minMs = visibleStartMs + (minX / rect.width) * visibleDurationMs;
+      const maxMs = visibleStartMs + (maxX / rect.width) * visibleDurationMs;
+
+      const minRow = Math.floor(minY / ROW_HEIGHT_PX);
+      const maxRow = Math.floor(maxY / ROW_HEIGHT_PX);
+
+      const newKeyframes: { nodeId: string; prop: string; timeMs: number }[] = [];
+      const newClipIds: string[] = [];
+
+      for (let r = Math.max(0, minRow); r <= Math.min(maxRow, rowContentMap.length - 1); r++) {
+        const row = rowContentMap[r];
+        if (row.type === 'layer-header') {
+          for (const anim of row.anims) {
+            if (anim.startMs + anim.durationMs >= minMs && anim.startMs <= maxMs) {
+              newClipIds.push(anim.id);
+            }
+          }
+        } else if (row.type === 'clip') {
+          if (row.anim.startMs + row.anim.durationMs >= minMs && row.anim.startMs <= maxMs) {
+            newClipIds.push(row.anim.id);
+          }
+        } else if (row.type === 'keyframe-prop') {
+          for (const kf of row.kfs) {
+            if (kf.timeMs >= minMs && kf.timeMs <= maxMs) {
+              newKeyframes.push({ nodeId: row.nodeId, prop: row.prop, timeMs: kf.timeMs });
+            }
+          }
+        }
+      }
+
+      if (e.shiftKey) {
+        setSelectedKeyframes((prev) => {
+          const merged = [...prev];
+          for (const nk of newKeyframes) {
+            if (!merged.some((sk) => sk.nodeId === nk.nodeId && sk.prop === nk.prop && sk.timeMs === nk.timeMs)) {
+              merged.push(nk);
+            }
+          }
+          return merged;
+        });
+        const mergedClips = new Set(selectedClipIds);
+        for (const id of newClipIds) mergedClips.add(id);
+        setSelectedClipIds(mergedClips);
+      } else {
+        setSelectedKeyframes(newKeyframes);
+        setSelectedClipIds(new Set(newClipIds));
+      }
+    },
+    [marquee, visibleStartMs, visibleDurationMs, rowContentMap, setSelectedClipIds, clientXToMs, setCurrentMs, snapToRulerTick, selectedClipIds],
   );
 
   const handleTrackPointerLeave = useCallback(() => {
     setIsNearPlayhead(false);
+    setTrackCursorMs(null);
   }, []);
 
   const handlePlay = useCallback(() => {
@@ -923,6 +1289,23 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
               loop={loop}
               onLoopClick={handleLoop}
             />
+            <ButtonPrimitive
+              type="button"
+              className="-ml-1 h-6 rounded flex items-center justify-center cursor-pointer border-0 text-bodyMd tabular-nums"
+              style={{
+                fontWeight: 500,
+                color: speed === 1 ? 'var(--color-text-tertiary, rgba(0,0,0,0.4))' : 'var(--color-text-brand, #0d99ff)',
+                minWidth: 32,
+                paddingLeft: 6,
+                paddingRight: 6,
+              }}
+              onClick={cycleSpeed}
+              aria-label={`Playback speed: ${speed}x`}
+              data-tooltip={`Playback speed: ${speed}x`}
+              data-tooltip-type="text"
+            >
+              {speed}x
+            </ButtonPrimitive>
           </div>
           {layoutEndMs > 0 && (() => {
             const cPad = layoutEndMs * TIMELINE_PAD_FRAC;
@@ -973,7 +1356,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
             </IconButton>
           </div>
         </div>
-        {/* Bottom row: "Timeline" left, ruler numbers right */}
+        {/* Bottom row: "Timeline" left, ruler numbers right (with guide support) */}
         {showBody && (
           <div className="flex items-center" style={{ height: HEADER_BOTTOM_HEIGHT }}>
             <div
@@ -982,7 +1365,18 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
             >
               {timelineFrameName}
             </div>
-            <div className="flex-1 relative min-w-0 overflow-hidden" style={{ height: HEADER_BOTTOM_HEIGHT }}>
+            <div
+              ref={rulerStripRef}
+              className="flex-1 relative min-w-0 overflow-hidden"
+              style={{
+                height: HEADER_BOTTOM_HEIGHT,
+                cursor: isOverExistingGuide ? CURSORS.resizeH : isShiftHeld && !(rulerCursorMs !== null && rulerCursorMs <= 0) ? 'crosshair' : undefined,
+              }}
+              onPointerDown={handleRulerGuidePointerDown}
+              onPointerMove={handleRulerPointerMove}
+              onPointerEnter={() => setIsRulerHovered(true)}
+              onPointerLeave={() => { setIsRulerHovered(false); setIsOverExistingGuide(false); setRulerCursorMs(null); }}
+            >
               {rulerTicks.map((ms) => (
                 <div
                   key={`t${ms}`}
@@ -1010,6 +1404,72 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                   {label}
                 </span>
               ))}
+              {/* Ruler cursor position notch */}
+              {isRulerHovered && rulerCursorMs !== null && draggingGuideIdx === null && visibleDurationMs > 0 && (
+                <div
+                  className="absolute top-0 bottom-0 z-10 pointer-events-none"
+                  style={{ left: `${((rulerCursorMs - visibleStartMs) / visibleDurationMs) * 100}%` }}
+                >
+                  <span
+                    className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm text-bodyMd text-text-tertiary tabular-nums whitespace-nowrap pointer-events-none bg-bg"
+                    style={RULER_NOTCH_LABEL_STYLE}
+                  >
+                    {`${(rulerCursorMs / 1000).toFixed(2)}s`}
+                  </span>
+                  <div
+                    className="absolute bottom-0 w-px opacity-50 bg-text-tertiary"
+                    style={RULER_NOTCH_TICK_STYLE}
+                  />
+                </div>
+              )}
+              {/* Track cursor notch in ruler */}
+              {trackCursorMs !== null && !isRulerHovered && draggingGuideIdx === null && visibleDurationMs > 0 && (
+                <div
+                  className="absolute top-0 bottom-0 z-10 pointer-events-none"
+                  style={{ left: `${((trackCursorMs - visibleStartMs) / visibleDurationMs) * 100}%` }}
+                >
+                  <span
+                    className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm text-bodyMd text-text-tertiary tabular-nums whitespace-nowrap pointer-events-none bg-bg"
+                    style={RULER_NOTCH_LABEL_STYLE}
+                  >
+                    {`${(trackCursorMs / 1000).toFixed(2)}s`}
+                  </span>
+                  <div
+                    className="absolute bottom-0 w-px opacity-50 bg-text-tertiary"
+                    style={RULER_NOTCH_TICK_STYLE}
+                  />
+                </div>
+              )}
+              {/* Ruler guide markers */}
+              {visibleDurationMs > 0 && rulerGuidesMs.map((guideMs, idx) => {
+                const leftPct = ((guideMs - visibleStartMs) / visibleDurationMs) * 100;
+                return (
+                  <div
+                    key={idx}
+                    className="absolute top-0 bottom-0 z-20 pointer-events-none"
+                    style={{ left: `${leftPct}%` }}
+                  >
+                    {(isRulerHovered || draggingGuideIdx === idx) && (
+                      <span
+                        className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm text-bodyMd tabular-nums whitespace-nowrap pointer-events-none bg-bg"
+                        style={RULER_GUIDE_LABEL_STYLE}
+                      >
+                        {`${(guideMs / 1000).toFixed(2)}s`}
+                      </span>
+                    )}
+                    <div
+                      className="absolute bottom-0"
+                      style={{
+                        width: 1,
+                        height: 10,
+                        transform: 'translateX(-0.5px)',
+                        backgroundColor: '#F24822',
+                        opacity: draggingGuideIdx === idx ? 1 : 0.7,
+                      }}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -1072,44 +1532,91 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                               </div>
                             </div>
                           </ButtonPrimitive>
-                          {!isCollapsed && nodeAnims.map((anim, animIdx) => {
-                            const isLast = animIdx === nodeAnims.length - 1;
-                            const TREE_LINE_LEFT = 30;
-                            return (
-                              <div
-                                key={anim.id}
-                                className="relative flex items-center select-none group w-full"
-                                style={{ height: ROW_HEIGHT_PX, paddingLeft: 48 }}
-                              >
-                                {!isLayerSelected && (
-                                  <div className="absolute inset-0 group-hover:bg-bg-hover" />
-                                )}
-                                <div
-                                  className="absolute pointer-events-none"
-                                  style={{
-                                    left: TREE_LINE_LEFT,
-                                    top: 0,
-                                    bottom: isLast ? '50%' : 0,
-                                    width: 1,
-                                    backgroundColor: 'var(--color-border)',
-                                  }}
-                                />
-                                <div
-                                  className="absolute pointer-events-none"
-                                  style={{
-                                    left: TREE_LINE_LEFT,
-                                    top: '50%',
-                                    width: 8,
-                                    height: 1,
-                                    backgroundColor: 'var(--color-border)',
-                                  }}
-                                />
-                                <div className="relative flex items-center gap-2 flex-1 min-w-0 px-1" style={{ height: ROW_HEIGHT_PX }}>
-                                  <span className="flex-1 min-w-0 truncate text-bodyMd text-text-secondary">{animationTypeLabel(anim.type)}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
+                          {!isCollapsed && (() => {
+                            const nodeKfMap = kfStore.getNodeKeyframes(nodeId);
+                            const kfProps = [...nodeKfMap.entries()].filter(([, kfs]) => kfs.length > 0);
+                            const totalSubRows = nodeAnims.length + kfProps.length;
+                            return [
+                              ...nodeAnims.map((anim, animIdx) => {
+                                const isLast = kfProps.length === 0 && animIdx === totalSubRows - 1;
+                                const TREE_LINE_LEFT = 30;
+                                return (
+                                  <div
+                                    key={anim.id}
+                                    className="relative flex items-center select-none group w-full"
+                                    style={{ height: ROW_HEIGHT_PX, paddingLeft: 48 }}
+                                  >
+                                    {!isLayerSelected && (
+                                      <div className="absolute inset-0 group-hover:bg-bg-hover" />
+                                    )}
+                                    <div
+                                      className="absolute pointer-events-none"
+                                      style={{
+                                        left: TREE_LINE_LEFT,
+                                        top: 0,
+                                        bottom: isLast ? '50%' : 0,
+                                        width: 1,
+                                        backgroundColor: 'var(--color-border)',
+                                      }}
+                                    />
+                                    <div
+                                      className="absolute pointer-events-none"
+                                      style={{
+                                        left: TREE_LINE_LEFT,
+                                        top: '50%',
+                                        width: 8,
+                                        height: 1,
+                                        backgroundColor: 'var(--color-border)',
+                                      }}
+                                    />
+                                    <div className="relative flex items-center gap-2 flex-1 min-w-0 px-1" style={{ height: ROW_HEIGHT_PX }}>
+                                      <span className="flex-1 min-w-0 truncate text-bodyMd text-text-secondary">{animationTypeLabel(anim.type)}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }),
+                              ...kfProps.map(([prop, kfs], kfIdx) => {
+                                const isLast = nodeAnims.length + kfIdx === totalSubRows - 1;
+                                const TREE_LINE_LEFT = 30;
+                                return (
+                                  <div
+                                    key={`kf-${prop}`}
+                                    className="relative flex items-center select-none group w-full"
+                                    style={{ height: ROW_HEIGHT_PX, paddingLeft: 48 }}
+                                  >
+                                    {!isLayerSelected && (
+                                      <div className="absolute inset-0 group-hover:bg-bg-hover" />
+                                    )}
+                                    <div
+                                      className="absolute pointer-events-none"
+                                      style={{
+                                        left: TREE_LINE_LEFT,
+                                        top: 0,
+                                        bottom: isLast ? '50%' : 0,
+                                        width: 1,
+                                        backgroundColor: 'var(--color-border)',
+                                      }}
+                                    />
+                                    <div
+                                      className="absolute pointer-events-none"
+                                      style={{
+                                        left: TREE_LINE_LEFT,
+                                        top: '50%',
+                                        width: 8,
+                                        height: 1,
+                                        backgroundColor: 'var(--color-border)',
+                                      }}
+                                    />
+                                    <div className="relative flex items-center gap-2 flex-1 min-w-0 px-1" style={{ height: ROW_HEIGHT_PX }}>
+                                      <span className="flex-1 min-w-0 truncate text-bodyMd text-text-secondary">
+                                        {KEYFRAMEABLE_PROP_LABELS[prop]} ({kfs.length})
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              }),
+                            ];
+                          })()}
                         </div>
                       );
                     })}
@@ -1137,9 +1644,10 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                   aria-valuenow={Math.round(currentMs)}
                   tabIndex={0}
                   className="relative overflow-hidden flex flex-col flex-1 min-h-full bg-bg"
-                  style={{ cursor: isDragging ? CURSORS.resizeH : isNearPlayhead ? CURSORS.resizeH : undefined, minWidth: 500 }}
+                  style={{ cursor: isDragging ? CURSORS.resizeH : isNearPlayhead ? CURSORS.resizeH : isShiftHeld ? 'crosshair' : undefined, minWidth: 500 }}
                   onPointerDown={handleTrackPointerDown}
                   onPointerMove={handleTrackPointerMove}
+                  onPointerUp={handleTrackPointerUp}
                   onPointerLeave={handleTrackPointerLeave}
                 >
                   {/* Dotted bg in the left padding gap (before time 0) */}
@@ -1221,6 +1729,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                                 allAnimations={frameAnimations}
                                 trackAnimations={nodeAnims}
                                 onSnapGuide={setSnapGuideMs}
+                                rulerGuidesMs={rulerGuidesMs}
                               />
                             ))}
                           </div>
@@ -1247,15 +1756,164 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                                 allAnimations={frameAnimations}
                                 trackAnimations={nodeAnims}
                                 onSnapGuide={setSnapGuideMs}
+                                rulerGuidesMs={rulerGuidesMs}
                               />
                             </div>
                           ))}
+                          {/* Keyframe diamond sub-rows */}
+                          {!isCollapsed && (() => {
+                            const nodeKfMap = kfStore.getNodeKeyframes(nodeId);
+                            const kfProps = [...nodeKfMap.entries()].filter(([, kfs]) => kfs.length > 0);
+                            return kfProps.map(([prop, kfs]) => (
+                              <div key={`kf-${prop}`} className="relative shrink-0 flex items-center" style={{ height: ROW_HEIGHT_PX }}>
+                                {/* Lines between consecutive keyframes */}
+                                {kfs.length >= 2 && kfs.slice(0, -1).map((kf, i) => {
+                                  const nextKf = kfs[i + 1];
+                                  const l = visibleDurationMs > 0 ? ((kf.timeMs - visibleStartMs) / visibleDurationMs) * 100 : 0;
+                                  const r = visibleDurationMs > 0 ? ((nextKf.timeMs - visibleStartMs) / visibleDurationMs) * 100 : 0;
+                                  const bothSelected = selectedKeyframes.some((sk) => sk.nodeId === nodeId && sk.prop === prop && sk.timeMs === kf.timeMs)
+                                    && selectedKeyframes.some((sk) => sk.nodeId === nodeId && sk.prop === prop && sk.timeMs === nextKf.timeMs);
+                                  return (
+                                    <div
+                                      key={`line-${kf.timeMs}-${nextKf.timeMs}`}
+                                      className="absolute pointer-events-none"
+                                      style={{ left: `calc(${l}% + 5px)`, width: `calc(${r - l}% - 10px)`, top: 'calc(50% - 0.5px)', height: 1, backgroundColor: bothSelected ? 'var(--color-border-selected, #0d99ff)' : 'var(--color-border, #e6e6e6)' }}
+                                    />
+                                  );
+                                })}
+                                {/* Draggable keyframe diamonds */}
+                                {kfs.map((kf) => {
+                                  const leftPct = visibleDurationMs > 0
+                                    ? ((kf.timeMs - visibleStartMs) / visibleDurationMs) * 100
+                                    : 0;
+                                  const isKfSelected = selectedKeyframes.some((sk) => sk.nodeId === nodeId && sk.prop === prop && sk.timeMs === kf.timeMs);
+                                  return (
+                                    <div
+                                      key={kf.timeMs}
+                                      className="absolute flex items-center justify-center z-[1]"
+                                      style={{ left: `${leftPct}%`, transform: 'translateX(-5px)', cursor: CURSORS.grab }}
+                                      onPointerDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const entry = { nodeId, prop, timeMs: kf.timeMs };
+
+                                        let nextSelection: typeof selectedKeyframes;
+                                        if (e.shiftKey) {
+                                          const already = selectedKeyframes.some((sk) => sk.nodeId === nodeId && sk.prop === prop && sk.timeMs === kf.timeMs);
+                                          nextSelection = already
+                                            ? selectedKeyframes.filter((sk) => !(sk.nodeId === nodeId && sk.prop === prop && sk.timeMs === kf.timeMs))
+                                            : [...selectedKeyframes, entry];
+                                        } else {
+                                          const alreadySelected = selectedKeyframes.some((sk) => sk.nodeId === nodeId && sk.prop === prop && sk.timeMs === kf.timeMs);
+                                          nextSelection = alreadySelected && selectedKeyframes.length > 1
+                                            ? selectedKeyframes
+                                            : [entry];
+                                        }
+                                        setSelectedKeyframes(nextSelection);
+
+                                        let liveSelection = nextSelection;
+                                        let currentTimeMs = kf.timeMs;
+                                        const el = e.currentTarget;
+                                        el.setPointerCapture(e.pointerId);
+                                        document.body.style.cursor = CURSORS.grabbing;
+
+                                        const kfSnapTargets = [0, ...rulerGuidesMs];
+                                        for (const a of frameAnimations) {
+                                          kfSnapTargets.push(a.startMs, a.startMs + a.durationMs);
+                                        }
+                                        const kfParentW = trackStripRef.current?.clientWidth ?? 800;
+                                        const kfThresholdMs = kfParentW > 0 ? (SNAP_THRESHOLD_PX / kfParentW) * visibleDurationMs : 0;
+
+                                        const onMove = (e2: PointerEvent) => {
+                                          let newMs = clientXToMs(e2.clientX);
+                                          const snapped = findSnapTarget(newMs, kfSnapTargets, kfThresholdMs);
+                                          if (snapped !== null) {
+                                            setSnapGuideMs(snapped);
+                                            newMs = snapped;
+                                          } else {
+                                            setSnapGuideMs(null);
+                                          }
+                                          const deltaMs = newMs - currentTimeMs;
+                                          if (Math.abs(deltaMs) < 0.01) return;
+
+                                          const updated = liveSelection.map((sk) => {
+                                            kfStore.moveKeyframe(sk.nodeId, sk.prop as KeyframeableProperty, sk.timeMs, sk.timeMs + deltaMs);
+                                            return { ...sk, timeMs: Math.max(0, sk.timeMs + deltaMs) };
+                                          });
+                                          liveSelection = updated;
+                                          setSelectedKeyframes(updated);
+                                          currentTimeMs = Math.max(0, newMs);
+                                        };
+                                        const onUp = (e2: PointerEvent) => {
+                                          document.body.style.cursor = '';
+                                          el.releasePointerCapture(e2.pointerId);
+                                          window.removeEventListener('pointermove', onMove);
+                                          window.removeEventListener('pointerup', onUp);
+                                          setSnapGuideMs(null);
+                                        };
+                                        window.addEventListener('pointermove', onMove);
+                                        window.addEventListener('pointerup', onUp);
+                                      }}
+                                    >
+                                      <TimelineKeyframeDiamond filled={isKfSelected} />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ));
+                          })()}
                         </div>
                       );
                     })}
                   </div>
-                  {/* Snap alignment guide */}
-                  {snapGuideMs !== null && visibleDurationMs > 0 && (
+                  {/* Track cursor position line */}
+                  {trackCursorMs !== null && !isRulerHovered && draggingGuideIdx === null && visibleDurationMs > 0 && (
+                    <div
+                      className="absolute top-0 bottom-0 z-[88] pointer-events-none"
+                      style={{
+                        left: `${((trackCursorMs - visibleStartMs) / visibleDurationMs) * 100}%`,
+                        width: 1,
+                        transform: 'translateX(-0.5px)',
+                        backgroundColor: 'black',
+                        opacity: 0.1,
+                      }}
+                      aria-hidden
+                    />
+                  )}
+                  {/* Ruler cursor position line */}
+                  {isRulerHovered && rulerCursorMs !== null && draggingGuideIdx === null && visibleDurationMs > 0 && (
+                    <div
+                      className="absolute top-0 bottom-0 z-[88] pointer-events-none"
+                      style={{
+                        left: `${((rulerCursorMs - visibleStartMs) / visibleDurationMs) * 100}%`,
+                        width: 1,
+                        transform: 'translateX(-0.5px)',
+                        backgroundColor: 'black',
+                        opacity: 0.1,
+                      }}
+                      aria-hidden
+                    />
+                  )}
+                  {/* Ruler guide lines */}
+                  {visibleDurationMs > 0 && rulerGuidesMs.map((guideMs, idx) => {
+                    const isSnapping = snapGuideMs !== null && Math.abs(guideMs - snapGuideMs) < 0.5;
+                    return (
+                      <div
+                        key={`rg-${idx}`}
+                        className="absolute top-0 bottom-0 z-[89] pointer-events-none"
+                        style={{
+                          left: `${((guideMs - visibleStartMs) / visibleDurationMs) * 100}%`,
+                          width: 1,
+                          transform: 'translateX(-0.5px)',
+                          backgroundColor: '#F24822',
+                          opacity: isSnapping ? 1 : 0.5,
+                        }}
+                        aria-hidden
+                      />
+                    );
+                  })}
+                  {/* Snap alignment guide (hidden when overlapping a ruler guide) */}
+                  {snapGuideMs !== null && visibleDurationMs > 0 && !rulerGuidesMs.some((g) => Math.abs(g - snapGuideMs) < 0.5) && (
                     <div
                       className="absolute top-0 bottom-0 z-[90] pointer-events-none"
                       style={{
@@ -1264,6 +1922,20 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                         backgroundColor: '#F24822',
                       }}
                       aria-hidden
+                    />
+                  )}
+                  {/* Marquee selection rectangle */}
+                  {marquee && (
+                    <div
+                      className="absolute z-[50] pointer-events-none"
+                      style={{
+                        left: Math.min(marquee.startX, marquee.currentX),
+                        top: Math.min(marquee.startY, marquee.currentY),
+                        width: Math.abs(marquee.currentX - marquee.startX),
+                        height: Math.abs(marquee.currentY - marquee.startY),
+                        backgroundColor: 'rgba(13, 153, 255, 0.1)',
+                        border: '1px solid #0d99ff',
+                      }}
                     />
                   )}
                   {/* Playhead */}
