@@ -1,78 +1,15 @@
-import { useEffect, useRef } from 'react';
-import { SelectionOverlay as SharedSelectionOverlay, useSceneGraph, useSelection, isGeometryNode } from '@prototype/shared/canvas';
+import { SelectionOverlay as SharedSelectionOverlay } from '@prototype/shared/canvas';
 import { ResizeHandles } from './resize-handles';
 import { MotionPath } from './motion-path';
 import { TransformGizmo } from './transform-gizmo';
 import { usePlaybackOptional } from '../../contexts/PlaybackContext';
-import { useKeyframeStoreOptional } from '../../contexts/KeyframeStoreContext';
-import { interpolateKeyframes } from '../animation-utils';
-
-/**
- * When playback stops, write the final animated values (from keyframes)
- * back into the scene graph so that the selection overlay and property
- * panel reflect the node's resting state at the current playhead time.
- */
-function useCommitKeyframesOnStop() {
-  const playback = usePlaybackOptional();
-  const kfStore = useKeyframeStoreOptional();
-  const sg = useSceneGraph();
-  const { selectedIds } = useSelection();
-  const wasPlayingRef = useRef(false);
-
-  const commitKeyframes = () => {
-    if (!kfStore || !playback) return;
-    const currentMs = playback.currentMs;
-
-    for (const nodeId of selectedIds) {
-      const node = sg.getNode(nodeId);
-      if (!node || !isGeometryNode(node)) continue;
-
-      const nodeKfs = kfStore.getNodeKeyframes(String(nodeId));
-      if (nodeKfs.size === 0) continue;
-
-      // Only commit width/height to scene graph — x, y, rotation, and
-      // opacity are animated via CSS transforms and should NOT be written
-      // back, as that would shift the base position and corrupt the motion path.
-      const updates: Record<string, number> = {};
-      for (const prop of ['width', 'height'] as const) {
-        const kfs = nodeKfs.get(prop);
-        if (!kfs || kfs.length < 2) continue;
-        const val = interpolateKeyframes(kfs, currentMs);
-        if (val !== undefined) {
-          updates[prop] = val;
-        }
-      }
-
-      if (Object.keys(updates).length > 0) {
-        sg.updateNode(nodeId, updates);
-      }
-    }
-  };
-
-  // Commit when playback stops
-  useEffect(() => {
-    const isPlaying = playback?.isPlaying ?? false;
-    if (wasPlayingRef.current && !isPlaying) {
-      commitKeyframes();
-    }
-    wasPlayingRef.current = isPlaying;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playback?.isPlaying]);
-
-  // Commit when scrubbing the playhead while stopped
-  useEffect(() => {
-    if (playback?.isPlaying) return;
-    commitKeyframes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playback?.currentMs]);
-}
 
 export function SelectionOverlay() {
   const playback = usePlaybackOptional();
   const isPlaying = playback?.isPlaying ?? false;
 
-  useCommitKeyframesOnStop();
-
+  // Hide selection overlay during playback — CSS transforms handle
+  // the visual position, so the scene-graph-based overlay would be stale.
   if (isPlaying) return null;
 
   return (
