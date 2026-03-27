@@ -4,6 +4,7 @@ import { useActiveTool, useSelection } from '../canvas';
 import { DesignModeContent, DevModeContent, DrawModeContent, AnimateModeContent, CommentsPanelContent, PanelHeader } from './modes';
 import type { Mode } from './menuTypes';
 import { UserAvatar } from '@prototype/shared';
+import { useTimelineHeightPx, useTimelineResizing } from '../contexts/TimelineVisibilityContext';
 
 import { useViewportState } from '../canvas';
 
@@ -36,12 +37,24 @@ export function MinimizedRightPanel({ activeMode }: MinimizedRightPanelProps) {
   return <FloatingCompactHeader />;
 }
 
+const PANEL_GAP_PX = 12;
+const TIMELINE_SLIDE_MS = 300;
+
 /** Full floating properties panel (selection active or comment mode) */
 function FloatingFullPanel({ activeMode, isCommentMode }: { activeMode: Mode; isCommentMode: boolean }) {
   const ModeContent = MODE_CONTENT[activeMode];
+  const timelineHeight = useTimelineHeightPx();
+  const resizing = useTimelineResizing();
+  const bottom = timelineHeight + PANEL_GAP_PX;
 
   return (
-    <div className="absolute top-12px right-12px bottom-12px w-[240px] z-nav pointer-events-auto">
+    <div
+      className="absolute top-12px right-12px w-[240px] z-nav pointer-events-auto"
+      style={{
+        bottom,
+        transition: resizing ? 'none' : `bottom ${String(TIMELINE_SLIDE_MS)}ms ease-out`,
+      }}
+    >
       <div className="bg-bg-elevated rounded-lg shadow-300 flex flex-col h-full overflow-hidden">
         <PanelHeader />
         {isCommentMode ? <CommentsPanelContent /> : <ModeContent />}
