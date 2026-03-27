@@ -1,0 +1,34 @@
+import { useActiveTool } from '../canvas';
+import { useResizablePanel, ResizeHandle } from '@prototype/shared';
+import type { Mode } from './menuTypes';
+import { PanelHeader, DesignModeContent, DevModeContent, DrawModeContent, AnimateModeContent, CommentsPanelContent } from './modes';
+
+interface RightPanelProps {
+  activeMode: Mode;
+}
+
+/* ---------- Main RightPanel ---------- */
+
+const MODE_CONTENT: Record<Mode, React.FC> = {
+  design: DesignModeContent,
+  dev: DevModeContent,
+  draw: DrawModeContent,
+  animate: AnimateModeContent,
+};
+
+export function RightPanel({ activeMode }: RightPanelProps) {
+  const { panelRef, onMouseDown } = useResizablePanel({ minWidth: 240, side: 'left' });
+  const { activeTool } = useActiveTool();
+  const ModeContent = MODE_CONTENT[activeMode];
+
+  return (
+    <aside
+      ref={panelRef}
+      className="relative w-[240px] shrink-0 bg-bg border-l border-border flex flex-col z-sidebar"
+    >
+      <PanelHeader />
+      {activeTool === 'COMMENT' ? <CommentsPanelContent /> : <ModeContent />}
+      <ResizeHandle onMouseDown={onMouseDown} side="left" />
+    </aside>
+  );
+}

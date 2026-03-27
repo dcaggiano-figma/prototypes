@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Inter", var(--font-family-default);
+  font-size: var(--text-body-medium-font-size);
+  line-height: var(--text-body-medium-line-height);
+}

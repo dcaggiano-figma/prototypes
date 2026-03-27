@@ -1,0 +1,48 @@
+{
+  "name": "@template/figma-motion",
+  "version": "1.0.0",
+  "private": true,
+  "template": {
+    "displayName": "Figma Motion"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:file": "eslint --fix",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm build && pnpm lint && pnpm typecheck",
+    "decode-clipboard": "tsx scripts/decode-figma-clipboard.ts"
+  },
+  "dependencies": {
+    "@figma/fpl-components": "catalog:",
+    "@figma/fpl-icons": "catalog:",
+    "@figma/fpl-tokens": "catalog:",
+    "@figma/ppg-ai": "catalog:",
+    "@figma/ppg-ui": "catalog:",
+    "@prototype/shared": "workspace:*",
+    "@tanstack/react-router": "^1.114.0",
+    "clsx": "^2.1.1",
+    "motion": "catalog:",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@figma/ppg-eslint-config": "catalog:",
+    "@figma/ppg-tailwind-config": "catalog:",
+    "@figma/ppg-tsconfig": "catalog:",
+    "@figma/ppg-vite-config": "catalog:",
+    "@tanstack/router-plugin": "^1.114.0",
+    "@types/node": "^20.11.5",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.39.1",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.3.3",
+    "vite": "^8.0.0"
+  }
+}

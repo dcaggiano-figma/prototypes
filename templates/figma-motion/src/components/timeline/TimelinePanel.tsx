@@ -1,0 +1,1350 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import clsx from 'clsx';
+import { ButtonPrimitive, IconButton, InputPrimitive } from '@figma/fpl-components';
+import { Icon24Play, Icon24Pause, Icon24ChevronDownLarge } from '@figma/fpl-icons';
+
+import { useAnimationStore } from '../../contexts/AnimationStoreContext';
+import { usePlayback } from '../../contexts/PlaybackContext';
+import { useAction } from '../../actions/provider';
+import { useSceneGraph, useSelection } from '../../canvas';
+import type { SceneNode } from '../../canvas';
+import type { AnimationType } from '../../contexts/AnimationStoreContext';
+import { CURSORS } from '@prototype/shared';
+import {
+  Icon16Frame,
+  Icon16Rectangle,
+  Icon16Ellipse,
+  Icon16Text,
+  Icon16Line,
+  Icon16Component,
+  Icon16Star,
+  Icon16Polygon,
+  Icon16Section,
+} from '@figma/fpl-icons';
+
+/** Inline node type icon for the timeline layer tree. */
+function NodeTypeIcon({ node }: { node: SceneNode }) {
+  switch (node.type) {
+    case 'FRAME': return <Icon16Frame />;
+    case 'RECTANGLE': return <Icon16Rectangle />;
+    case 'ELLIPSE': return <Icon16Ellipse />;
+    case 'TEXT': return <Icon16Text />;
+    case 'LINE': return <Icon16Line />;
+    case 'VECTOR': return <Icon16Component />;
+    case 'GROUP': return <Icon16Component />;
+    case 'STAR': return <Icon16Star />;
+    case 'POLYGON': return <Icon16Polygon />;
+    case 'SECTION': return <Icon16Section />;
+    default: return <Icon16Rectangle />;
+  }
+}
+
+/** Fixed height of the timeline panel (matches Figma: header 80px + body). */
+export const TIMELINE_PANEL_HEIGHT_PX = 302;
+/** Height when collapsed to control row only (play + time + expand button). */
+export const TIMELINE_COLLAPSED_HEIGHT_PX = 48;
+
+const TREE_WIDTH_PX = 240;
+const ROW_HEIGHT_PX = 24;
+const HEADER_TOP_HEIGHT = 48;
+const HEADER_BOTTOM_HEIGHT = 32;
+const BAR_HEIGHT_PX = 18;
+const MIN_CLIP_DURATION_MS = 50;
+const SCROLLBAR_HEIGHT_PX = 8;
+
+const MIN_TIMELINE_ZOOM = 1;
+const MAX_TIMELINE_ZOOM = 40;
+const TIMELINE_ZOOM_FACTOR = 0.01;
+const SNAP_THRESHOLD_PX = 6;
+const TIMELINE_PAD_FRAC = 0.015;
+
+/** Reusable dot-grid background style for empty timeline areas. */
+const DOT_GRID_STYLE: React.CSSProperties = {
+  backgroundImage: 'radial-gradient(circle at 1px 1px, var(--color-border) 1px, transparent 0)',
+  backgroundSize: '8px 8px',
+};
+
+/** Style for the time input container (custom dimensions and subtle bg). */
+const TIME_INPUT_STYLE: React.CSSProperties = {
+  borderRadius: 9,
+  height: 34,
+  width: 160,
+  backgroundColor: 'rgba(0,0,0,0.05)',
+};
+
+/** Width for the editable time input field. */
+const TIME_FIELD_STYLE: React.CSSProperties = { width: 48 };
+
+/** z-index base layer style (no numeric z-index tokens in tailwind config). */
+const Z_BASE_STYLE: React.CSSProperties = { zIndex: 0 };
+
+/** Chevron down for layer collapse -- 16x16, tertiary color. */
+function LayerChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path
+        d="M11.1817 6.23238C11.3769 6.42765 11.3769 6.74415 11.1817 6.93942L8.35355 9.76754C8.15829 9.9628 7.84178 9.9628 7.64652 9.76754L4.81742 6.93942C4.62248 6.74421 4.62248 6.42759 4.81742 6.23238C5.01268 6.03712 5.33017 6.03712 5.52543 6.23238L8.00004 8.70699L10.4746 6.23238C10.6699 6.03714 10.9864 6.03718 11.1817 6.23238Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+/** Record icon: rounded square outline + red center dot (24px). */
+function Icon24Record({ className }: { className?: string }) {
+  return (
+    <svg className={className} width={24} height={24} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path
+        d="M10.5862 5.58567C11.3672 4.80482 12.6333 4.80473 13.4143 5.58567L18.4143 10.5857C19.1945 11.3667 19.1949 12.633 18.4143 13.4138L13.4143 18.4138C12.6335 19.1944 11.3672 19.1941 10.5862 18.4138L5.58616 13.4138C4.80522 12.6328 4.80531 11.3667 5.58616 10.5857L10.5862 5.58567ZM12.7073 6.2927C12.3168 5.90228 11.6837 5.90238 11.2932 6.2927L6.29319 11.2927C5.90287 11.6832 5.90277 12.3163 6.29319 12.7068L11.2932 17.7068C11.6837 18.0965 12.317 18.0969 12.7073 17.7068L17.7073 12.7068C18.0974 12.3165 18.097 11.6832 17.7073 11.2927L12.7073 6.2927Z"
+        fill="currentColor"
+        fillOpacity={0.9}
+      />
+      <path d="M12 10C13.1046 10 14 10.8954 14 12C14 13.1046 13.1046 14 12 14C10.8954 14 10 13.1046 10 12C10 10.8954 10.8954 10 12 10Z" fill="#DC3412" />
+    </svg>
+  );
+}
+
+function formatTime(ms: number): string {
+  const n = Math.round(ms);
+  return n < 10 ? `00${n}` : n < 100 ? `0${n}` : `${n}`;
+}
+
+function TimelineTimeInput({
+  currentMs,
+  endMs,
+  onCurrentMsChange,
+  loop,
+  onLoopClick,
+}: {
+  currentMs: number;
+  endMs: number;
+  onCurrentMsChange: (ms: number) => void;
+  loop: boolean;
+  onLoopClick: () => void;
+}) {
+  const [inputValue, setInputValue] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const displayCurrent = formatTime(currentMs);
+  const leadingZeros = displayCurrent.match(/^0+/)?.[0] ?? '';
+  const mainDigits = displayCurrent.slice(leadingZeros.length) || '0';
+  const displayDuration = formatTime(endMs);
+
+  const commitValue = useCallback(() => {
+    const raw = inputValue.trim();
+    if (raw === '') {
+      setInputValue(displayCurrent);
+      setIsEditing(false);
+      return;
+    }
+    const parsed = Math.round(Number(raw));
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setInputValue(displayCurrent);
+      setIsEditing(false);
+      return;
+    }
+    const clamped = Math.min(parsed, endMs);
+    onCurrentMsChange(clamped);
+    setInputValue(formatTime(clamped));
+    setIsEditing(false);
+  }, [inputValue, endMs, onCurrentMsChange, displayCurrent]);
+
+  const handleBlur = useCallback(() => {
+    commitValue();
+  }, [commitValue]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commitValue();
+        inputRef.current?.blur();
+      }
+    },
+    [commitValue],
+  );
+
+  useEffect(() => {
+    if (!isEditing) setInputValue(displayCurrent);
+  }, [displayCurrent, isEditing]);
+
+  useEffect(() => {
+    if (isEditing) {
+      setInputValue(displayCurrent.replace(/^0+/, '') || '0');
+      inputRef.current?.focus();
+    }
+  }, [isEditing]); // eslint-disable-line react-hooks/exhaustive-deps -- only run when entering edit mode
+
+  return (
+    <div
+      className="flex shrink-0 items-center gap-1 border border-bordertranslucent pl-3 pr-0 min-w-0 overflow-hidden"
+      style={TIME_INPUT_STYLE}
+      aria-label="Current time / duration"
+    >
+      {!isEditing ? (
+        <ButtonPrimitive
+          type="button"
+          onClick={() => setIsEditing(true)}
+          className="min-w-0 shrink overflow-hidden text-left border-none p-0 cursor-text text-bodyMd tabular-nums text-text"
+        >
+          <span className="block truncate">
+            <span className="opacity-30">{leadingZeros}</span>
+            <span className="opacity-90">{mainDigits}</span>
+          </span>
+        </ButtonPrimitive>
+      ) : (
+        <InputPrimitive
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          className="min-w-0 shrink bg-transparent border-none p-0 text-bodyMd tabular-nums text-text outline-none opacity-90"
+          style={TIME_FIELD_STYLE}
+          value={inputValue}
+          onChange={(v) => setInputValue(v.replace(/\D/g, '').slice(0, 6))}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          aria-label="Current time (ms)"
+        />
+      )}
+      <span className="shrink-0 text-bodyMd tabular-nums text-text opacity-30"> / </span>
+      <span className="min-w-0 truncate text-bodyMd tabular-nums text-text opacity-50">{displayDuration}</span>
+      <span className="shrink-0 text-bodyMd text-text opacity-50">ms</span>
+      <div className="ml-auto shrink-0 flex items-center justify-center w-6 h-6">
+        <ButtonPrimitive
+          type="button"
+          onClick={onLoopClick}
+          aria-label={loop ? 'Loop on' : 'Loop off'}
+          className={clsx(
+            'flex items-center justify-center w-6 h-6 rounded-sm border-0 cursor-pointer text-text outline-none hover:opacity-80',
+            loop ? 'opacity-90' : 'opacity-50',
+          )}
+        >
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0" width={24} height={24} aria-hidden>
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M15 7.99996C17.2091 7.99996 19 9.79082 19 12C19 14.2091 17.2091 16 15 16H13.707L14.8535 17.1464C15.0488 17.3417 15.0488 17.6582 14.8535 17.8535C14.6583 18.0487 14.3417 18.0487 14.1465 17.8535L12.1465 15.8535C11.9512 15.6582 11.9512 15.3417 12.1465 15.1464L14.1465 13.1464C14.3417 12.9512 14.6583 12.9512 14.8535 13.1464C15.0488 13.3417 15.0488 13.6582 14.8535 13.8535L13.707 15H15C16.6569 15 18 13.6568 18 12C18 10.3431 16.6569 8.99996 15 8.99996H14.5C14.2239 8.99996 14 8.7761 14 8.49996C14 8.22382 14.2239 7.99996 14.5 7.99996H15ZM9.14648 6.14645C9.34175 5.95118 9.65825 5.95118 9.85352 6.14645L11.8535 8.14645C12.0488 8.34171 12.0488 8.65822 11.8535 8.85348L9.85352 10.8535C9.65825 11.0487 9.34175 11.0487 9.14648 10.8535C8.95122 10.6582 8.95122 10.3417 9.14648 10.1464L10.293 8.99996H9C7.34315 8.99996 6 10.3431 6 12C6 13.6568 7.34315 15 9 15H9.5C9.77614 15 10 15.2238 10 15.5C10 15.7761 9.77614 16 9.5 16H9C6.79086 16 5 14.2091 5 12C5 9.79082 6.79086 7.99996 9 7.99996H10.293L9.14648 6.85348C8.95122 6.65822 8.95122 6.34171 9.14648 6.14645Z"
+              fill="currentColor"
+            />
+          </svg>
+        </ButtonPrimitive>
+      </div>
+    </div>
+  );
+}
+
+// -- Ruler helpers --
+
+const NICE_STEPS_MS = [
+  20000, 10000, 5000, 2000, 1000,
+  500, 200, 100, 50, 20, 10,
+];
+
+function computeRulerMarks(
+  visibleStartMs: number,
+  visibleEndMs: number,
+  visibleDurationMs: number,
+  endMs: number,
+): { marks: { ms: number; label: string }[]; ticks: number[] } {
+  if (visibleDurationMs <= 0) return { marks: [], ticks: [] };
+
+  const targetMarks = 8;
+  const rawStep = visibleDurationMs / targetMarks;
+  let stepMs = NICE_STEPS_MS[NICE_STEPS_MS.length - 1];
+  for (const s of NICE_STEPS_MS) {
+    if (s <= rawStep * 1.5) { stepMs = s; break; }
+  }
+
+  const first = Math.ceil(visibleStartMs / stepMs) * stepMs;
+  const marks: { ms: number; label: string }[] = [];
+  const cap = Math.min(visibleEndMs, endMs);
+  for (let t = first; t <= cap && marks.length < 20; t += stepMs) {
+    marks.push({ ms: Math.round(t), label: formatRulerMs(Math.round(t), stepMs) });
+  }
+
+  const SUB_TICKS = 2;
+  const subStep = stepMs / SUB_TICKS;
+  const tickFirst = Math.ceil(visibleStartMs / subStep) * subStep;
+  const markSet = new Set(marks.map((m) => m.ms));
+  const ticks: number[] = [];
+  for (let t = tickFirst; t <= cap && ticks.length < 100; t += subStep) {
+    const rounded = Math.round(t);
+    if (!markSet.has(rounded)) ticks.push(rounded);
+  }
+
+  return { marks, ticks };
+}
+
+function formatRulerMs(ms: number, stepMs: number): string {
+  if (stepMs >= 1000) {
+    const s = ms / 1000;
+    return Number.isInteger(s) ? `${s}s` : `${s.toFixed(1)}s`;
+  }
+  if (stepMs >= 100) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  return `${ms}ms`;
+}
+
+function findSnapTarget(edgeMs: number, targets: number[], thresholdMs: number): number | null {
+  let closest: number | null = null;
+  let closestDist = Infinity;
+  for (const t of targets) {
+    const dist = Math.abs(edgeMs - t);
+    if (dist <= thresholdMs && dist < closestDist) {
+      closest = t;
+      closestDist = dist;
+    }
+  }
+  return closest;
+}
+
+function layerDisplayName(node: SceneNode | undefined): string {
+  if (!node) return 'Layer';
+  return node.name?.trim() || nodeLabel(node);
+}
+
+function nodeLabel(node: SceneNode | undefined): string {
+  if (!node) return 'Layer';
+  switch (node.type) {
+    case 'RECTANGLE': return 'Rectangle';
+    case 'ELLIPSE': return 'Ellipse';
+    case 'FRAME': return 'Frame';
+    case 'SECTION': return 'Section';
+    case 'TEXT': return 'Text';
+    case 'LINE': return 'Line';
+    case 'GROUP': return 'Group';
+    case 'VECTOR': return 'Vector path';
+    case 'POLYGON': return 'Polygon';
+    case 'STAR': return 'Star';
+    default: return 'Layer';
+  }
+}
+
+function animationTypeLabel(type: AnimationType): string {
+  switch (type) {
+    case 'fade-in': return 'Fade in';
+    case 'fade-out': return 'Fade out';
+    case 'slide-in': return 'Slide in';
+    case 'slide-out': return 'Slide out';
+    case 'spin': return 'Spin';
+    case 'translate-x': return 'Translate X';
+    case 'color': return 'Color';
+    default: return type;
+  }
+}
+
+const PLAYHEAD_COLOR = '#007BE5';
+
+function PlayheadThumb() {
+  return (
+    <svg width={11} height={14} viewBox="0 0 11 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0" aria-hidden>
+      <path
+        d="M5.5 0.5C8.2836 0.5 10.5 2.64831 10.5 5.25C10.5 5.86109 10.2728 6.67897 9.87305 7.59766C9.47811 8.50518 8.93474 9.46717 8.34766 10.3525C7.76031 11.2383 7.13776 12.0345 6.59082 12.6143C6.31668 12.9048 6.06917 13.1324 5.8623 13.2881C5.65778 13.4419 5.53976 13.4874 5.5 13.4971C5.46024 13.4874 5.34222 13.4419 5.1377 13.2881C4.93083 13.1324 4.68332 12.9048 4.40918 12.6143C3.86224 12.0345 3.23969 11.2383 2.65234 10.3525C2.06526 9.46717 1.52189 8.50518 1.12695 7.59766C0.727196 6.67897 0.5 5.86109 0.5 5.25C0.5 2.64831 2.7164 0.5 5.5 0.5Z"
+        fill="white"
+        stroke={PLAYHEAD_COLOR}
+      />
+    </svg>
+  );
+}
+
+function PlayheadLine() {
+  return (
+    <div
+      className="w-px flex-1 min-h-0 self-center"
+      style={{ backgroundColor: PLAYHEAD_COLOR }}
+      aria-hidden
+    />
+  );
+}
+
+// -- Clip bar --
+
+function TimelineClipBar({
+  anim,
+  isSelected,
+  isClipSelected,
+  onSelect,
+  clientXToMs,
+  moveClipAndPush,
+  updateAnimation: _updateAnimation,
+  trackEndMs,
+  visibleStartMs,
+  visibleDurationMs,
+  onDragStart,
+  onDragEnd,
+  allAnimations,
+  trackAnimations,
+  onSnapGuide,
+}: {
+  anim: import('../../contexts/AnimationStoreContext').TimelineAnimation;
+  isSelected: boolean;
+  isClipSelected: boolean;
+  onSelect: () => void;
+  clientXToMs: (clientX: number) => number;
+  moveClipAndPush: (id: string, newStartMs: number, newDurationMs?: number) => void;
+  updateAnimation: (id: string, patch: Partial<Pick<import('../../contexts/AnimationStoreContext').TimelineAnimation, 'startMs' | 'durationMs' | 'type' | 'easing'>>) => void;
+  trackEndMs: number;
+  visibleStartMs: number;
+  visibleDurationMs: number;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  allAnimations: import('../../contexts/AnimationStoreContext').TimelineAnimation[];
+  trackAnimations: import('../../contexts/AnimationStoreContext').TimelineAnimation[];
+  onSnapGuide: (ms: number | null) => void;
+}) {
+  const startMsRef = useRef(anim.startMs);
+  const durationMsRef = useRef(anim.durationMs);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent, kind: 'bar' | 'left' | 'right') => {
+      e.stopPropagation();
+      if (e.button !== 0) return;
+      startMsRef.current = anim.startMs;
+      durationMsRef.current = anim.durationMs;
+      onDragStart?.();
+
+      const dragCursor = kind === 'left' ? CURSORS.trimLeft : kind === 'right' ? CURSORS.trimRight : CURSORS.grabbing;
+      const cursorOverride = document.createElement('style');
+      cursorOverride.textContent = `* { cursor: ${dragCursor} !important; }`;
+      document.head.appendChild(cursorOverride);
+
+      const snapTargets: number[] = [0];
+      for (const a of allAnimations) {
+        if (a.id === anim.id) continue;
+        snapTargets.push(a.startMs, a.startMs + a.durationMs);
+      }
+      const barRef_el = barRef.current;
+      const parentW = barRef_el?.parentElement?.clientWidth ?? 800;
+      const thresholdMs = parentW > 0 ? (SNAP_THRESHOLD_PX / parentW) * visibleDurationMs : 0;
+
+      const onMove = (e2: PointerEvent) => {
+        const ms = clientXToMs(e2.clientX);
+        let guideMs: number | null = null;
+
+        if (kind === 'bar') {
+          const dur = durationMsRef.current;
+          let newStart = Math.max(0, Math.min(trackEndMs - dur, ms - dur / 2));
+          const snapS = findSnapTarget(newStart, snapTargets, thresholdMs);
+          const snapE = findSnapTarget(newStart + dur, snapTargets, thresholdMs);
+          if (snapS !== null && (snapE === null || Math.abs(newStart - snapS) <= Math.abs(newStart + dur - (snapE ?? 0)))) {
+            newStart = Math.max(0, Math.min(trackEndMs - dur, snapS));
+            guideMs = snapS;
+          } else if (snapE !== null) {
+            newStart = Math.max(0, Math.min(trackEndMs - dur, snapE - dur));
+            guideMs = snapE;
+          }
+          moveClipAndPush(anim.id, newStart);
+        } else if (kind === 'left') {
+          const clipEnd = startMsRef.current + durationMsRef.current;
+          let newStart = Math.max(0, Math.min(clipEnd - MIN_CLIP_DURATION_MS, ms));
+          const snap = findSnapTarget(newStart, snapTargets, thresholdMs);
+          if (snap !== null) {
+            newStart = Math.max(0, Math.min(clipEnd - MIN_CLIP_DURATION_MS, snap));
+            guideMs = snap;
+          }
+          moveClipAndPush(anim.id, newStart, clipEnd - newStart);
+        } else {
+          let newEnd = Math.max(startMsRef.current + MIN_CLIP_DURATION_MS, Math.min(trackEndMs, ms));
+          const snap = findSnapTarget(newEnd, snapTargets, thresholdMs);
+          if (snap !== null) {
+            newEnd = Math.max(startMsRef.current + MIN_CLIP_DURATION_MS, Math.min(trackEndMs, snap));
+            guideMs = snap;
+          }
+          moveClipAndPush(anim.id, startMsRef.current, newEnd - startMsRef.current);
+        }
+
+        onSnapGuide(guideMs);
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        cursorOverride.remove();
+        onSnapGuide(null);
+        onDragEnd?.();
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [anim.id, anim.startMs, anim.durationMs, clientXToMs, moveClipAndPush, trackEndMs, onDragStart, onDragEnd, allAnimations, visibleDurationMs, onSnapGuide],
+  );
+
+  const leftPercent = visibleDurationMs > 0 ? ((anim.startMs - visibleStartMs) / visibleDurationMs) * 100 : 0;
+  const widthPercent = visibleDurationMs > 0 ? Math.max(2, (anim.durationMs / visibleDurationMs) * 100) : 2;
+  const isColor = anim.type === 'color';
+  const MEDIA_INSET = 9;
+  const barRef = useRef<HTMLButtonElement>(null);
+
+  const hasOverlap = trackAnimations.some(
+    (a) =>
+      a.id !== anim.id &&
+      anim.startMs < a.startMs + a.durationMs &&
+      a.startMs < anim.startMs + anim.durationMs,
+  );
+
+  const barBg = isClipSelected
+    ? '#0D99FF'
+    : isSelected
+      ? '#B9E1FF'
+      : 'rgba(128, 128, 128, 0.2)';
+
+  return (
+    <ButtonPrimitive
+      ref={barRef}
+      type="button"
+      tabIndex={-1}
+      className="absolute top-1/2 -translate-y-1/2 flex items-stretch rounded-md overflow-hidden outline-none border-0 p-0"
+      style={{
+        left: `${leftPercent}%`,
+        width: `${widthPercent}%`,
+        minWidth: 40,
+        height: BAR_HEIGHT_PX,
+        backgroundColor: barBg,
+        ...(hasOverlap ? { boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)' } : {}),
+      }}
+      title={`${animationTypeLabel(anim.type)} (${anim.durationMs}ms). Press Delete to remove.`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+    >
+      {isColor && anim.colorFrom && anim.colorTo && (
+        <div
+          className="absolute pointer-events-none overflow-hidden"
+          style={{ zIndex: 0, left: MEDIA_INSET, right: MEDIA_INSET, top: 2, bottom: 2, borderRadius: 2 }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(to right, rgb(${anim.colorFrom.r},${anim.colorFrom.g},${anim.colorFrom.b}), rgb(${anim.colorTo.r},${anim.colorTo.g},${anim.colorTo.b}))`,
+            }}
+          />
+          {isClipSelected && (
+            <div className="absolute inset-0 bg-border-selected/30" />
+          )}
+        </div>
+      )}
+      {/* Left resize handle */}
+      <div
+        role="button"
+        tabIndex={0}
+        className="relative flex-shrink-0 flex items-center justify-center rounded-l-md"
+        style={{ zIndex: 1, paddingLeft: 4, paddingRight: 8, cursor: CURSORS.trimLeft }}
+        onPointerDown={(e) => handlePointerDown(e, 'left')}
+      >
+        <div
+          className="shrink-0 rounded-sm"
+          style={{
+            width: 1,
+            height: 8,
+            backgroundColor: isClipSelected ? 'rgba(255,255,255,0.8)' : isSelected ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.45)',
+          }}
+          aria-hidden
+        />
+      </div>
+      {/* Bar drag area */}
+      <div
+        role="button"
+        tabIndex={-1}
+        className="relative flex-1 min-w-0 rounded-md"
+        style={{ zIndex: 1, cursor: CURSORS.grab }}
+        onPointerDown={(e) => handlePointerDown(e, 'bar')}
+      />
+      {/* Right resize handle */}
+      <div
+        role="button"
+        tabIndex={0}
+        className="relative flex-shrink-0 flex items-center justify-center rounded-r-md"
+        style={{ zIndex: 1, paddingLeft: 8, paddingRight: 4, cursor: CURSORS.trimRight }}
+        onPointerDown={(e) => handlePointerDown(e, 'right')}
+      >
+        <div
+          className="shrink-0 rounded-sm"
+          style={{
+            width: 1,
+            height: 8,
+            backgroundColor: isClipSelected ? 'rgba(255,255,255,0.8)' : isSelected ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.45)',
+          }}
+          aria-hidden
+        />
+      </div>
+    </ButtonPrimitive>
+  );
+}
+
+// -- Main TimelinePanel --
+
+export interface TimelinePanelProps {
+  expanded: boolean;
+  onExpandCollapse: () => void;
+}
+
+const EXPAND_TRANSITION_MS = 300;
+
+export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps) {
+  const { animations, selectedClipId, setSelectedClipId, updateAnimation, removeAnimation, moveClipAndPush } = useAnimationStore();
+  const { currentMs, isPlaying, loop, endMs, setCurrentMs, setIsPlaying, setLoop } = usePlayback();
+  const [showBody, setShowBody] = useState(expanded);
+  const expandTimerRef = useRef<ReturnType<typeof setTimeout> | number>(0);
+  useEffect(() => {
+    clearTimeout(expandTimerRef.current);
+    if (expanded) {
+      setShowBody(true);
+    } else {
+      expandTimerRef.current = window.setTimeout(() => setShowBody(false), EXPAND_TRANSITION_MS);
+    }
+    return () => clearTimeout(expandTimerRef.current);
+  }, [expanded]);
+  const store = useSceneGraph();
+  // Revision counter — bumped on structural scene graph changes so memos recompute
+  const [sgRevision, setSgRevision] = useState(0);
+  useEffect(() => {
+    return store.addListener((event) => {
+      if (event.type === 'create' || event.type === 'delete' || event.type === 'reparent') {
+        setSgRevision((n) => n + 1);
+      }
+    });
+  }, [store]);
+  const { selectedIds, select: selectLayer } = useSelection();
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
+  const [isNearPlayhead, setIsNearPlayhead] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [visibleMs, setVisibleMs] = useState<number | null>(null);
+  const [scrollFraction, setScrollFraction] = useState(0);
+  const [frozenEndMs, setFrozenEndMs] = useState<number | null>(null);
+  const [snapGuideMs, setSnapGuideMs] = useState<number | null>(null);
+  const PLAYHEAD_HIT_PX = 12;
+
+  const layoutEndMs = frozenEndMs ?? endMs;
+  const rawVisibleDurationMs = visibleMs !== null ? visibleMs : (layoutEndMs > 0 ? layoutEndMs : 0);
+  const timelineZoom = rawVisibleDurationMs > 0 ? layoutEndMs / rawVisibleDurationMs : 1;
+  const maxScrollMs = Math.max(0, layoutEndMs - rawVisibleDurationMs);
+  const rawVisibleStartMs = scrollFraction * maxScrollMs;
+  const padMs = rawVisibleDurationMs * TIMELINE_PAD_FRAC;
+  const visibleStartMs = rawVisibleStartMs - padMs;
+  const visibleDurationMs = rawVisibleDurationMs + 2 * padMs;
+  const visibleEndMs = visibleStartMs + visibleDurationMs;
+
+  const { marks: rulerMarks, ticks: rulerTicks } = useMemo(
+    () => computeRulerMarks(visibleStartMs, visibleEndMs, visibleDurationMs, layoutEndMs),
+    [visibleStartMs, visibleEndMs, visibleDurationMs, layoutEndMs],
+  );
+
+  const activeFrameId = useMemo(() => {
+    if (selectedIds.size === 0) return null;
+    const id = selectedIds.values().next().value as number;
+    const node = store.getNode(id);
+    if (!node) return null;
+    if (node.type === 'FRAME' && node.parentId === null) return node.id;
+    const ancestors = store.getAncestors(id);
+    for (const a of ancestors) {
+      if (a.type === 'FRAME' && a.parentId === null) return a.id;
+    }
+    if (node.type === 'FRAME') return node.id;
+    for (const a of ancestors) {
+      if (a.type === 'FRAME') return a.id;
+    }
+    return null;
+  }, [selectedIds, store]);
+
+  const [stickyFrameId, setStickyFrameId] = useState<number | null>(null);
+  useEffect(() => {
+    if (activeFrameId != null) setStickyFrameId(activeFrameId);
+  }, [activeFrameId]);
+
+  const effectiveFrameId = activeFrameId ?? stickyFrameId;
+
+  const frameDescendantIds = useMemo(() => {
+    if (effectiveFrameId == null) return null;
+    const descendants = store.getDescendants(effectiveFrameId);
+    const ids = new Set(descendants.map((d) => String(d.id)));
+    ids.add(String(effectiveFrameId));
+    return ids;
+    // sgRevision ensures this recomputes when scene graph structure changes
+  }, [effectiveFrameId, store, sgRevision]);
+
+  const frameAnimations = useMemo(() => {
+    if (!frameDescendantIds) return animations;
+    return animations.filter((a) => frameDescendantIds.has(a.nodeId));
+  }, [animations, frameDescendantIds]);
+
+  const layers = useMemo(() => {
+    const seen = new Set<string>();
+    const order: string[] = [];
+    for (const a of frameAnimations) {
+      if (!seen.has(a.nodeId)) {
+        seen.add(a.nodeId);
+        order.push(a.nodeId);
+      }
+    }
+    return order;
+  }, [frameAnimations]);
+
+  const timelineFrameName = useMemo(() => {
+    if (effectiveFrameId == null) return 'Timeline';
+    const frame = store.getNode(effectiveFrameId);
+    return frame?.name || 'Frame';
+  }, [effectiveFrameId, store]);
+
+  useEffect(() => {
+    if (selectedIds.size === 1) {
+      const id = String(selectedIds.values().next().value);
+      if (layers.includes(id)) setSelectedLayerId(id);
+    }
+  }, [selectedIds, layers]);
+
+  const zoomAroundMs = useCallback((newZoom: number, anchorMs: number) => {
+    const clamped = Math.min(MAX_TIMELINE_ZOOM, Math.max(MIN_TIMELINE_ZOOM, newZoom));
+    const base = frozenEndMs ?? endMs;
+    const nextVisDur = base / clamped;
+    if (clamped <= MIN_TIMELINE_ZOOM) {
+      setVisibleMs(null);
+      setScrollFraction(0);
+      return;
+    }
+    setVisibleMs(nextVisDur);
+    const nextMaxScroll = Math.max(0, base - nextVisDur);
+    if (nextMaxScroll <= 0) { setScrollFraction(0); return; }
+    const desiredStart = anchorMs - nextVisDur / 2;
+    setScrollFraction(Math.max(0, Math.min(1, desiredStart / nextMaxScroll)));
+  }, [endMs, frozenEndMs]);
+
+  const zoomIn = useCallback(() => zoomAroundMs(timelineZoom * 1.5, currentMs), [timelineZoom, currentMs, zoomAroundMs]);
+  const zoomOut = useCallback(() => zoomAroundMs(timelineZoom / 1.5, currentMs), [timelineZoom, currentMs, zoomAroundMs]);
+
+  const handleClipDragStart = useCallback(() => {
+    setFrozenEndMs(endMs);
+    setVisibleMs(prev => prev ?? endMs);
+  }, [endMs]);
+  const handleClipDragEnd = useCallback(() => setFrozenEndMs(null), []);
+
+  const trackStripRef = useRef<HTMLDivElement | null>(null);
+  const collapsedStripRef = useRef<HTMLDivElement>(null);
+  const wheelCleanupRef = useRef<(() => void) | null>(null);
+  const playheadPercent = visibleDurationMs > 0 ? ((currentMs - visibleStartMs) / visibleDurationMs) * 100 : 0;
+
+  const clientXToMsCollapsed = useCallback(
+    (clientX: number) => {
+      const el = collapsedStripRef.current;
+      if (!el || layoutEndMs <= 0) return 0;
+      const rect = el.getBoundingClientRect();
+      const cPad = layoutEndMs * TIMELINE_PAD_FRAC;
+      const cTotal = layoutEndMs + 2 * cPad;
+      const fraction = (clientX - rect.left) / rect.width;
+      const ms = fraction * cTotal - cPad;
+      return Math.max(0, Math.min(layoutEndMs, ms));
+    },
+    [layoutEndMs],
+  );
+
+  const handleCollapsedStripPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (layoutEndMs <= 0) return;
+      e.preventDefault();
+      setCurrentMs(clientXToMsCollapsed(e.clientX));
+      const onMove = (e2: PointerEvent) => setCurrentMs(clientXToMsCollapsed(e2.clientX));
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [layoutEndMs, setCurrentMs, clientXToMsCollapsed],
+  );
+
+  const wheelStateRef = useRef({ rawVisibleStartMs, rawVisibleDurationMs, padMs, timelineZoom, maxScrollMs });
+  wheelStateRef.current = { rawVisibleStartMs, rawVisibleDurationMs, padMs, timelineZoom, maxScrollMs };
+  const zoomAroundMsRef = useRef(zoomAroundMs);
+  zoomAroundMsRef.current = zoomAroundMs;
+  const keydownStateRef = useRef({ currentMs, endMs, setCurrentMs });
+  keydownStateRef.current = { currentMs, endMs, setCurrentMs };
+
+  const attachWheelListener = useCallback((el: HTMLDivElement | null) => {
+    if (wheelCleanupRef.current) {
+      wheelCleanupRef.current();
+      wheelCleanupRef.current = null;
+    }
+    trackStripRef.current = el;
+    if (!el) return;
+
+    const wheelHandler = (e: WheelEvent) => {
+      e.preventDefault();
+      const { rawVisibleStartMs: rawVs, rawVisibleDurationMs: rawVd, padMs: pm, timelineZoom: z, maxScrollMs: ms } = wheelStateRef.current;
+
+      if (e.ctrlKey || e.metaKey) {
+        const rect = el.getBoundingClientRect();
+        const pointerFrac = (e.clientX - rect.left) / rect.width;
+        const anchorMs = (rawVs - pm) + pointerFrac * (rawVd + pm);
+        const delta = -e.deltaY * TIMELINE_ZOOM_FACTOR;
+        zoomAroundMsRef.current(z * Math.exp(delta), anchorMs);
+      } else {
+        if (ms <= 0) return;
+        const deltaPx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        const rect = el.getBoundingClientRect();
+        const deltaMs = (deltaPx / rect.width) * rawVd;
+        const newStart = rawVs + deltaMs;
+        setScrollFraction(Math.max(0, Math.min(1, newStart / ms)));
+      }
+    };
+
+    const keydownHandler = (e: KeyboardEvent) => {
+      const { currentMs: cur, endMs: end, setCurrentMs: setCur } = keydownStateRef.current;
+      const step = e.shiftKey ? 200 : 50;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setCur(Math.max(0, cur - step));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setCur(Math.min(end, cur + step));
+      }
+    };
+
+    el.addEventListener('wheel', wheelHandler, { passive: false });
+    el.addEventListener('keydown', keydownHandler);
+    wheelCleanupRef.current = () => {
+      el.removeEventListener('wheel', wheelHandler);
+      el.removeEventListener('keydown', keydownHandler);
+    };
+  }, []);
+
+  const emptySegments = useMemo((): { startMs: number; endMs: number }[] => {
+    if (visibleDurationMs <= 0 || visibleEndMs <= layoutEndMs) return [];
+    const segStart = Math.max(layoutEndMs, visibleStartMs);
+    const segEnd = visibleEndMs;
+    if (segStart >= segEnd) return [];
+    return [{ startMs: segStart, endMs: segEnd }];
+  }, [layoutEndMs, visibleStartMs, visibleEndMs, visibleDurationMs]);
+
+  const clientXToMs = useCallback((clientX: number): number => {
+    const el = trackStripRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const t = visibleStartMs + (x / rect.width) * visibleDurationMs;
+    return Math.max(0, Math.min(layoutEndMs, t));
+  }, [visibleStartMs, visibleDurationMs, layoutEndMs]);
+
+  const handleTrackPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
+      setSelectedClipId(null);
+      setIsDragging(true);
+      setIsPlaying(false);
+      setCurrentMs(clientXToMs(e.clientX));
+      const playheadCursorOverride = document.createElement('style');
+      playheadCursorOverride.textContent = `* { cursor: ${CURSORS.resizeH} !important; }`;
+      document.head.appendChild(playheadCursorOverride);
+      const onMove = (e2: PointerEvent) => setCurrentMs(clientXToMs(e2.clientX));
+      const onUp = () => {
+        setIsDragging(false);
+        playheadCursorOverride.remove();
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [clientXToMs, setSelectedClipId, setIsPlaying, setCurrentMs],
+  );
+
+  const handleTrackPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      const el = trackStripRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const playheadX = rect.left + (playheadPercent / 100) * rect.width;
+      const near = Math.abs(e.clientX - playheadX) <= PLAYHEAD_HIT_PX;
+      setIsNearPlayhead(near);
+    },
+    [playheadPercent],
+  );
+
+  const handleTrackPointerLeave = useCallback(() => {
+    setIsNearPlayhead(false);
+  }, []);
+
+  const handlePlay = useCallback(() => {
+    if (currentMs >= endMs) setCurrentMs(0);
+    setIsPlaying((p: boolean) => !p);
+  }, [currentMs, endMs, setCurrentMs, setIsPlaying]);
+
+  const handleStop = useCallback(() => {
+    setIsPlaying(false);
+    setCurrentMs(0);
+  }, [setIsPlaying, setCurrentMs]);
+
+  const handleLoop = useCallback(() => setLoop((l: boolean) => !l), [setLoop]);
+
+  const toggleCollapse = useCallback((nodeId: string) => {
+    setCollapsedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }, []);
+
+  useAction('timeline.toggle-play', handlePlay);
+  useAction('timeline.zoom-in', zoomIn);
+  useAction('timeline.zoom-out', zoomOut);
+
+  const handleDeleteClip = useCallback(() => {
+    if (!selectedClipId) return;
+    removeAnimation(selectedClipId);
+    setSelectedClipId(null);
+  }, [selectedClipId, removeAnimation, setSelectedClipId]);
+
+  useAction('delete', handleDeleteClip);
+
+  return (
+    <div
+      className="w-full h-full flex flex-col shrink-0 bg-bg border-t border-border pointer-events-auto overflow-hidden select-none"
+    >
+      {/* Timeline header */}
+      <header className={clsx('shrink-0 border-b border-border', !expanded && 'border-b-0')}>
+        {/* Top row: play, record, time; collapsed mini playhead strip; expand/collapse */}
+        <div className="flex items-center" style={{ height: HEADER_TOP_HEIGHT, paddingLeft: 10, paddingRight: 10 }}>
+          <div className="flex items-center gap-2 shrink-0">
+            <IconButton aria-label={isPlaying ? 'Pause' : 'Play'} size="md" onClick={handlePlay}>
+              {isPlaying ? <Icon24Pause /> : <Icon24Play />}
+            </IconButton>
+            <IconButton aria-label="Stop" size="md" onClick={handleStop}>
+              <Icon24Record />
+            </IconButton>
+            <TimelineTimeInput
+              currentMs={currentMs}
+              endMs={endMs}
+              onCurrentMsChange={setCurrentMs}
+              loop={loop}
+              onLoopClick={handleLoop}
+            />
+          </div>
+          {layoutEndMs > 0 && (() => {
+            const cPad = layoutEndMs * TIMELINE_PAD_FRAC;
+            const cTotal = layoutEndMs + 2 * cPad;
+            const cLeft = (ms: number) => ((ms + cPad) / cTotal) * 100;
+            return (
+              <div
+                ref={collapsedStripRef}
+                className="flex-1 min-w-0 mx-2 relative flex items-center self-stretch cursor-default"
+                style={{
+                  opacity: expanded ? 0 : 1,
+                  pointerEvents: expanded ? 'none' : 'auto',
+                }}
+                onPointerDown={handleCollapsedStripPointerDown}
+                role="slider"
+                aria-label="Scrub playhead"
+                aria-valuemin={0}
+                aria-valuemax={layoutEndMs}
+                aria-valuenow={Math.round(currentMs)}
+              >
+                <div
+                  className="absolute inset-y-0 left-1 right-1 rounded-sm bg-bg"
+                  aria-hidden
+                />
+                <div
+                  className="absolute top-0 bottom-0 pointer-events-none flex flex-col items-center"
+                  style={{
+                    left: `${cLeft(currentMs)}%`,
+                    transform: 'translateX(-5.5px)',
+                    width: 11,
+                    zIndex: 10,
+                  }}
+                  aria-hidden
+                >
+                  <PlayheadThumb />
+                  <PlayheadLine />
+                </div>
+              </div>
+            );
+          })()}
+          <div className="shrink-0 ml-auto">
+            <IconButton
+              aria-label={expanded ? 'Collapse timeline' : 'Expand timeline'}
+              size="md"
+              onClick={onExpandCollapse}
+            >
+              <Icon24ChevronDownLarge className={clsx(!expanded && 'rotate-180')} />
+            </IconButton>
+          </div>
+        </div>
+        {/* Bottom row: "Timeline" left, ruler numbers right */}
+        {showBody && (
+          <div className="flex items-center" style={{ height: HEADER_BOTTOM_HEIGHT }}>
+            <div
+              className="shrink-0 flex items-center pl-3 pr-2 border-r border-border text-bodyMd text-text-tertiary truncate"
+              style={{ width: TREE_WIDTH_PX }}
+            >
+              {timelineFrameName}
+            </div>
+            <div className="flex-1 relative min-w-0 overflow-hidden" style={{ height: HEADER_BOTTOM_HEIGHT }}>
+              {rulerTicks.map((ms) => (
+                <div
+                  key={`t${ms}`}
+                  className="absolute pointer-events-none rounded-full"
+                  style={{
+                    left: visibleDurationMs > 0 ? `${((ms - visibleStartMs) / visibleDurationMs) * 100}%` : 0,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 3,
+                    height: 3,
+                    backgroundColor: 'var(--color-border)',
+                  }}
+                />
+              ))}
+              {rulerMarks.map(({ ms, label }) => (
+                <span
+                  key={ms}
+                  className="absolute text-bodyMd text-text-tertiary tabular-nums whitespace-nowrap pointer-events-none"
+                  style={{
+                    left: visibleDurationMs > 0 ? `${((ms - visibleStartMs) / visibleDurationMs) * 100}%` : 0,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Body */}
+      {showBody && (
+        <>
+          <div className="flex-1 flex min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto flex flex-row">
+              {/* Left: Tree grid */}
+              <div
+                className="shrink-0 flex flex-col border-r border-border bg-bg"
+                style={{ width: TREE_WIDTH_PX }}
+              >
+                {layers.length === 0 ? (
+                  <div className="px-3 py-2 text-bodyMd text-text-tertiary">Add an animation from the panel.</div>
+                ) : (
+                  <div className="pb-2">
+                    {layers.map((nodeId) => {
+                      const isLayerSelected = selectedLayerId === nodeId;
+                      const isCollapsed = collapsedNodes.has(nodeId);
+                      const node = store.getNode(Number(nodeId));
+                      const nodeAnims = frameAnimations.filter((a) => a.nodeId === nodeId);
+
+                      return (
+                        <div key={nodeId} className={clsx('border-b border-border', isLayerSelected && 'bg-bg-selected-secondary')}>
+                          <ButtonPrimitive
+                            type="button"
+                            className="relative flex items-center cursor-pointer select-none group w-full text-text border-0 pl-0"
+                            style={{ height: ROW_HEIGHT_PX }}
+                            onClick={() => {
+                              setSelectedLayerId(nodeId);
+                              toggleCollapse(nodeId);
+                              selectLayer(Number(nodeId));
+                            }}
+                          >
+                            {!isLayerSelected && (
+                              <div className="absolute inset-0 group-hover:bg-bg-hover" />
+                            )}
+                            <div className="relative flex items-center flex-1 min-w-0 pr-1" style={{ height: ROW_HEIGHT_PX }}>
+                              <ButtonPrimitive
+                                type="button"
+                                className="flex-shrink-0 p-0 border-0 cursor-pointer flex items-center justify-center w-4 h-4 mr-1 text-icon-tertiary hover:opacity-80"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleCollapse(nodeId);
+                                }}
+                                aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+                              >
+                                <LayerChevronIcon className={clsx('size-3', isCollapsed && '-rotate-90')} />
+                              </ButtonPrimitive>
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                {node && (
+                                  <span className="flex-shrink-0 text-icon-secondary">
+                                    <NodeTypeIcon node={node} />
+                                  </span>
+                                )}
+                                <span className="flex-1 min-w-0 truncate text-bodyMd">{layerDisplayName(node)}</span>
+                              </div>
+                            </div>
+                          </ButtonPrimitive>
+                          {!isCollapsed && nodeAnims.map((anim, animIdx) => {
+                            const isLast = animIdx === nodeAnims.length - 1;
+                            const TREE_LINE_LEFT = 30;
+                            return (
+                              <div
+                                key={anim.id}
+                                className="relative flex items-center select-none group w-full"
+                                style={{ height: ROW_HEIGHT_PX, paddingLeft: 48 }}
+                              >
+                                {!isLayerSelected && (
+                                  <div className="absolute inset-0 group-hover:bg-bg-hover" />
+                                )}
+                                <div
+                                  className="absolute pointer-events-none"
+                                  style={{
+                                    left: TREE_LINE_LEFT,
+                                    top: 0,
+                                    bottom: isLast ? '50%' : 0,
+                                    width: 1,
+                                    backgroundColor: 'var(--color-border)',
+                                  }}
+                                />
+                                <div
+                                  className="absolute pointer-events-none"
+                                  style={{
+                                    left: TREE_LINE_LEFT,
+                                    top: '50%',
+                                    width: 8,
+                                    height: 1,
+                                    backgroundColor: 'var(--color-border)',
+                                  }}
+                                />
+                                <div className="relative flex items-center gap-2 flex-1 min-w-0 px-1" style={{ height: ROW_HEIGHT_PX }}>
+                                  <span className="flex-1 min-w-0 truncate text-bodyMd text-text-secondary">{animationTypeLabel(anim.type)}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Timeline track area */}
+              {layers.length === 0 ? (
+                <div
+                  className="flex-1 min-w-0 flex flex-col items-center justify-center text-bodyMd text-text-tertiary text-center px-4"
+                  style={DOT_GRID_STYLE}
+                >
+                  <p className="max-w-[320px]">
+                    This is the animation timeline. Add an animation from the right panel to see it here.
+                  </p>
+                </div>
+              ) : (
+                <div
+                  ref={attachWheelListener}
+                  role="slider"
+                  aria-label="Timeline position"
+                  aria-valuemin={0}
+                  aria-valuemax={endMs}
+                  aria-valuenow={Math.round(currentMs)}
+                  tabIndex={0}
+                  className="relative overflow-hidden flex flex-col flex-1 min-h-full bg-bg"
+                  style={{ cursor: isDragging ? CURSORS.resizeH : isNearPlayhead ? CURSORS.resizeH : undefined, minWidth: 500 }}
+                  onPointerDown={handleTrackPointerDown}
+                  onPointerMove={handleTrackPointerMove}
+                  onPointerLeave={handleTrackPointerLeave}
+                >
+                  {/* Dotted bg in the left padding gap (before time 0) */}
+                  {visibleStartMs < 0 && (
+                    <div
+                      className="absolute top-0 bottom-0 pointer-events-none"
+                      style={{
+                        zIndex: 0,
+                        left: 0,
+                        width: `${((-visibleStartMs) / visibleDurationMs) * 100}%`,
+                        ...DOT_GRID_STYLE,
+                        backgroundRepeat: 'repeat',
+                      }}
+                    />
+                  )}
+                  {visibleStartMs < 0 && (
+                    <div
+                      className="absolute top-0 bottom-0 z-[1] pointer-events-none"
+                      style={{
+                        left: `${((-visibleStartMs) / visibleDurationMs) * 100}%`,
+                        width: 1,
+                        backgroundColor: 'var(--color-border)',
+                      }}
+                    />
+                  )}
+                  {visibleEndMs > layoutEndMs && (
+                    <div
+                      className="absolute top-0 bottom-0 z-[1] pointer-events-none"
+                      style={{
+                        left: `${((layoutEndMs - visibleStartMs) / visibleDurationMs) * 100}%`,
+                        width: 1,
+                        backgroundColor: 'var(--color-border)',
+                      }}
+                    />
+                  )}
+                  <div className="absolute inset-0 pointer-events-none" style={Z_BASE_STYLE}>
+                    {emptySegments.map((seg, i) => (
+                      <div
+                        key={`empty-${i}`}
+                        className="absolute top-0 bottom-0"
+                        style={{
+                          left: `${((seg.startMs - visibleStartMs) / visibleDurationMs) * 100}%`,
+                          width: `${((seg.endMs - seg.startMs) / visibleDurationMs) * 100}%`,
+                          ...DOT_GRID_STYLE,
+                          backgroundRepeat: 'repeat',
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div className="relative flex flex-col" style={Z_BASE_STYLE}>
+                    {layers.map((nodeId) => {
+                      const isLayerSelected = selectedLayerId === nodeId;
+                      const isCollapsed = collapsedNodes.has(nodeId);
+                      const nodeAnims = frameAnimations.filter((a) => a.nodeId === nodeId);
+
+                      return (
+                        <div key={`tg-${nodeId}`} className={clsx('border-b border-border', isLayerSelected && 'bg-bg-selected-secondary')}>
+                          <div className="relative shrink-0 flex items-center px-1" style={{ height: ROW_HEIGHT_PX }}>
+                            {isCollapsed && nodeAnims.map((anim) => (
+                              <TimelineClipBar
+                                key={anim.id}
+                                anim={anim}
+                                isSelected={isLayerSelected}
+                                isClipSelected={selectedClipId === anim.id}
+                                onSelect={() => {
+                                  setSelectedClipId(anim.id);
+                                  setSelectedLayerId(nodeId);
+                                  selectLayer(Number(nodeId));
+                                  trackStripRef.current?.focus();
+                                }}
+                                clientXToMs={clientXToMs}
+                                moveClipAndPush={moveClipAndPush}
+                                updateAnimation={updateAnimation}
+                                trackEndMs={layoutEndMs}
+                                visibleStartMs={visibleStartMs}
+                                visibleDurationMs={visibleDurationMs}
+                                onDragStart={handleClipDragStart}
+                                onDragEnd={handleClipDragEnd}
+                                allAnimations={frameAnimations}
+                                trackAnimations={nodeAnims}
+                                onSnapGuide={setSnapGuideMs}
+                              />
+                            ))}
+                          </div>
+                          {!isCollapsed && nodeAnims.map((anim) => (
+                            <div key={anim.id} className="relative shrink-0 flex items-center px-1" style={{ height: ROW_HEIGHT_PX }}>
+                              <TimelineClipBar
+                                anim={anim}
+                                isSelected={isLayerSelected}
+                                isClipSelected={selectedClipId === anim.id}
+                                onSelect={() => {
+                                  setSelectedClipId(anim.id);
+                                  setSelectedLayerId(nodeId);
+                                  selectLayer(Number(nodeId));
+                                  trackStripRef.current?.focus();
+                                }}
+                                clientXToMs={clientXToMs}
+                                moveClipAndPush={moveClipAndPush}
+                                updateAnimation={updateAnimation}
+                                trackEndMs={layoutEndMs}
+                                visibleStartMs={visibleStartMs}
+                                visibleDurationMs={visibleDurationMs}
+                                onDragStart={handleClipDragStart}
+                                onDragEnd={handleClipDragEnd}
+                                allAnimations={frameAnimations}
+                                trackAnimations={nodeAnims}
+                                onSnapGuide={setSnapGuideMs}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Snap alignment guide */}
+                  {snapGuideMs !== null && visibleDurationMs > 0 && (
+                    <div
+                      className="absolute top-0 bottom-0 z-[90] pointer-events-none"
+                      style={{
+                        left: `${((snapGuideMs - visibleStartMs) / visibleDurationMs) * 100}%`,
+                        width: 1,
+                        backgroundColor: '#F24822',
+                      }}
+                      aria-hidden
+                    />
+                  )}
+                  {/* Playhead */}
+                  <div
+                    className="absolute top-0 bottom-0 z-[100] pointer-events-none flex flex-col items-center"
+                    style={{ left: `${playheadPercent}%`, transform: 'translateX(-5.5px)', width: 11 }}
+                  >
+                    <PlayheadThumb />
+                    <PlayheadLine />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Custom horizontal scrollbar */}
+          {timelineZoom > 1 && layers.length > 0 && (
+            <TimelineScrollbar
+              zoom={timelineZoom}
+              scrollFraction={scrollFraction}
+              onScrollChange={setScrollFraction}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function TimelineScrollbar({
+  zoom,
+  scrollFraction,
+  onScrollChange,
+}: {
+  zoom: number;
+  scrollFraction: number;
+  onScrollChange: (f: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const thumbFraction = 1 / zoom;
+  const thumbLeft = scrollFraction * (1 - thumbFraction);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    const track = trackRef.current;
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const treeOffset = TREE_WIDTH_PX;
+    const trackLeft = rect.left + treeOffset;
+    const trackWidth = rect.width - treeOffset;
+    const thumbWidthPx = thumbFraction * trackWidth;
+
+    const update = (clientX: number) => {
+      const x = clientX - trackLeft - thumbWidthPx / 2;
+      const maxX = trackWidth - thumbWidthPx;
+      onScrollChange(Math.max(0, Math.min(1, maxX > 0 ? x / maxX : 0)));
+    };
+    update(e.clientX);
+    const onMove = (ev: PointerEvent) => update(ev.clientX);
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [thumbFraction, onScrollChange]);
+
+  return (
+    <div
+      ref={trackRef}
+      className="shrink-0 flex items-center border-t border-border cursor-pointer"
+      style={{ height: SCROLLBAR_HEIGHT_PX, paddingLeft: TREE_WIDTH_PX }}
+      onPointerDown={onPointerDown}
+    >
+      <div className="relative flex-1 h-full">
+        <div
+          className="absolute top-1 bottom-1 rounded-full bg-icon-tertiary/40 hover:bg-icon-tertiary/60 transition-colors"
+          style={{
+            left: `${thumbLeft * 100}%`,
+            width: `${thumbFraction * 100}%`,
+            minWidth: 24,
+          }}
+        />
+      </div>
+    </div>
+  );
+}

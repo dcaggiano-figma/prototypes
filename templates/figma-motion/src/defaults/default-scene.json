@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "sessionId": 0,
+  "maxLocalId": 130,
+  "documentId": 1,
+  "nodes": [
+    [
+      1,
+      {
+        "id": 1,
+        "name": "Document",
+        "type": "DOCUMENT",
+        "parentId": null,
+        "children": [
+          2
+        ],
+        "visible": true,
+        "locked": false,
+        "compoundOwner": null
+      }
+    ],
+    [
+      2,
+      {
+        "name": "Page 1",
+        "visible": true,
+        "locked": false,
+        "children": [
+          129
+        ],
+        "compoundOwner": null,
+        "backgroundColor": {
+          "r": 245,
+          "g": 244,
+          "b": 243
+        },
+        "backgroundVisible": true,
+        "id": 2,
+        "type": "CANVAS",
+        "parentId": 1
+      }
+    ],
+    [
+      129,
+      {
+        "name": "Frame 129",
+        "visible": true,
+        "locked": false,
+        "children": [
+          130
+        ],
+        "compoundOwner": null,
+        "x": 3981,
+        "y": 817,
+        "width": 615,
+        "height": 592,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 255,
+              "g": 255,
+              "b": 255
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p9"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "clipsContent": true,
+        "layoutMode": "NONE",
+        "itemSpacing": 0,
+        "paddingTop": 0,
+        "paddingRight": 0,
+        "paddingBottom": 0,
+        "paddingLeft": 0,
+        "id": 129,
+        "type": "FRAME",
+        "parentId": 2
+      }
+    ],
+    [
+      130,
+      {
+        "name": "Rectangle 130",
+        "visible": true,
+        "locked": false,
+        "children": [],
+        "compoundOwner": null,
+        "x": 55,
+        "y": 42,
+        "width": 312,
+        "height": 218,
+        "rotation": 0,
+        "opacity": 1,
+        "cornerRadius": 0,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 217,
+              "g": 217,
+              "b": 217
+            },
+            "opacity": 1,
+            "visible": true,
+            "id": "p8"
+          }
+        ],
+        "strokes": [],
+        "strokeWeight": 1,
+        "strokeAlign": "CENTER",
+        "effects": [],
+        "id": 130,
+        "type": "RECTANGLE",
+        "parentId": 129
+      }
+    ]
+  ]
+}
