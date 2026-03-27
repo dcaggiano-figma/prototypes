@@ -19,37 +19,48 @@ function useCommitKeyframesOnStop() {
   const { selectedIds } = useSelection();
   const wasPlayingRef = useRef(false);
 
-  useEffect(() => {
-    const isPlaying = playback?.isPlaying ?? false;
+  const commitKeyframes = () => {
+    if (!kfStore || !playback) return;
+    const currentMs = playback.currentMs;
 
-    // Detect transition from playing → stopped
-    if (wasPlayingRef.current && !isPlaying && kfStore && playback) {
-      const currentMs = playback.currentMs;
+    for (const nodeId of selectedIds) {
+      const node = sg.getNode(nodeId);
+      if (!node || !isGeometryNode(node)) continue;
 
-      for (const nodeId of selectedIds) {
-        const node = sg.getNode(nodeId);
-        if (!node || !isGeometryNode(node)) continue;
+      const nodeKfs = kfStore.getNodeKeyframes(String(nodeId));
+      if (nodeKfs.size === 0) continue;
 
-        const nodeKfs = kfStore.getNodeKeyframes(String(nodeId));
-        if (nodeKfs.size === 0) continue;
-
-        const updates: Record<string, number> = {};
-        for (const [prop, kfs] of nodeKfs) {
-          if (kfs.length < 2) continue;
-          const val = interpolateKeyframes(kfs, currentMs);
-          if (val !== undefined) {
-            updates[prop] = val;
-          }
-        }
-
-        if (Object.keys(updates).length > 0) {
-          sg.updateNode(nodeId, updates);
+      const updates: Record<string, number> = {};
+      for (const [prop, kfs] of nodeKfs) {
+        if (kfs.length < 2) continue;
+        const val = interpolateKeyframes(kfs, currentMs);
+        if (val !== undefined) {
+          updates[prop] = val;
         }
       }
-    }
 
+      if (Object.keys(updates).length > 0) {
+        sg.updateNode(nodeId, updates);
+      }
+    }
+  };
+
+  // Commit when playback stops
+  useEffect(() => {
+    const isPlaying = playback?.isPlaying ?? false;
+    if (wasPlayingRef.current && !isPlaying) {
+      commitKeyframes();
+    }
     wasPlayingRef.current = isPlaying;
-  }, [playback?.isPlaying, playback?.currentMs, kfStore, sg, selectedIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playback?.isPlaying]);
+
+  // Commit when scrubbing the playhead while stopped
+  useEffect(() => {
+    if (playback?.isPlaying) return;
+    commitKeyframes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playback?.currentMs]);
 }
 
 export function SelectionOverlay() {
