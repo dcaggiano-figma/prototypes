@@ -30,9 +30,13 @@ function useCommitKeyframesOnStop() {
       const nodeKfs = kfStore.getNodeKeyframes(String(nodeId));
       if (nodeKfs.size === 0) continue;
 
+      // Only commit width/height to scene graph — x, y, rotation, and
+      // opacity are animated via CSS transforms and should NOT be written
+      // back, as that would shift the base position and corrupt the motion path.
       const updates: Record<string, number> = {};
-      for (const [prop, kfs] of nodeKfs) {
-        if (kfs.length < 2) continue;
+      for (const prop of ['width', 'height'] as const) {
+        const kfs = nodeKfs.get(prop);
+        if (!kfs || kfs.length < 2) continue;
         const val = interpolateKeyframes(kfs, currentMs);
         if (val !== undefined) {
           updates[prop] = val;
