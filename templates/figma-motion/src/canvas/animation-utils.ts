@@ -144,6 +144,8 @@ export function computeKeyframeStyle(
 ): CSSProperties {
   const style: CSSProperties = {};
   const transforms: string[] = [];
+  let scaleX = 1;
+  let scaleY = 1;
 
   for (const [prop, kfs] of nodeKeyframes) {
     if (kfs.length < 2) continue;
@@ -152,8 +154,12 @@ export function computeKeyframeStyle(
 
     if (prop === 'opacity') {
       style.opacity = val;
-    } else if (prop === 'width' || prop === 'height') {
-      style[prop] = val;
+    } else if (prop === 'width') {
+      const baseW = baseNode?.width ?? val;
+      if (baseW > 0) scaleX = val / baseW;
+    } else if (prop === 'height') {
+      const baseH = baseNode?.height ?? val;
+      if (baseH > 0) scaleY = val / baseH;
     } else if (prop in KF_TRANSFORM_PROPS) {
       const def = KF_TRANSFORM_PROPS[prop]!;
       const baseVal = baseNode ? baseNode[prop as 'x' | 'y' | 'rotation'] : 0;
@@ -162,8 +168,12 @@ export function computeKeyframeStyle(
         transforms.push(`${def.fn}(${delta}${def.unit})`);
       }
     }
-    // width/height are not animated via CSS — they are committed to the
-    // scene graph when playback stops or the playhead is scrubbed.
+  }
+
+  // Apply size changes as scale from center
+  if (scaleX !== 1 || scaleY !== 1) {
+    transforms.push(`scale(${scaleX}, ${scaleY})`);
+    style.transformOrigin = 'center';
   }
 
   if (transforms.length > 0) {
