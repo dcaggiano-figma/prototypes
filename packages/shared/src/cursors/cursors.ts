@@ -47,7 +47,11 @@ export const CURSORS = {
   resizeNWSE: cursor(cursorResizeNWSE, 16, 16, 'nwse-resize'),
   resizeNESW: cursor(cursorResizeNESW, 16, 16, 'nesw-resize'),
 
-  // Timeline trim cursors
+  // Timeline cursors
   trimLeft: 'col-resize',
   trimRight: 'col-resize',
+  scissors: 'crosshair',
+  guideAdd: 'copy',
+  guideDelete: 'no-drop',
+  guideDrag: 'ew-resize',
 } as const;
