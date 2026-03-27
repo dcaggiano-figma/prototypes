@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import clsx from 'clsx';
 import {
   ButtonPrimitive, Checkbox, FormattedInput, HiddenLabel, HiddenLegend, IconButton, Input, Label, ScrollContainer, SegmentedControl, Select, Tabs,
 } from '@figma/fpl-components';
@@ -90,9 +91,77 @@ import { PropertySection, PropertyRow, PlaceholderSection } from '@prototype/sha
 import { NumericField, positiveFormatter, percentFormatter, type NumericFieldChangeOpts } from '../numeric-field';
 import { ColorSwatch, HexInput, OpacityInput } from '../color-inputs';
 import { useAnimationStore, type AnimationColor, type AnimationType, type EasingType, type TimelineAnimation } from '../../contexts/AnimationStoreContext';
+import { useKeyframeStoreOptional, type KeyframeableProperty } from '../../contexts/KeyframeStoreContext';
+import { usePlaybackOptional } from '../../contexts/PlaybackContext';
+import { interpolateKeyframes } from '../../canvas/animation-utils';
 import { Icon24ChevronLeftLarge } from '@figma/fpl-icons';
 
 const FONT_SIZE_PRESETS = ['10', '11', '12', '13', '14', '15', '16', '20', '24', '32', '36', '40', '48', '64', '96', '128'];
+
+// ── Keyframe helpers ────────────────────────────────────────────────
+
+function KeyframeDiamondIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width={10} height={10} viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path
+        d="M4.23218 0.646484C4.42743 0.451336 4.74397 0.451311 4.93921 0.646484L8.52515 4.23242C8.7203 4.42766 8.7203 4.74421 8.52515 4.93945L4.93921 8.52539C4.74397 8.72057 4.42743 8.72054 4.23218 8.52539L0.64624 4.93945C0.451075 4.74421 0.451075 4.42767 0.64624 4.23242L4.23218 0.646484Z"
+        fill={active ? '#0D99FF' : 'none'}
+        stroke={active ? '#0D99FF' : 'currentColor'}
+        strokeOpacity={active ? 1 : 0.5}
+      />
+    </svg>
+  );
+}
+
+/** Diamond button that toggles keyframing for a property on a node. */
+function KeyframePropToggle({ nodeId, property, value }: { nodeId: string; property: KeyframeableProperty; value: number }) {
+  const kfStore = useKeyframeStoreOptional();
+  const playback = usePlaybackOptional();
+  if (!kfStore) return null;
+
+  const isEnabled = kfStore.autoKeyframeActive || kfStore.isPropertyEnabled(nodeId, property);
+
+  return (
+    <ButtonPrimitive
+      aria-label={`Toggle keyframe for ${property}`}
+      className="flex items-center justify-center size-24px shrink-0 p-0 cursor-pointer rounded-r rounded-l-none border border-solid bg-bg border-border hover:bg-bg-hover"
+      style={isEnabled ? { borderColor: 'var(--color-border-selected, #0D99FF)' } : undefined}
+      onClick={() => {
+        kfStore.togglePropertyKeyframing(nodeId, property, value, playback?.currentMs ?? 0);
+      }}
+    >
+      <KeyframeDiamondIcon active={isEnabled} />
+    </ButtonPrimitive>
+  );
+}
+
+/** Returns the interpolated keyframe value if keyframes exist, otherwise the raw value. */
+function useKeyframeValue(nodeId: string, property: KeyframeableProperty, rawValue: number): number {
+  const kfStore = useKeyframeStoreOptional();
+  const playback = usePlaybackOptional();
+  if (!kfStore || !playback) return rawValue;
+  const kfs = kfStore.getKeyframes(nodeId, property);
+  if (kfs.length === 0) return rawValue;
+  return interpolateKeyframes(kfs, playback.currentMs) ?? rawValue;
+}
+
+/** Returns a callback that stamps a keyframe when auto-keyframe is active or the property is enabled. */
+function useKeyframeStamp(nodeId: string) {
+  const kfStore = useKeyframeStoreOptional();
+  const playback = usePlaybackOptional();
+  const autoActive = kfStore?.autoKeyframeActive ?? false;
+
+  return useCallback(
+    (property: KeyframeableProperty, value: number, baseValue?: number) => {
+      if (!kfStore || !playback) return;
+      const shouldStamp = autoActive || kfStore.isPropertyEnabled(nodeId, property);
+      if (shouldStamp) {
+        kfStore.addKeyframe(nodeId, property, playback.currentMs, value, baseValue);
+      }
+    },
+    [kfStore, playback, nodeId, autoActive],
+  );
+}
 
 type DesignTab = 'design' | 'prototype';
 
@@ -190,7 +259,7 @@ function NoSelectionState() {
 
 // ── Selection properties (unified for single + multi) ─────────────────
 
-function SelectionProperties({ selectedIds }: { selectedIds: ReadonlySet<NodeId> }) {
+function SelectionProperties({ selectedIds, animateMode }: { selectedIds: ReadonlySet<NodeId>; animateMode?: boolean }) {
   const sg = useSceneGraph();
 
   // Classify which node types are in the selection
@@ -223,17 +292,17 @@ function SelectionProperties({ selectedIds }: { selectedIds: ReadonlySet<NodeId>
       <SelectionHeader singleNode={singleNode} count={selectedIds.size} />
 
       {/* Position — always shown when all are geometry */}
-      {allGeometry && <PositionSection selectedIds={selectedIds} geoCount={geoCount} />}
+      {allGeometry && <PositionSection selectedIds={selectedIds} geoCount={geoCount} animateMode={animateMode} />}
 
       {/* Layout — text has its own layout section, otherwise show for geometry */}
       {allText && <TextLayoutSection />}
-      {!allText && allGeometry && <LayoutSection singleNode={singleNode as GeometryNode | null} />}
+      {!allText && allGeometry && <LayoutSection singleNode={singleNode as GeometryNode | null} animateMode={animateMode} />}
 
       {/* Typography — only for text nodes */}
       {allText && <TypographySection />}
 
       {/* Appearance — shown when all are geometry */}
-      {allGeometry && <AppearanceSection singleNode={singleNode as GeometryNode | null} allAppearance={allAppearance} />}
+      {allGeometry && <AppearanceSection singleNode={singleNode as GeometryNode | null} allAppearance={allAppearance} animateMode={animateMode} />}
 
       {/* Fill/Stroke — shown when all support appearance */}
       {allAppearance && <FillSection />}
@@ -280,7 +349,7 @@ function nodeTypeLabel(node: SceneNode): string {
 
 // ── Position ────────────────────────────────────────────────────────
 
-function PositionSection({ selectedIds, geoCount }: { selectedIds: ReadonlySet<NodeId>; geoCount: number }) {
+function PositionSection({ selectedIds, geoCount, animateMode }: { selectedIds: ReadonlySet<NodeId>; geoCount: number; animateMode?: boolean }) {
   const sg = useSceneGraph();
   const [x, setX] = useSelectionProperty('x');
   const [y, setY] = useSelectionProperty('y');
@@ -290,6 +359,41 @@ function PositionSection({ selectedIds, geoCount }: { selectedIds: ReadonlySet<N
   const mixedRotation = useMixedChangeHandler('rotation');
 
   const { handleAlign, handleDistribute, alignEnabled, distributeEnabled } = useAlignHandler(sg, selectedIds);
+
+  // Keyframe support — only active in animate mode with a single selection
+  const singleId = selectedIds.size === 1 ? String(selectedIds.values().next().value as NodeId) : '';
+  const showKf = Boolean(animateMode && singleId);
+  const stampKeyframe = useKeyframeStamp(singleId);
+  const displayX = useKeyframeValue(singleId, 'x', typeof x === 'number' ? x : 0);
+  const displayY = useKeyframeValue(singleId, 'y', typeof y === 'number' ? y : 0);
+  const displayRotation = useKeyframeValue(singleId, 'rotation', typeof rotation === 'number' ? rotation : 0);
+
+  const handleX = useCallback(
+    (v: number, opts?: NumericFieldChangeOpts) => {
+      const oldVal = typeof x === 'number' ? x : 0;
+      setX(v, opts);
+      if (showKf) stampKeyframe('x', v, oldVal);
+    },
+    [setX, showKf, stampKeyframe, x],
+  );
+
+  const handleY = useCallback(
+    (v: number, opts?: NumericFieldChangeOpts) => {
+      const oldVal = typeof y === 'number' ? y : 0;
+      setY(v, opts);
+      if (showKf) stampKeyframe('y', v, oldVal);
+    },
+    [setY, showKf, stampKeyframe, y],
+  );
+
+  const handleRotation = useCallback(
+    (v: number, opts?: NumericFieldChangeOpts) => {
+      const oldVal = typeof rotation === 'number' ? rotation : 0;
+      setRotation(v, opts);
+      if (showKf) stampKeyframe('rotation', v, oldVal);
+    },
+    [setRotation, showKf, stampKeyframe, rotation],
+  );
 
   const isMulti = geoCount >= 2;
   const tidyMenu = MenuV2.useMenu();
@@ -332,28 +436,43 @@ function PositionSection({ selectedIds, geoCount }: { selectedIds: ReadonlySet<N
         )}
       </PropertyRow>
       <PropertyRow>
-        <NumericField
-          label="X"
-          value={x ?? 0}
-          onChange={setX}
-          onMixedChange={mixedX}
-        />
-        <NumericField
-          label="Y"
-          value={y ?? 0}
-          onChange={setY}
-          onMixedChange={mixedY}
-        />
+        <div className="flex items-center min-w-0">
+          <div className={clsx('flex-1 min-w-0', showKf && '[&_input]:rounded-r-none')}>
+            <NumericField
+              label="X"
+              value={showKf ? displayX : (x ?? 0)}
+              onChange={handleX}
+              onMixedChange={mixedX}
+            />
+          </div>
+          {showKf && <KeyframePropToggle nodeId={singleId} property="x" value={typeof x === 'number' ? x : 0} />}
+        </div>
+        <div className="flex items-center min-w-0">
+          <div className={clsx('flex-1 min-w-0', showKf && '[&_input]:rounded-r-none')}>
+            <NumericField
+              label="Y"
+              value={showKf ? displayY : (y ?? 0)}
+              onChange={handleY}
+              onMixedChange={mixedY}
+            />
+          </div>
+          {showKf && <KeyframePropToggle nodeId={singleId} property="y" value={typeof y === 'number' ? y : 0} />}
+        </div>
         <div />
       </PropertyRow>
       <PropertyRow>
-        <NumericField
-          label="Rotation"
-          value={rotation ?? 0}
-          onChange={setRotation}
-          onMixedChange={mixedRotation}
-          icon={<Icon24Rotation />}
-        />
+        <div className="flex items-center min-w-0">
+          <div className={clsx('flex-1 min-w-0', showKf && '[&_input]:rounded-r-none')}>
+            <NumericField
+              label="Rotation"
+              value={showKf ? displayRotation : (rotation ?? 0)}
+              onChange={handleRotation}
+              onMixedChange={mixedRotation}
+              icon={<Icon24Rotation />}
+            />
+          </div>
+          {showKf && <KeyframePropToggle nodeId={singleId} property="rotation" value={typeof rotation === 'number' ? rotation : 0} />}
+        </div>
         <IconButtonGroup>
           <IconButtonGroup.Button aria-label="Rotate"><Icon24Rotate /></IconButtonGroup.Button>
           <IconButtonGroup.Button aria-label="Flip horizontal"><Icon24FlipHorizontal /></IconButtonGroup.Button>
@@ -593,7 +712,7 @@ function TypographySection() {
 
 // ── Layout ──────────────────────────────────────────────────────────
 
-function LayoutSection({ singleNode }: { singleNode: GeometryNode | null }) {
+function LayoutSection({ singleNode, animateMode }: { singleNode: GeometryNode | null; animateMode?: boolean }) {
   const setProperties = useSelectionPropertySetter();
   const [width, setWidth] = useSelectionProperty('width');
   const [height, setHeight] = useSelectionProperty('height');
@@ -605,19 +724,63 @@ function LayoutSection({ singleNode }: { singleNode: GeometryNode | null }) {
   const aspectRatio = h !== 0 ? w / h : 1;
   const isFrame = singleNode?.type === 'FRAME';
 
+  // Keyframe support
+  const nodeId = singleNode ? String(singleNode.id) : '';
+  const showKf = Boolean(animateMode && singleNode);
+  const stampKeyframe = useKeyframeStamp(nodeId);
+  const displayW = useKeyframeValue(nodeId, 'width', w);
+  const displayH = useKeyframeValue(nodeId, 'height', h);
+
   const updateSize = useCallback(
     (field: string, value: number, opts: NumericFieldChangeOpts) => {
+      const oldW = w;
+      const oldH = h;
       if (constrained) {
         if (field === 'width') {
           setProperties({ width: value, height: value / aspectRatio }, opts);
+          if (showKf) {
+            stampKeyframe('width', value, oldW);
+            stampKeyframe('height', value / aspectRatio, oldH);
+          }
         } else {
           setProperties({ height: value, width: value * aspectRatio }, opts);
+          if (showKf) {
+            stampKeyframe('height', value, oldH);
+            stampKeyframe('width', value * aspectRatio, oldW);
+          }
         }
       } else {
         setProperties({ [field]: value }, opts);
+        if (showKf && (field === 'width' || field === 'height')) {
+          stampKeyframe(field as KeyframeableProperty, value, field === 'width' ? oldW : oldH);
+        }
       }
     },
-    [setProperties, constrained, aspectRatio],
+    [setProperties, constrained, aspectRatio, showKf, stampKeyframe, w, h],
+  );
+
+  const handleW = useCallback(
+    (v: number, opts: NumericFieldChangeOpts) => {
+      if (constrained) {
+        updateSize('width', v, opts);
+      } else {
+        setWidth(v, opts);
+        if (showKf) stampKeyframe('width', v, w);
+      }
+    },
+    [constrained, updateSize, setWidth, showKf, stampKeyframe, w],
+  );
+
+  const handleH = useCallback(
+    (v: number, opts: NumericFieldChangeOpts) => {
+      if (constrained) {
+        updateSize('height', v, opts);
+      } else {
+        setHeight(v, opts);
+        if (showKf) stampKeyframe('height', v, h);
+      }
+    },
+    [constrained, updateSize, setHeight, showKf, stampKeyframe, h],
   );
 
   return (
@@ -631,21 +794,52 @@ function LayoutSection({ singleNode }: { singleNode: GeometryNode | null }) {
       ) : undefined}
     >
       {isFrame && singleNode && <FrameLayoutRows />}
-      <PropertyRow columns="1fr 1fr 24px">
-        <NumericField
-          label="W"
-          value={width ?? 0}
-          onChange={constrained ? (v, opts) => updateSize('width', v, opts) : setWidth}
-          formatter={positiveFormatter}
-          onMixedChange={mixedW}
-        />
-        <NumericField
-          label="H"
-          value={height ?? 0}
-          onChange={constrained ? (v, opts) => updateSize('height', v, opts) : setHeight}
-          formatter={positiveFormatter}
-          onMixedChange={mixedH}
-        />
+      <PropertyRow columns={showKf ? undefined : '1fr 1fr 24px'}>
+        {showKf ? (
+          <>
+            <div className="flex items-center min-w-0">
+              <div className="flex-1 min-w-0 [&_input]:rounded-r-none">
+                <NumericField
+                  label="W"
+                  value={displayW}
+                  onChange={handleW}
+                  formatter={positiveFormatter}
+                  onMixedChange={mixedW}
+                />
+              </div>
+              <KeyframePropToggle nodeId={nodeId} property="width" value={w} />
+            </div>
+            <div className="flex items-center min-w-0">
+              <div className="flex-1 min-w-0 [&_input]:rounded-r-none">
+                <NumericField
+                  label="H"
+                  value={displayH}
+                  onChange={handleH}
+                  formatter={positiveFormatter}
+                  onMixedChange={mixedH}
+                />
+              </div>
+              <KeyframePropToggle nodeId={nodeId} property="height" value={h} />
+            </div>
+          </>
+        ) : (
+          <>
+            <NumericField
+              label="W"
+              value={width ?? 0}
+              onChange={constrained ? (v, opts) => updateSize('width', v, opts) : setWidth}
+              formatter={positiveFormatter}
+              onMixedChange={mixedW}
+            />
+            <NumericField
+              label="H"
+              value={height ?? 0}
+              onChange={constrained ? (v, opts) => updateSize('height', v, opts) : setHeight}
+              formatter={positiveFormatter}
+              onMixedChange={mixedH}
+            />
+          </>
+        )}
         <IconButton
           aria-label={constrained ? 'Unlock proportions' : 'Lock proportions'}
           onClick={() => setConstrained(!constrained)}
@@ -720,13 +914,30 @@ function FrameSpacingRows() {
 
 // ── Appearance ──────────────────────────────────────────────────────
 
-function AppearanceSection({ singleNode, allAppearance }: { singleNode: GeometryNode | null; allAppearance: boolean }) {
+function AppearanceSection({ singleNode, allAppearance, animateMode }: { singleNode: GeometryNode | null; allAppearance: boolean; animateMode?: boolean }) {
   const [opacity, setOpacity] = useSelectionProperty('opacity');
   const [cornerRadius, setCornerRadius] = useSelectionProperty('cornerRadius');
   const [sides, setSides] = useSelectionProperty('sides');
   const [points, setPoints] = useSelectionProperty('points');
   const [innerRadius, setInnerRadius] = useSelectionProperty('innerRadius');
   const mixedCornerRadius = useMixedChangeHandler('cornerRadius');
+
+  // Keyframe support
+  const nodeId = singleNode ? String(singleNode.id) : '';
+  const showKf = Boolean(animateMode && singleNode);
+  const stampKeyframe = useKeyframeStamp(nodeId);
+  const rawOpacity = typeof opacity === 'number' ? opacity : 1;
+  const displayOpacity = useKeyframeValue(nodeId, 'opacity', rawOpacity);
+
+  const handleOpacityChange = useCallback(
+    (v: number, opts?: NumericFieldChangeOpts) => {
+      const oldOpacity = rawOpacity;
+      const val = v / 100;
+      setOpacity(val, opts);
+      if (showKf) stampKeyframe('opacity', val, oldOpacity);
+    },
+    [setOpacity, showKf, stampKeyframe, rawOpacity],
+  );
 
   // Opacity is stored as 0-1 but displayed as 0-100. Wrap the handler
   // to convert between display space and storage space.
@@ -749,14 +960,19 @@ function AppearanceSection({ singleNode, allAppearance }: { singleNode: Geometry
       )}
     >
       <PropertyRow>
-        <NumericField
-          label="Opacity"
-          icon={<Icon24Opacity />}
-          value={isMixed(opacity) ? opacity : Math.round((opacity ?? 1) * 100)}
-          onChange={(v, opts) => setOpacity(v / 100, opts)}
-          formatter={percentFormatter}
-          onMixedChange={mixedOpacity}
-        />
+        <div className="flex items-center min-w-0">
+          <div className={clsx('flex-1 min-w-0', showKf && '[&_input]:rounded-r-none')}>
+            <NumericField
+              label="Opacity"
+              icon={<Icon24Opacity />}
+              value={showKf ? Math.round(displayOpacity * 100) : (isMixed(opacity) ? opacity : Math.round((opacity ?? 1) * 100))}
+              onChange={handleOpacityChange}
+              formatter={percentFormatter}
+              onMixedChange={mixedOpacity}
+            />
+          </div>
+          {showKf && <KeyframePropToggle nodeId={nodeId} property="opacity" value={rawOpacity} />}
+        </div>
         {allAppearance ? (
           <NumericField
             label="Corner radius"
@@ -1090,7 +1306,7 @@ export function AnimateModeContent() {
               {showAnimationSection && singleIdStr && (
                 <AnimationSection nodeId={singleIdStr} onOpenPresets={() => setPresetsForNodeId(singleIdStr)} />
               )}
-              <SelectionProperties selectedIds={selectedIds} />
+              <SelectionProperties selectedIds={selectedIds} animateMode />
             </>
           ) : (
             <NoSelectionState />

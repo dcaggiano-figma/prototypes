@@ -9,7 +9,7 @@ export interface Keyframe {
   value: number;
 }
 
-interface KeyframeStoreValue {
+export interface KeyframeStoreValue {
   autoKeyframeActive: boolean;
   setAutoKeyframeActive: (active: boolean | ((prev: boolean) => boolean)) => void;
   /** Properties that have keyframing enabled per node. */
