@@ -152,6 +152,8 @@ export function computeKeyframeStyle(
 
     if (prop === 'opacity') {
       style.opacity = val;
+    } else if (prop === 'width' || prop === 'height') {
+      style[prop] = val;
     } else if (prop in KF_TRANSFORM_PROPS) {
       const def = KF_TRANSFORM_PROPS[prop]!;
       const baseVal = baseNode ? baseNode[prop as 'x' | 'y' | 'rotation'] : 0;
