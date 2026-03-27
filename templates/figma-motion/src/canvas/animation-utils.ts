@@ -130,11 +130,6 @@ export function interpolateKeyframes(kfs: Keyframe[], currentMs: number): number
   return kfs[kfs.length - 1].value;
 }
 
-const KF_TRANSFORM_PROPS: Partial<Record<KeyframeableProperty, { fn: string; unit: string }>> = {
-  x: { fn: 'translateX', unit: 'px' },
-  y: { fn: 'translateY', unit: 'px' },
-  rotation: { fn: 'rotate', unit: 'deg' },
-};
 
 export function computeKeyframeStyle(
   nodeKeyframes: Map<KeyframeableProperty, Keyframe[]>,
@@ -144,36 +139,54 @@ export function computeKeyframeStyle(
   const style: CSSProperties = {};
   const transforms: string[] = [];
 
-  // Track size deltas for center-point compensation
-  let widthDelta = 0;
-  let heightDelta = 0;
-
+  // First pass: collect all interpolated values
+  const values = new Map<KeyframeableProperty, number>();
   for (const [prop, kfs] of nodeKeyframes) {
     if (kfs.length < 2) continue;
     const val = interpolateKeyframes(kfs, currentMs);
-    if (val === undefined) continue;
+    if (val !== undefined) values.set(prop, val);
+  }
 
+  // Size deltas for center-point compensation
+  const widthDelta = values.has('width') ? values.get('width')! - (baseNode?.width ?? 0) : 0;
+  const heightDelta = values.has('height') ? values.get('height')! - (baseNode?.height ?? 0) : 0;
+
+  for (const [prop, val] of values) {
     if (prop === 'opacity') {
       style.opacity = val;
     } else if (prop === 'width') {
       style.width = val;
-      widthDelta = val - (baseNode?.width ?? val);
     } else if (prop === 'height') {
       style.height = val;
-      heightDelta = val - (baseNode?.height ?? val);
-    } else if (prop in KF_TRANSFORM_PROPS) {
-      const def = KF_TRANSFORM_PROPS[prop]!;
-      const baseVal = baseNode ? baseNode[prop as 'x' | 'y' | 'rotation'] : 0;
+    } else if (prop === 'x') {
+      // Fold center compensation into x translate
+      const baseVal = baseNode?.x ?? 0;
+      const delta = val - baseVal - widthDelta / 2;
+      if (Math.abs(delta) > 0.001) {
+        transforms.push(`translateX(${delta}px)`);
+      }
+    } else if (prop === 'y') {
+      // Fold center compensation into y translate
+      const baseVal = baseNode?.y ?? 0;
+      const delta = val - baseVal - heightDelta / 2;
+      if (Math.abs(delta) > 0.001) {
+        transforms.push(`translateY(${delta}px)`);
+      }
+    } else if (prop === 'rotation') {
+      const baseVal = baseNode?.rotation ?? 0;
       const delta = val - baseVal;
       if (Math.abs(delta) > 0.001) {
-        transforms.push(`${def.fn}(${delta}${def.unit})`);
+        transforms.push(`rotate(${delta}deg)`);
       }
     }
   }
 
-  // Compensate position so size changes happen from the center point
-  if (Math.abs(widthDelta) > 0.001 || Math.abs(heightDelta) > 0.001) {
-    transforms.push(`translate(${-widthDelta / 2}px, ${-heightDelta / 2}px)`);
+  // If size changed but no x/y keyframes exist, still compensate position
+  if (!values.has('x') && Math.abs(widthDelta) > 0.001) {
+    transforms.push(`translateX(${-widthDelta / 2}px)`);
+  }
+  if (!values.has('y') && Math.abs(heightDelta) > 0.001) {
+    transforms.push(`translateY(${-heightDelta / 2}px)`);
   }
 
   if (transforms.length > 0) {
