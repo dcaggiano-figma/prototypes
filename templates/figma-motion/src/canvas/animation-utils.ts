@@ -144,8 +144,8 @@ export function computeKeyframeStyle(
 ): CSSProperties {
   const style: CSSProperties = {};
   const transforms: string[] = [];
-  let scaleX = 1;
-  let scaleY = 1;
+  let widthDelta = 0;
+  let heightDelta = 0;
 
   for (const [prop, kfs] of nodeKeyframes) {
     if (kfs.length < 2) continue;
@@ -155,11 +155,11 @@ export function computeKeyframeStyle(
     if (prop === 'opacity') {
       style.opacity = val;
     } else if (prop === 'width') {
-      const baseW = baseNode?.width ?? val;
-      if (baseW > 0) scaleX = val / baseW;
+      style.width = val;
+      widthDelta = val - (baseNode?.width ?? val);
     } else if (prop === 'height') {
-      const baseH = baseNode?.height ?? val;
-      if (baseH > 0) scaleY = val / baseH;
+      style.height = val;
+      heightDelta = val - (baseNode?.height ?? val);
     } else if (prop in KF_TRANSFORM_PROPS) {
       const def = KF_TRANSFORM_PROPS[prop]!;
       const baseVal = baseNode ? baseNode[prop as 'x' | 'y' | 'rotation'] : 0;
@@ -170,10 +170,11 @@ export function computeKeyframeStyle(
     }
   }
 
-  // Apply size changes as scale from center
-  if (scaleX !== 1 || scaleY !== 1) {
-    transforms.push(`scale(${scaleX}, ${scaleY})`);
-    style.transformOrigin = 'center';
+  // Compensate for size change so the node stays centered on the
+  // motion path (which uses scene-graph center: node.x + node.width/2).
+  // CSS width/height grows from top-left, so shift back by half the delta.
+  if (Math.abs(widthDelta) > 0.001 || Math.abs(heightDelta) > 0.001) {
+    transforms.push(`translate(${-widthDelta / 2}px, ${-heightDelta / 2}px)`);
   }
 
   if (transforms.length > 0) {
