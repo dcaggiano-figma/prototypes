@@ -48,6 +48,7 @@ import {
   Icon24CodeToolLarge,
   Icon24CommentNewLarge,
   Icon24ConnectorElbowLarge,
+  Icon24CutLarge,
 } from '@figma/fpl-icons';
 import { Toolbar as SharedToolbar, ModeSwitcher, type SubTool } from '@prototype/shared';
 import styles from './Toolbar.module.css';
@@ -81,6 +82,7 @@ function mapToolId(id: string): ToolType {
     case 'draw-brush': return 'PENCIL';
     case 'section': return 'SECTION';
     case 'comment': case 'comment-draw': case 'comment-dev': return 'COMMENT';
+    case 'cut': return 'CUT' as ToolType;
     default: return 'MOVE';
   }
 }
@@ -224,6 +226,12 @@ function getToolbarConfigs(): ToolbarConfigs {
     id: 'connector',
   };
 
+  const cutTool: ToolConfig = {
+    Icon: Icon24CutLarge,
+    label: 'Cut',
+    id: 'cut',
+  };
+
   return {
     move: {
       design: moveTool,
@@ -235,7 +243,7 @@ function getToolbarConfigs(): ToolbarConfigs {
       design: [frameTool, shapeTool, penTool, textTool, commentTool],
       draw: [frameTool, shapeTool, textTool, commentDrawTool],
       dev: [inspectTool, measureDevTool, codeToolDev, commentDevTool, connectorTool],
-      animate: [frameTool, shapeTool, penTool, textTool, commentTool],
+      animate: [frameTool, shapeTool, penTool, cutTool, textTool, commentTool],
     },
   };
 }
