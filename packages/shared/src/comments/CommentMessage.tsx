@@ -12,6 +12,7 @@ interface CommentMessageProps {
   body: string;
   createdAt: number;
   showSeparator?: boolean;
+  timestampChip?: React.ReactNode;
 }
 
 export function CommentMessage({
@@ -22,6 +23,7 @@ export function CommentMessage({
   body,
   createdAt,
   showSeparator = false,
+  timestampChip,
 }: CommentMessageProps) {
   return (
     <div className={showSeparator ? 'border-t border-border' : ''}>
@@ -37,7 +39,10 @@ export function CommentMessage({
               </IconButton>
             </div>
           </div>
-          <p className="text-bodyLg text-text mt-2 mb-2 whitespace-pre-wrap break-words">{body}</p>
+          <p className="text-bodyLg text-text mt-2 mb-2 whitespace-pre-wrap break-words">
+            {timestampChip && <>{timestampChip}{' '}</>}
+            {body}
+          </p>
         </div>
       </div>
     </div>

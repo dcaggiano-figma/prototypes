@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { IconButton, InputPrimitive, TextareaPrimitive } from '@figma/fpl-components';
 import { Icon24Emoji, Icon24Mention, Icon24Image, Icon24ArrowUp } from '@figma/fpl-icons';
+import { TimestampChip } from './TimestampChip';
 import { UserAvatar } from '../user-config';
 import styles from './comments.module.css';
 
@@ -8,9 +9,10 @@ interface CommentPopoverProps {
   onSubmit: (body: string) => void;
   onClose: () => void;
   style?: React.CSSProperties;
+  timestampMs?: number;
 }
 
-export function CommentPopover({ onSubmit, onClose, style }: CommentPopoverProps) {
+export function CommentPopover({ onSubmit, onClose, style, timestampMs }: CommentPopoverProps) {
   const [text, setText] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [shaking, setShaking] = useState(false);
@@ -76,6 +78,11 @@ export function CommentPopover({ onSubmit, onClose, style }: CommentPopoverProps
       style={{ width: 280, ...style }}
       onKeyDown={handleKeyDown}
     >
+      {timestampMs != null && (
+        <div className="px-3 pt-2">
+          <TimestampChip timestampMs={timestampMs} />
+        </div>
+      )}
       {!expanded ? (
         <div className="flex items-center gap-2 p-2">
           <UserAvatar size="md" />

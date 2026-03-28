@@ -16,6 +16,7 @@ interface CommentOverlayProps {
   threads: CommentThread[];
   worldToScreen: (wx: number, wy: number) => { x: number; y: number };
   getNodePosition?: (nodeId: string) => { x: number; y: number } | undefined;
+  onTimestampClick?: (timestampMs: number) => void;
 }
 
 export function CommentOverlay({
@@ -27,6 +28,7 @@ export function CommentOverlay({
   threads,
   worldToScreen,
   getNodePosition,
+  onTimestampClick,
 }: CommentOverlayProps) {
   const { config, initial } = useUserConfig();
 
@@ -98,6 +100,7 @@ export function CommentOverlay({
               <CommentPopover
                 onSubmit={handleCreateSubmit}
                 onClose={handleCreateClose}
+                timestampMs={interaction.timestampMs}
               />
             </div>
           </>
@@ -149,6 +152,7 @@ export function CommentOverlay({
                 key={selectedThread.id}
                 thread={selectedThread}
                 onClose={closeThread}
+                onTimestampClick={onTimestampClick}
                 onResolve={() => {
                   store.deleteThread(selectedThread.id);
                   setSelectedThreadId(null);

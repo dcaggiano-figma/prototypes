@@ -40,7 +40,7 @@ import { PatternLibraryWindow } from '@prototype/shared';
 import { DesignTabProvider, useDesignTabOptional } from '../contexts/DesignTabContext';
 import { TimelineVisibilityProvider } from '../contexts/TimelineVisibilityContext';
 import { AnimationStoreProvider } from '../contexts/AnimationStoreContext';
-import { PlaybackProvider } from '../contexts/PlaybackContext';
+import { PlaybackProvider, usePlaybackOptional } from '../contexts/PlaybackContext';
 import { KeyframeStoreProvider } from '../contexts/KeyframeStoreContext';
 import { CanvasWorkspaceInsetsProvider, type CanvasWorkspaceInsets } from '../contexts/CanvasWorkspaceInsetsContext';
 import { TimelinePanel, TIMELINE_PANEL_HEIGHT_PX, TIMELINE_COLLAPSED_HEIGHT_PX } from '../components/timeline';
@@ -134,6 +134,7 @@ function EditorLayout() {
 }
 
 function EditorContent() {
+  const playback = usePlaybackOptional();
   const helpMenu = MenuV2.useMenu();
   const featuresModal = PrototypeFeaturesModal();
   const contextMenu = useContextMenu();
@@ -490,6 +491,9 @@ function EditorContent() {
         store={commentsStore}
         threads={commentThreads}
         worldToScreen={viewport.worldToScreen}
+        onTimestampClick={(ms) => {
+          playback?.setCurrentMs(ms);
+        }}
       />
       </div>
 
