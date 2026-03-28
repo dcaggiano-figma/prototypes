@@ -38,6 +38,7 @@ export function CommentOverlay({
       nodeId: interaction.nodeId,
       nodeOffsetX: interaction.nodeOffsetX,
       nodeOffsetY: interaction.nodeOffsetY,
+      timestampMs: interaction.timestampMs,
     };
     const thread = store.createThread(anchor, {
       authorName: config.name,

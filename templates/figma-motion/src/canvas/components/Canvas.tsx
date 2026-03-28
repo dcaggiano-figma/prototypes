@@ -24,6 +24,7 @@ import {
 } from '@prototype/shared/canvas';
 import { CommentPinLayer, useComments } from '@prototype/shared';
 import { SelectionOverlay } from '../selection/overlay';
+import { usePlaybackOptional } from '../../contexts/PlaybackContext';
 import { useActiveTool } from '../tools/provider';
 import { useBehaviorChain } from '../behaviors';
 import { CURSORS } from '../cursors';
@@ -51,6 +52,7 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
   const { effectiveTool, setActiveTool, drawColor, drawStrokeWeight, drawOpacity, stickyColor, shapeColor, connectorLineShape } = useActiveTool();
   const textEditing = useTextEditing();
   const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
+  const playback = usePlaybackOptional();
 
   // Stable callbacks for CommentPinLayer's useSyncExternalStore.
   // The subscribe function must be referentially stable, and the snapshot
@@ -121,6 +123,8 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
           nodeOffsetX: placement.nodeOffsetX,
           nodeOffsetY: placement.nodeOffsetY,
         } : {}),
+        // In animate mode, pin the comment to the current playhead time
+        ...(playback ? { timestampMs: playback.currentMs } : {}),
       });
     },
     stickyColor,
