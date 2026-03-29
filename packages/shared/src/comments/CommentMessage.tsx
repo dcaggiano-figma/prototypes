@@ -39,10 +39,10 @@ export function CommentMessage({
               </IconButton>
             </div>
           </div>
-          <p className="text-bodyLg text-text mt-2 mb-2 whitespace-pre-wrap break-words items-baseline">
-            {timestampChip && <><span className="inline-flex align-baseline">{timestampChip}</span>{' '}</>}
-            {body}
-          </p>
+          <div className="text-bodyLg text-text mt-2 mb-2 whitespace-pre-wrap break-words flex items-baseline gap-1 flex-wrap">
+            {timestampChip}
+            <span>{body}</span>
+          </div>
         </div>
       </div>
     </div>
