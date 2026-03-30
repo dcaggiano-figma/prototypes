@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { ButtonPrimitive, IconButton, InputPrimitive } from '@figma/fpl-components';
-import { Icon24Play, Icon24Pause, Icon24ChevronDownLarge } from '@figma/fpl-icons';
+import { ButtonPrimitive, IconButton, InputPrimitive, ToggleButton } from '@figma/fpl-components';
+import { Icon24Play, Icon24Pause, Icon24ChevronDownLarge, Icon24Loop, Icon24LoopOff } from '@figma/fpl-icons';
 
 import { useAnimationStore } from '../../contexts/AnimationStoreContext';
 import { usePlayback } from '../../contexts/PlaybackContext';
@@ -11,7 +11,7 @@ import { useAction } from '../../actions/provider';
 import { useSceneGraph, useSelection } from '../../canvas';
 import type { SceneNode } from '../../canvas';
 import type { AnimationType, TimelineAnimation } from '../../contexts/AnimationStoreContext';
-import { Avatar, CURSORS, useComments } from '@prototype/shared';
+import { Avatar, CURSORS, Text, useComments } from '@prototype/shared';
 import type { CommentThread } from '@prototype/shared';
 import {
   Icon16Frame,
@@ -255,8 +255,8 @@ function TimelineTimeInput({
           className="min-w-0 shrink overflow-hidden text-left border-none p-0 cursor-text text-bodyMd tabular-nums text-text"
         >
           <span className="block truncate">
-            <span className="opacity-30">{leadingZeros}</span>
-            <span className="opacity-90">{mainDigits}</span>
+            <Text mono color='tertiary'>{leadingZeros}</Text>
+            <Text mono>{mainDigits}</Text>
           </span>
         </ButtonPrimitive>
       ) : (
@@ -264,7 +264,7 @@ function TimelineTimeInput({
           ref={inputRef}
           type="text"
           inputMode="numeric"
-          className="min-w-0 shrink bg-transparent border-none p-0 text-bodyMd tabular-nums text-text outline-none opacity-90"
+          className="min-w-0 shrink bg-transparent border-none p-0 text-bodyMd tabular-nums text-text outline-none font-mono"
           style={TIME_FIELD_STYLE}
           value={inputValue}
           onChange={(v) => setInputValue(v.replace(/\D/g, '').slice(0, 6))}
@@ -273,28 +273,16 @@ function TimelineTimeInput({
           aria-label="Current time (ms)"
         />
       )}
-      <span className="shrink-0 text-bodyMd tabular-nums text-text opacity-30"> / </span>
-      <span className="min-w-0 truncate text-bodyMd tabular-nums text-text opacity-50">{displayDuration}</span>
-      <span className="shrink-0 text-bodyMd text-text opacity-50">ms</span>
+      <Text mono color='tertiary' className="shrink-0 tabular-nums"> / </Text>
+      <Text mono truncate color="secondary" className="min-w-0 tabular-nums">{displayDuration}ms</Text>
       <div className="ml-auto shrink-0 flex items-center justify-center w-6 h-6">
-        <ButtonPrimitive
-          type="button"
-          onClick={onLoopClick}
+        <ToggleButton
+          checked={loop}
+          onChange={onLoopClick}
+          onIcon={<Icon24Loop />}
+          offIcon={<Icon24LoopOff />}
           aria-label={loop ? 'Loop on' : 'Loop off'}
-          className={clsx(
-            'flex items-center justify-center w-6 h-6 rounded-sm border-0 cursor-pointer text-text outline-none hover:opacity-80',
-            loop ? 'opacity-90' : 'opacity-50',
-          )}
-        >
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0" width={24} height={24} aria-hidden>
-            <path
-              fillRule="evenodd"
-              clipRule="evenodd"
-              d="M15 7.99996C17.2091 7.99996 19 9.79082 19 12C19 14.2091 17.2091 16 15 16H13.707L14.8535 17.1464C15.0488 17.3417 15.0488 17.6582 14.8535 17.8535C14.6583 18.0487 14.3417 18.0487 14.1465 17.8535L12.1465 15.8535C11.9512 15.6582 11.9512 15.3417 12.1465 15.1464L14.1465 13.1464C14.3417 12.9512 14.6583 12.9512 14.8535 13.1464C15.0488 13.3417 15.0488 13.6582 14.8535 13.8535L13.707 15H15C16.6569 15 18 13.6568 18 12C18 10.3431 16.6569 8.99996 15 8.99996H14.5C14.2239 8.99996 14 8.7761 14 8.49996C14 8.22382 14.2239 7.99996 14.5 7.99996H15ZM9.14648 6.14645C9.34175 5.95118 9.65825 5.95118 9.85352 6.14645L11.8535 8.14645C12.0488 8.34171 12.0488 8.65822 11.8535 8.85348L9.85352 10.8535C9.65825 11.0487 9.34175 11.0487 9.14648 10.8535C8.95122 10.6582 8.95122 10.3417 9.14648 10.1464L10.293 8.99996H9C7.34315 8.99996 6 10.3431 6 12C6 13.6568 7.34315 15 9 15H9.5C9.77614 15 10 15.2238 10 15.5C10 15.7761 9.77614 16 9.5 16H9C6.79086 16 5 14.2091 5 12C5 9.79082 6.79086 7.99996 9 7.99996H10.293L9.14648 6.85348C8.95122 6.65822 8.95122 6.34171 9.14648 6.14645Z"
-              fill="currentColor"
-            />
-          </svg>
-        </ButtonPrimitive>
+        />
       </div>
     </div>
   );

@@ -72,10 +72,13 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const speedRef = useRef(speed);
   speedRef.current = speed;
 
+  const currentMsRef = useRef(currentMs);
+  currentMsRef.current = currentMs;
+
   useEffect(() => {
     if (!isPlaying) return;
     let startTime = performance.now();
-    let baseMs = currentMs;
+    const baseMs = currentMsRef.current;
     const tick = (now: number) => {
       const effectiveEnd = endMsRef.current;
       const elapsed = (now - startTime) * speedRef.current;
@@ -84,7 +87,6 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         if (loop) {
           next = 0;
           startTime = now;
-          baseMs = 0;
         } else {
           next = effectiveEnd;
           setIsPlaying(false);
@@ -95,7 +97,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [isPlaying, loop, currentMs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, loop]);
 
   const stableSetCurrentMs = useCallback((ms: number) => setCurrentMs(ms), []);
   const stableSetIsPlaying = useCallback(
