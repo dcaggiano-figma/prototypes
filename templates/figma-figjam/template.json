@@ -1,5 +1,11 @@
 {
   "name": "FigJam",
   "description": "A minimal starter for FigJam whiteboard prototypes",
-  "id": "figma-figjam"
+  "id": "figma-figjam",
+  "icons": {
+    "brandicon16": "Icon16FigjamBrandicon",
+    "brandicon24": "Icon24FigjamBrandicon",
+    "icon16": "Icon16Figjam",
+    "colorThemeBrand": "whiteboard"
+  }
 }

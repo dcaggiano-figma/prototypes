@@ -1,5 +1,11 @@
 {
   "name": "Make",
   "description": "A starter for Figma Make prototypes with multi-page routing and sidebar navigation",
-  "id": "make"
+  "id": "make",
+  "icons": {
+    "brandicon16": "Icon16MakeBrandicon",
+    "brandicon24": "Icon24MakeBrandicon",
+    "icon16": "Icon16Make",
+    "colorThemeBrand": "bake-filebrowser"
+  }
 }

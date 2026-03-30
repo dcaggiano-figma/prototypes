@@ -1,5 +1,11 @@
 {
   "name": "Figma Slides",
   "description": "A starter for Figma Slides prototypes",
-  "id": "figma-slides"
+  "id": "figma-slides",
+  "icons": {
+    "brandicon16": "Icon16SlidesBrandicon",
+    "brandicon24": "Icon24SlidesBrandicon",
+    "icon16": "Icon16Slides",
+    "colorThemeBrand": "piper"
+  }
 }

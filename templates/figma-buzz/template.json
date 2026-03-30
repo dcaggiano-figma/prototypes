@@ -1,5 +1,11 @@
 {
   "name": "Figma Buzz",
   "description": "A starter for Figma Buzz prototypes",
-  "id": "figma-buzz"
+  "id": "figma-buzz",
+  "icons": {
+    "brandicon16": "Icon16BuzzBrandicon",
+    "brandicon24": "Icon24BuzzBrandicon",
+    "icon16": "Icon16Buzz",
+    "colorThemeBrand": "cooper"
+  }
 }

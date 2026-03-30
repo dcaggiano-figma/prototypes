@@ -1,5 +1,11 @@
 {
   "name": "Figma Design",
   "description": "A minimal starter for Figma design-related prototypes, including dev and draw modes",
-  "id": "figma-design"
+  "id": "figma-design",
+  "icons": {
+    "brandicon16": "Icon16DesignBrandicon",
+    "brandicon24": "Icon24DesignBrandicon",
+    "icon16": "Icon16Design",
+    "colorThemeBrand": "design"
+  }
 }
