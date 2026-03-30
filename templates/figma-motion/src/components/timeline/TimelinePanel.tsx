@@ -1538,7 +1538,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                   }}
                   aria-hidden
                 >
-                  <PlayheadThumb />
+                  <div className="sticky top-0"><PlayheadThumb /></div>
                   <PlayheadLine />
                 </div>
                 {groupedCollapsedCommentPins.map((group) => {
@@ -1811,7 +1811,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
               {/* Left: Tree grid */}
               <div
                 className="shrink-0 flex flex-col border-r border-border bg-bg"
-                style={{ width: TREE_WIDTH_PX }}
+                style={{ width: TREE_WIDTH_PX, height: 'fit-content' }}
               >
                 {layers.length === 0 ? (
                   <div className="px-3 py-2 text-bodyMd text-text-tertiary">Add an animation from the panel.</div>
@@ -1971,13 +1971,16 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                   aria-valuemax={endMs}
                   aria-valuenow={Math.round(currentMs)}
                   tabIndex={0}
-                  className="relative flex flex-col flex-1 bg-bg"
-                  style={{ overflowX: 'clip', cursor: isDragging ? CURSORS.resizeH : isNearPlayhead ? CURSORS.resizeH : isShiftHeld ? 'crosshair' : undefined, minWidth: 500 }}
+                  className="relative flex flex-col flex-1 bg-bg h-fit"
+                  style={{ overflowX: 'clip', cursor: isDragging ? CURSORS.resizeH : isNearPlayhead ? CURSORS.resizeH : isShiftHeld ? 'crosshair' : undefined, minWidth: 500, height: 'fit-content' }}
                   onPointerDown={handleTrackPointerDown}
                   onPointerMove={handleTrackPointerMove}
                   onPointerUp={handleTrackPointerUp}
                   onPointerLeave={handleTrackPointerLeave}
                 >
+                  {/* Inner wrapper: all content and overlays share this positioning context.
+                      min-h-full ensures overlays cover the viewport; flex-col lets layer rows set the actual height. */}
+                  <div className="relative flex flex-col min-h-full">
                   {/* Dotted bg in the left padding gap (before time 0) */}
                   {visibleStartMs < 0 && (
                     <div
@@ -2280,6 +2283,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                   >
                     <PlayheadThumb />
                     <PlayheadLine />
+                  </div>
                   </div>
                 </div>
               )}
