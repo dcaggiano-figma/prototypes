@@ -32,8 +32,11 @@ export const fplTableTheme = themeQuartz.withParams({
   // Cell editing
   cellEditingBorder: true,
 
-  // Borders — show vertical separators in the header
-  headerColumnBorder: true,
+  // Header column borders follow `gridLines.vertical` via Table.tsx `withParams`
+  headerColumnBorder: false,
+
+  // Pinned column separators — hidden by default
+  pinnedColumnBorder: false,
 
   // Layout
   cellHorizontalPaddingScale: 1,
