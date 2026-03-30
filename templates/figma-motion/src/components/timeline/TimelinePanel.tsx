@@ -171,8 +171,7 @@ function Icon24AutoKeyframe({ active, className }: { active?: boolean; className
 }
 
 function formatTime(ms: number): string {
-  const n = Math.round(ms);
-  return n < 10 ? `00${n}` : n < 100 ? `0${n}` : `${n}`;
+  return String(Math.round(ms)).padStart(4, '0');
 }
 
 function TimelineTimeInput({
