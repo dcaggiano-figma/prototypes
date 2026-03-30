@@ -162,6 +162,10 @@ export function getTypeDefaults(type: NodeType): Partial<SceneNode> & Record<str
         strokeDashPattern: [],
         elbowMidpointOffset: 0.5,
       }
+    case 'VIDEO':
+      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, src: '', videoDurationMs: 0, muted: false, hasAudio: false }
+    case 'AUDIO':
+      return { ...GEOMETRY_DEFAULTS, ...APPEARANCE_DEFAULTS, src: '', audioDurationMs: 0, muted: false }
     case 'GROUP':
       return {}
     case 'DOCUMENT':

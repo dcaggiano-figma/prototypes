@@ -327,7 +327,7 @@ function HeroCard({
       setElapsedSec(0);
       setIsPlaying(false);
     }
-  }, [item?.id]);
+  }, [item]);
 
   useEffect(() => {
     if (autoplayTick <= 0 || !item) return;
@@ -341,7 +341,7 @@ function HeroCard({
     }).catch(() => {
       pendingAutoplayRef.current = true;
     });
-  }, [autoplayTick, item?.id]);
+  }, [autoplayTick, item]);
 
   if (!item) return null;
 

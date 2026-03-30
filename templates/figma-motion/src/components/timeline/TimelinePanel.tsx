@@ -9,38 +9,16 @@ import { useKeyframeStore } from '../../contexts/KeyframeStoreContext';
 import type { KeyframeableProperty, Keyframe as KfEntry } from '../../contexts/KeyframeStoreContext';
 import { useAction } from '../../actions/provider';
 import { useSceneGraph, useSelection } from '../../canvas';
-import type { SceneNode } from '../../canvas';
+import type { SceneNode, VideoNode, AudioNode } from '../../canvas';
 import type { AnimationType, TimelineAnimation } from '../../contexts/AnimationStoreContext';
+import { useVideoFrames } from '../../canvas/video-frames';
+import { useAudioWaveform } from '../../canvas/audio-waveform';
 import { Avatar, CURSORS, Text, useComments } from '@prototype/shared';
 import type { CommentThread } from '@prototype/shared';
-import {
-  Icon16Frame,
-  Icon16Rectangle,
-  Icon16Ellipse,
-  Icon16Text,
-  Icon16Line,
-  Icon16Component,
-  Icon16Star,
-  Icon16Polygon,
-  Icon16Section,
-} from '@figma/fpl-icons';
 
-/** Inline node type icon for the timeline layer tree. */
-function NodeTypeIcon({ node }: { node: SceneNode }) {
-  switch (node.type) {
-    case 'FRAME': return <Icon16Frame />;
-    case 'RECTANGLE': return <Icon16Rectangle />;
-    case 'ELLIPSE': return <Icon16Ellipse />;
-    case 'TEXT': return <Icon16Text />;
-    case 'LINE': return <Icon16Line />;
-    case 'VECTOR': return <Icon16Component />;
-    case 'GROUP': return <Icon16Component />;
-    case 'STAR': return <Icon16Star />;
-    case 'POLYGON': return <Icon16Polygon />;
-    case 'SECTION': return <Icon16Section />;
-    default: return <Icon16Rectangle />;
-  }
-}
+
+// NodeTypeIcon is shared with the layers panel to keep icons consistent
+import { NodeTypeIcon } from '../panels/FilePanel';
 
 /** Fixed height of the timeline panel (matches Figma: header 80px + body). */
 export const TIMELINE_PANEL_HEIGHT_PX = 302;
@@ -381,6 +359,8 @@ function animationTypeLabel(type: AnimationType): string {
     case 'slide-out': return 'Slide out';
     case 'spin': return 'Spin';
     case 'translate-x': return 'Translate X';
+    case 'video': return 'Video';
+    case 'audio': return 'Audio';
     case 'color': return 'Color';
     default: return type;
   }
@@ -423,6 +403,8 @@ function TimelineClipBar({
   trackEndMs,
   visibleStartMs,
   visibleDurationMs,
+  videoSrc,
+  audioSrc,
   onDragStart,
   onDragEnd,
   allAnimations,
@@ -440,6 +422,8 @@ function TimelineClipBar({
   trackEndMs: number;
   visibleStartMs: number;
   visibleDurationMs: number;
+  videoSrc?: string;
+  audioSrc?: string;
   onDragStart?: () => void;
   onDragEnd?: () => void;
   allAnimations: import('../../contexts/AnimationStoreContext').TimelineAnimation[];
@@ -527,8 +511,51 @@ function TimelineClipBar({
   const leftPercent = visibleDurationMs > 0 ? ((anim.startMs - visibleStartMs) / visibleDurationMs) * 100 : 0;
   const widthPercent = visibleDurationMs > 0 ? Math.max(2, (anim.durationMs / visibleDurationMs) * 100) : 2;
   const isColor = anim.type === 'color';
+  const isVideo = anim.type === 'video';
+  const isAudio = anim.type === 'audio';
   const MEDIA_INSET = 9;
-  const barRef = useRef<HTMLButtonElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const [barWidthPx, setBarWidthPx] = useState(0);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setBarWidthPx(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Video filmstrip
+  const contentWidthPx_film = Math.max(0, barWidthPx - 2 * MEDIA_INSET);
+  const maxDur = anim.maxDurationMs ?? anim.durationMs;
+  const fullStripRatio = maxDur > 0 && anim.durationMs > 0 ? maxDur / anim.durationMs : 1;
+  const fullStripWidthPx = contentWidthPx_film * fullStripRatio;
+  const fullFrameCount = Math.max(6, Math.round(fullStripWidthPx / 30));
+  const frames = useVideoFrames(
+    isVideo ? videoSrc : undefined,
+    fullFrameCount,
+    0,
+    undefined,
+    undefined,
+  );
+  const stripOffsetPx = maxDur > 0 ? -(anim.offsetMs / maxDur) * fullStripWidthPx : 0;
+  const framePxWidth = frames.length > 0 ? fullStripWidthPx / frames.length : 30;
+
+  // Audio waveform
+  const WAVEFORM_BAR_W = 1.5;
+  const WAVEFORM_GAP = 1;
+  const WAVEFORM_STEP = WAVEFORM_BAR_W + WAVEFORM_GAP;
+  const fullWaveformWidthPx = fullStripWidthPx;
+  const fullWaveformCount = fullWaveformWidthPx > 0 ? Math.max(10, Math.floor(fullWaveformWidthPx / WAVEFORM_STEP)) : 10;
+  const waveform = useAudioWaveform(
+    isAudio ? audioSrc : undefined,
+    fullWaveformCount,
+    0,
+    undefined,
+    undefined,
+  );
+  const hasFilmstrip = isVideo && frames.length > 0;
+  const hasWaveform = isAudio && waveform.length > 0;
+  const hasMedia = hasFilmstrip || hasWaveform || isColor;
 
   const hasOverlap = trackAnimations.some(
     (a) =>
@@ -544,11 +571,12 @@ function TimelineClipBar({
       : 'rgba(128, 128, 128, 0.2)';
 
   return (
-    <ButtonPrimitive
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- nested interactive regions inside a <button> block pointer events; plain div with role="button" is required here
+    <div
       ref={barRef}
-      type="button"
+      role="button"
       tabIndex={-1}
-      className="absolute top-1/2 -translate-y-1/2 flex items-stretch rounded-md overflow-hidden outline-none border-0 p-0"
+      className="absolute top-1/2 -translate-y-1/2 flex items-stretch rounded-md overflow-hidden outline-none"
       style={{
         left: `${leftPercent}%`,
         width: `${widthPercent}%`,
@@ -558,11 +586,59 @@ function TimelineClipBar({
         ...(hasOverlap ? { boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)' } : {}),
       }}
       title={`${animationTypeLabel(anim.type)} (${anim.durationMs}ms). Press Delete to remove.`}
-      onClick={(e) => {
+      onClick={(e) => { // eslint-disable-line react/forbid-dom-props -- see above
         e.stopPropagation();
         onSelect();
       }}
     >
+      {/* Video filmstrip */}
+      {hasFilmstrip && (
+        <div
+          className="absolute pointer-events-none overflow-hidden"
+          style={{ zIndex: 0, left: MEDIA_INSET, right: MEDIA_INSET, top: 2, bottom: 2, borderRadius: 2 }}
+        >
+          <div
+            className="absolute flex h-full"
+            style={{ left: stripOffsetPx, width: fullStripWidthPx }}
+          >
+            {frames.map((dataUrl, i) => (
+              <img
+                key={i}
+                src={dataUrl}
+                alt=""
+                className="h-full shrink-0 block"
+                style={{ width: framePxWidth, objectFit: 'cover' }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Audio waveform */}
+      {hasWaveform && waveform.length > 0 && (
+        <div
+          className="absolute pointer-events-none overflow-hidden"
+          style={{ zIndex: 0, left: MEDIA_INSET, right: MEDIA_INSET, top: 2, bottom: 2, borderRadius: 2 }}
+        >
+          <div
+            className="absolute flex items-center justify-center h-full"
+            style={{ left: stripOffsetPx, width: fullWaveformWidthPx, gap: WAVEFORM_GAP }}
+          >
+            {waveform.map((peak, i) => (
+              <div
+                key={i}
+                style={{
+                  width: WAVEFORM_BAR_W,
+                  height: Math.max(2, peak * (BAR_HEIGHT_PX - 2)),
+                  flexShrink: 0,
+                  borderRadius: WAVEFORM_BAR_W,
+                  backgroundColor: isClipSelected ? 'rgba(255,255,255,0.7)' : isSelected ? 'rgba(13,153,255,0.6)' : 'rgba(128,128,128,0.5)',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Color gradient */}
       {isColor && anim.colorFrom && anim.colorTo && (
         <div
           className="absolute pointer-events-none overflow-hidden"
@@ -584,7 +660,7 @@ function TimelineClipBar({
         role="button"
         tabIndex={0}
         className="relative flex-shrink-0 flex items-center justify-center rounded-l-md"
-        style={{ zIndex: 1, paddingLeft: 4, paddingRight: 8, cursor: CURSORS.trimLeft }}
+        style={{ zIndex: 1, width: hasMedia ? MEDIA_INSET : undefined, paddingLeft: hasMedia ? 0 : 4, paddingRight: hasMedia ? 0 : 8, cursor: CURSORS.trimLeft }}
         onPointerDown={(e) => handlePointerDown(e, 'left')}
       >
         <div
@@ -610,7 +686,7 @@ function TimelineClipBar({
         role="button"
         tabIndex={0}
         className="relative flex-shrink-0 flex items-center justify-center rounded-r-md"
-        style={{ zIndex: 1, paddingLeft: 8, paddingRight: 4, cursor: CURSORS.trimRight }}
+        style={{ zIndex: 1, width: hasMedia ? MEDIA_INSET : undefined, paddingLeft: hasMedia ? 0 : 8, paddingRight: hasMedia ? 0 : 4, cursor: CURSORS.trimRight }}
         onPointerDown={(e) => handlePointerDown(e, 'right')}
       >
         <div
@@ -623,7 +699,7 @@ function TimelineClipBar({
           aria-hidden
         />
       </div>
-    </ButtonPrimitive>
+    </div>
   );
 }
 
@@ -654,7 +730,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
   const { store: commentsStore, threads: commentThreads, setSelectedThreadId, setInteraction } = useComments();
   const store = useSceneGraph();
   // Force re-render on structural scene graph changes so memos recompute
-  const [, setSgRevision] = useState(0);
+  const [sgRevision, setSgRevision] = useState(0);
   useEffect(() => {
     return store.addListener((event) => {
       if (event.type === 'create' || event.type === 'delete' || event.type === 'reparent') {
@@ -796,7 +872,8 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
     const ids = new Set(descendants.map((d) => String(d.id)));
     ids.add(String(effectiveFrameId));
     return ids;
-  }, [effectiveFrameId, store]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sgRevision forces recompute on create/delete/reparent
+  }, [effectiveFrameId, store, sgRevision]);
 
   const frameAnimations = useMemo(() => {
     if (!frameDescendantIds) return animations;
@@ -1730,7 +1807,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
       {showBody && (
         <>
           <div className="flex-1 flex min-h-0 overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-y-auto flex flex-row" data-timeline-scroll>
+            <div className="flex-1 min-h-0 overflow-y-auto flex flex-row" data-timeline-scroll style={{ scrollbarWidth: 'none' } as React.CSSProperties}>
               {/* Left: Tree grid */}
               <div
                 className="shrink-0 flex flex-col border-r border-border bg-bg"
@@ -1953,6 +2030,9 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                       const isLayerSelected = selectedLayerId === nodeId;
                       const isCollapsed = collapsedNodes.has(nodeId);
                       const nodeAnims = frameAnimations.filter((a) => a.nodeId === nodeId);
+                      const layerNode = store.getNode(Number(nodeId));
+                      const videoSrc = layerNode?.type === 'VIDEO' ? (layerNode as VideoNode).src : undefined;
+                      const audioSrc = layerNode?.type === 'AUDIO' ? (layerNode as AudioNode).src : undefined;
 
                       return (
                         <div key={`tg-${nodeId}`} className={clsx('border-b border-border', isLayerSelected && 'bg-bg-selected-secondary')}>
@@ -1975,6 +2055,8 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                                 trackEndMs={layoutEndMs}
                                 visibleStartMs={visibleStartMs}
                                 visibleDurationMs={visibleDurationMs}
+                                videoSrc={videoSrc}
+                                audioSrc={audioSrc}
                                 onDragStart={handleClipDragStart}
                                 onDragEnd={handleClipDragEnd}
                                 allAnimations={frameAnimations}
@@ -2002,6 +2084,8 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                                 trackEndMs={layoutEndMs}
                                 visibleStartMs={visibleStartMs}
                                 visibleDurationMs={visibleDurationMs}
+                                videoSrc={videoSrc}
+                                audioSrc={audioSrc}
                                 onDragStart={handleClipDragStart}
                                 onDragEnd={handleClipDragEnd}
                                 allAnimations={frameAnimations}

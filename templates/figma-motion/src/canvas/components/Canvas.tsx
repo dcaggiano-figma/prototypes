@@ -25,6 +25,7 @@ import {
 import { CommentPinLayer, useComments } from '@prototype/shared';
 import { SelectionOverlay } from '../selection/overlay';
 import { usePlaybackOptional } from '../../contexts/PlaybackContext';
+import { useAnimationStoreOptional } from '../../contexts/AnimationStoreContext';
 import { useActiveTool } from '../tools/provider';
 import { useBehaviorChain } from '../behaviors';
 import { CURSORS } from '../cursors';
@@ -53,6 +54,7 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
   const textEditing = useTextEditing();
   const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
   const playback = usePlaybackOptional();
+  const animStore = useAnimationStoreOptional();
 
   // Stable callbacks for CommentPinLayer's useSyncExternalStore.
   // The subscribe function must be referentially stable, and the snapshot
@@ -561,11 +563,89 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
     }
     : undefined;
 
+  // ── Drag-and-drop video/audio files onto canvas ──────────────────
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    const videoFile = files.find((f) => f.type.startsWith('video/'));
+    const audioFile = !videoFile ? files.find((f) => f.type.startsWith('audio/')) : undefined;
+
+    const rect = containerRef.current?.getBoundingClientRect();
+    const localX = rect ? e.clientX - rect.left : e.clientX;
+    const localY = rect ? e.clientY - rect.top : e.clientY;
+
+    if (videoFile) {
+      const src = URL.createObjectURL(videoFile);
+      const probe = document.createElement('video');
+      probe.preload = 'metadata';
+      probe.src = src;
+      probe.onloadedmetadata = () => {
+        const world = screenToWorld(localX, localY);
+        const vw = probe.videoWidth || 320;
+        const vh = probe.videoHeight || 240;
+        const maxDim = 400;
+        const s = Math.min(maxDim / vw, maxDim / vh, 1);
+        const w = Math.round(vw * s);
+        const h = Math.round(vh * s);
+        const durationMs = Math.round(probe.duration * 1000) || 5000;
+
+        const node = sg.createNode('VIDEO', canvasId, {
+          x: world.x - w / 2, y: world.y - h / 2,
+          width: w, height: h,
+          src, videoDurationMs: durationMs, hasAudio: false,
+          name: videoFile.name.replace(/\.[^.]+$/, ''),
+          fills: [],
+        } as Record<string, unknown>);
+        selection.select(node.id);
+        animStore?.addAnimation(String(node.id), 'video', durationMs, durationMs);
+
+        videoFile.arrayBuffer().then((buf) => {
+          const ctx = new AudioContext();
+          return ctx.decodeAudioData(buf).then((ab) => {
+            if (ab.numberOfChannels > 0 && ab.length > 0) {
+              sg.updateNode(node.id, { hasAudio: true } as Record<string, unknown>);
+            }
+            void ctx.close();
+          }).catch(() => void ctx.close());
+        }).catch(() => {});
+      };
+    } else if (audioFile) {
+      const src = URL.createObjectURL(audioFile);
+      const audioCtx = new AudioContext();
+      fetch(src)
+        .then((r) => r.arrayBuffer())
+        .then((buf) => audioCtx.decodeAudioData(buf))
+        .then((audioBuffer) => {
+          const world = screenToWorld(localX, localY);
+          const durationMs = Math.round(audioBuffer.duration * 1000) || 5000;
+
+          const node = sg.createNode('AUDIO', canvasId, {
+            x: world.x - 150, y: world.y - 30,
+            width: 300, height: 60,
+            src, audioDurationMs: durationMs,
+            name: audioFile.name.replace(/\.[^.]+$/, ''),
+            fills: [],
+          } as Record<string, unknown>);
+          selection.select(node.id);
+          animStore?.addAnimation(String(node.id), 'audio', durationMs, durationMs);
+          void audioCtx.close();
+        })
+        .catch(() => {});
+    }
+  }, [containerRef, screenToWorld, sg, selection, animStore, canvasId]);
+
   return (
     <div
       ref={containerRef}
       className="fixed inset-0 overflow-hidden"
       data-tool={effectiveTool}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       style={{
         backgroundColor: pageBg.visible
           ? (isDefaultPageBackground(pageBg) ? 'var(--color-fsCanvasDefaultFill)' : `rgb(${pageBg.color.r}, ${pageBg.color.g}, ${pageBg.color.b})`)
@@ -592,6 +672,7 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
               className="absolute top-0 left-0 overflow-visible pointer-events-none"
             />
             <CommentPinLayer
+              currentMs={playback?.isPlaying || (playback?.currentMs ?? 0) > 0 ? playback?.currentMs : undefined}
               commentsStore={commentsStore}
               interaction={interaction}
               selectedThreadId={selectedThreadId}

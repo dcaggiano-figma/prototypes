@@ -256,7 +256,7 @@ function NoSelectionState() {
         </PropertyRow>
       </div>
       <PlaceholderSection title="Styles" actions />
-      <PlaceholderSection title="Export" actions />
+      <ExportSection />
     </>
   );
 }
@@ -314,7 +314,7 @@ function SelectionProperties({ selectedIds, animateMode, animationSection }: { s
       {allAppearance && <StrokeSection />}
 
       <PlaceholderSection title="Effects" actions />
-      <PlaceholderSection title="Export" actions />
+      <ExportSection />
     </>
   );
 }
@@ -1580,6 +1580,35 @@ function SelectedClipDetailView({ clip, onBack }: { clip: TimelineAnimation; onB
             </PropertyRow>
           </PropertySection>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Export section ───────────────────────────────────────────────────
+
+function ExportSection() {
+  const [open, setOpen] = useState(false);
+  const { manager, getTriggerProps } = MenuV2.useMenu({ open, onOpenChange: setOpen });
+
+  return (
+    <div className="border-b border-border">
+      <div className="flex items-center justify-between pl-3 pr-2 h-40px">
+        <span className="text-text-secondary text-bodyMdStrong">Export</span>
+        <div className="flex items-center gap-4px">
+          <IconButton aria-label="Add export" size="md" {...getTriggerProps()}>
+            <Icon24Plus />
+          </IconButton>
+          <MenuV2.Root manager={manager}>
+            <MenuV2.Group>
+              <MenuV2.Item onClick={() => window.open(`${window.location.pathname}#/export`, '_blank', 'noopener')}>
+                MP4 file
+              </MenuV2.Item>
+              <MenuV2.Item onClick={() => {}} disabled>GIF</MenuV2.Item>
+              <MenuV2.Item onClick={() => {}} disabled>PNG sequence</MenuV2.Item>
+            </MenuV2.Group>
+          </MenuV2.Root>
+        </div>
       </div>
     </div>
   );

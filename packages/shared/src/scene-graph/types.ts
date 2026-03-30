@@ -43,6 +43,8 @@ export type NodeType =
   | 'CONNECTOR'
   | 'SLIDE'
   | 'GRID_SECTION'
+  | 'VIDEO'
+  | 'AUDIO'
 
 // ── Value types ─────────────────────────────────────────────────────
 
@@ -298,6 +300,30 @@ export interface SlideNode extends BaseNode, GeometryMixin, AppearanceMixin {
   clipsContent: boolean
 }
 
+/** Video node — displays a video source on the canvas. */
+export interface VideoNode extends BaseNode, GeometryMixin, AppearanceMixin {
+  type: 'VIDEO'
+  /** Object URL or external URL for the video source. */
+  src: string
+  /** Intrinsic video duration in milliseconds. */
+  videoDurationMs: number
+  /** Whether the video audio is muted (default false). */
+  muted: boolean
+  /** Whether the video file contains an audio track. */
+  hasAudio: boolean
+}
+
+/** Audio node — represents an audio clip on the canvas. */
+export interface AudioNode extends BaseNode, GeometryMixin, AppearanceMixin {
+  type: 'AUDIO'
+  /** Object URL or external URL for the audio source. */
+  src: string
+  /** Intrinsic audio duration in milliseconds. */
+  audioDurationMs: number
+  /** Whether the audio is muted (default false). */
+  muted: boolean
+}
+
 /** The underlying shape geometry for a SHAPE_WITH_TEXT node. */
 export type ShapeType = 'RECTANGLE' | 'ELLIPSE' | 'POLYGON' | 'STAR'
 
@@ -409,6 +435,8 @@ export type SceneNode =
   | ShapeWithTextNode
   | StickyNoteNode
   | ConnectorNode
+  | VideoNode
+  | AudioNode
 
 /** Nodes that have geometry (position/size). */
 export type GeometryNode =
@@ -426,6 +454,8 @@ export type GeometryNode =
   | ShapeWithTextNode
   | StickyNoteNode
   | ConnectorNode
+  | VideoNode
+  | AudioNode
 
 /** Nodes that have appearance (fills/strokes). */
 export type AppearanceNode =
@@ -441,6 +471,8 @@ export type AppearanceNode =
   | StarNode
   | ShapeWithTextNode
   | StickyNoteNode
+  | VideoNode
+  | AudioNode
 
 /**
  * Compound nodes — nodes that contain implicit slot children.
@@ -455,7 +487,7 @@ export type CompoundNode =
 
 const GEOMETRY_TYPES = new Set<NodeType>([
   'FRAME', 'SECTION', 'GRID_SECTION', 'SLIDE', 'RECTANGLE', 'ELLIPSE', 'TEXT', 'LINE',
-  'VECTOR', 'POLYGON', 'STAR', 'SHAPE_WITH_TEXT', 'STICKY_NOTE', 'CONNECTOR',
+  'VECTOR', 'POLYGON', 'STAR', 'SHAPE_WITH_TEXT', 'STICKY_NOTE', 'CONNECTOR', 'VIDEO', 'AUDIO',
 ])
 
 const COMPOUND_TYPES = new Set<NodeType>([

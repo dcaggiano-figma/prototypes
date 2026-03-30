@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { ButtonPrimitive, InputPrimitive } from '@figma/fpl-components';
+import { Icon16Motion } from '@figma/fpl-icons';
 
 import {
   useRootNodes,
@@ -42,9 +43,13 @@ import type {
   StrokeAlign,
   TextNode,
   VectorNode,
+  VideoNode,
+  AudioNode,
 } from '@prototype/shared/canvas';
 import { CURSORS } from '../cursors';
 import { useAnimatedStyle, type BaseNodeForKf } from '../animation-utils';
+import { useAnimationStore, useAnimationStoreOptional } from '../../contexts/AnimationStoreContext';
+import { usePlaybackOptional } from '../../contexts/PlaybackContext';
 
 function toBaseNode(node: { x: number; y: number; rotation: number; opacity: number; width: number; height: number }): BaseNodeForKf {
   return { x: node.x, y: node.y, rotation: node.rotation, opacity: node.opacity, width: node.width, height: node.height };
@@ -123,6 +128,10 @@ function SceneNodeRenderer({
       return <SlideRenderer node={node as SlideNode} store={store} />;
     case 'GROUP':
       return <GroupRenderer node={node as GroupNode} store={store} />;
+    case 'VIDEO':
+      return <VideoRenderer node={node as VideoNode} />;
+    case 'AUDIO':
+      return <AudioRenderer node={node as AudioNode} />;
     default:
       return null;
   }
@@ -558,6 +567,86 @@ function VectorRenderer({ node }: { node: VectorNode }) {
   );
 }
 
+function VideoRenderer({ node }: { node: VideoNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
+  const playback = usePlaybackOptional();
+  const animStore = useAnimationStoreOptional();
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Sync video playback with the animation timeline
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !playback || !animStore) return;
+    const anim = animStore.animations.find((a) => a.nodeId === String(node.id) && a.type === 'video');
+    if (!anim) return;
+    const clipStart = anim.startMs;
+    const clipEnd = clipStart + anim.durationMs;
+    const offset = anim.offsetMs;
+    if (playback.currentMs >= clipStart && playback.currentMs <= clipEnd) {
+      const videoTime = (offset + (playback.currentMs - clipStart)) / 1000;
+      if (Math.abs(v.currentTime - videoTime) > 0.1) v.currentTime = videoTime;
+      if (playback.isPlaying && v.paused) void v.play();
+    } else {
+      if (!v.paused) v.pause();
+    }
+  }, [playback, animStore, node.id]);
+
+  return (
+    <div
+      ref={ref}
+      data-node-id={node.id}
+      style={{
+        ...nodePosition(node.x, node.y, node.rotation),
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        overflow: 'hidden',
+        backgroundColor: '#000',
+        ...animStyle,
+      }}
+    >
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- decorative video, no captions needed */}
+      <video
+        ref={videoRef}
+        src={node.src}
+        muted={node.muted}
+        playsInline
+        className="w-full h-full object-cover block"
+      />
+    </div>
+  );
+}
+
+function AudioRenderer({ node }: { node: AudioNode }) {
+  const { nodeRegistry } = useRendering();
+  const ref = useNodeRef<HTMLDivElement>(node.id, nodeRegistry);
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
+
+  return (
+    <div
+      ref={ref}
+      data-node-id={node.id}
+      style={{
+        ...nodePosition(node.x, node.y, node.rotation),
+        width: node.width,
+        height: node.height,
+        opacity: node.opacity,
+        overflow: 'hidden',
+        backgroundColor: 'rgba(128, 128, 128, 0.15)',
+        borderRadius: 8,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...animStyle,
+      }}
+    >
+      <span className="text-bodyLg">🔊</span>
+    </div>
+  );
+}
+
 function LineRenderer({ node }: { node: LineNode }) {
   const { nodeRegistry } = useRendering();
   const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
@@ -692,16 +781,37 @@ const FRAME_LABEL_MIN_WIDTH = 16;
  * Subscribes directly to the node via useNode so it updates live during
  * shape creation drag (useRootNodes only fires on structural changes).
  */
+function collectDescendantIdStrings(sg: ReturnType<typeof useSceneGraph>, nodeId: NodeId): Set<string> {
+  const ids = new Set<string>();
+  function walk(id: NodeId) {
+    const n = sg.getNode(id);
+    if (!n) return;
+    for (const childId of n.children) {
+      ids.add(String(childId));
+      walk(childId);
+    }
+  }
+  walk(nodeId);
+  return ids;
+}
+
 function FrameLabel({ nodeId }: { nodeId: NodeId }) {
   const node = useNode(nodeId) as FrameNode | undefined;
   const { state } = useViewportState();
   const { isSelected, hoveredId } = useSelection();
   const sg = useSceneGraph();
   const canvasId = useCanvasId();
+  const { animations } = useAnimationStore();
   const scheme = useCanvasColorScheme(canvasId);
   const { editingLabelNodeId, startLabelEdit, stopLabelEdit } = useLabelEditing();
   const isEditing = node ? editingLabelNodeId === node.id : false;
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const hasAnimatedChildren = useMemo(() => {
+    if (!node) return false;
+    const descendantIds = collectDescendantIdStrings(sg, node.id);
+    return animations.some(a => descendantIds.has(a.nodeId));
+  }, [node, sg, animations]);
 
   const commitRename = useCallback(() => {
     if (!inputRef.current || !node) return;
@@ -781,7 +891,20 @@ function FrameLabel({ nodeId }: { nodeId: NodeId }) {
         userSelect: 'none',
       }}
     >
-      {node.name}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 / state.scale }}>
+        {hasAnimatedChildren && (
+          <span style={{
+            display: 'inline-flex',
+            width: '16px',
+            height: '16px',
+            flexShrink: 0,
+            '--fpl-icon-color': color,
+          } as React.CSSProperties}>
+            <Icon16Motion />
+          </span>
+        )}
+        {node.name}
+      </span>
     </ButtonPrimitive>
   );
 

@@ -17,7 +17,9 @@ import {
   Icon16Star,
   Icon16Text,
   Icon16Visible,
+  Icon16SoundOn,
   Icon24Plus,
+  Icon24Video,
   Icon24SidebarOpen,
 } from '@figma/fpl-icons';
 
@@ -391,7 +393,7 @@ function collectLayersReversed(
   return result;
 }
 
-function NodeTypeIcon({ node }: { node: SceneNode }) {
+export function NodeTypeIcon({ node }: { node: SceneNode }) {
   switch (node.type) {
     case 'RECTANGLE':
       return <Icon16Rectangle />;
@@ -412,7 +414,11 @@ function NodeTypeIcon({ node }: { node: SceneNode }) {
     case 'POLYGON':
       return <Icon16Polygon />;
     case 'VECTOR':
-      return <VectorPreviewIcon node={node} />;
+      return <div className="size-3 overflow-hidden flex items-center justify-center"><VectorPreviewIcon node={node} /></div>;
+    case 'VIDEO':
+      return <div className="size-3 overflow-hidden flex items-center justify-center"><Icon24Video className="size-4 flex-shrink-0" /></div>;
+    case 'AUDIO':
+      return <Icon16SoundOn />;
   }
 }
 
