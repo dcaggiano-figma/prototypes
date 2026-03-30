@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAppTheme, type ThemeSetting, PatternLibraryWindow, UserConfigModal, UserConfigProvider } from '@prototype/shared';
+import { useAppTheme, type ThemeSetting, PatternLibraryWindow, UserConfigModal, UserConfigProvider, useUserConfig } from '@prototype/shared';
 import {
   createRootRoute,
   Outlet,
@@ -58,6 +58,7 @@ function Shell() {
   const [showPatternLibrary, setShowPatternLibrary] = useState(false);
   const [showUserConfig, setShowUserConfig] = useState(false);
   const navigate = useNavigate();
+  const { config } = useUserConfig();
 
   return (
     <div className="bg-bg h-screen flex overflow-hidden">
@@ -65,14 +66,14 @@ function Shell() {
       <aside className="w-[240px] bg-bg border-r border-border flex flex-col shrink-0">
         <div className="p-8px border-b border-border flex items-center justify-between">
           <ButtonPrimitive {...getTriggerProps()} className="flex items-center gap-1 p-1 py-1 rounded-md hover:bg-bg-transparent active:bg-bg-transparent-secondary">
-              <span className="mr-1"><Avatar size="md" src="./assets/avatar.jpg" /></span>
-              <span className="text-bodyLg text-text">Kelly Shin</span>
+              <span className="mr-1"><Avatar size="md" src={config.avatarUrl ?? './assets/avatar.jpg'} /></span>
+              <span className="text-bodyLg text-text">{config.name}</span>
               <Icon16ChevronDown />
             </ButtonPrimitive>
           <MenuV2.Root manager={manager}>
               <div className="flex flex-col items-center justify-center px-2 pt-4 pb-3 w-[200px]">
-                <span className="mb-2"><Avatar size="xlg" src="./assets/avatar.jpg" /></span>
-                <span className="text-bodyMd text-text">Kelly Shin</span>
+                <span className="mb-2"><Avatar size="xlg" src={config.avatarUrl ?? './assets/avatar.jpg'} /></span>
+                <span className="text-bodyMd text-text">{config.name}</span>
                 <span className="text-bodyMd text-text-secondary">dylan@figma.com</span>
               </div>
               <MenuV2.Group>
