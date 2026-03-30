@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { createRootRoute } from '@tanstack/react-router';
+import { createRootRoute, Outlet, useMatchRoute } from '@tanstack/react-router';
 import {
   Icon24Page,
   Icon24Add,
@@ -596,6 +596,17 @@ function EditorContent() {
   );
 }
 
+function RootLayout() {
+  const matchRoute = useMatchRoute();
+  const isExport = matchRoute({ to: '/export' });
+
+  if (isExport) {
+    return <Outlet />;
+  }
+
+  return <EditorLayout />;
+}
+
 export const Route = createRootRoute({
-  component: EditorLayout,
+  component: RootLayout,
 });

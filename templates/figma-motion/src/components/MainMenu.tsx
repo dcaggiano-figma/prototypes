@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { IconButton } from '@figma/fpl-components';
 import { MenuV2 } from '@figma/fpl-components/beta';
 import { Icon24FigmaLarge, Icon24SearchLarge } from '@figma/fpl-icons';
+import { useNavigate } from '@tanstack/react-router';
 import { clearSceneGraphStorage } from '@prototype/shared/canvas';
 import { clearCommentsStorage } from '@prototype/shared';
 import type { MenuItemDef } from './menuTypes';
@@ -20,6 +21,7 @@ interface MainMenuProps {
 
 export function MainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleMinimize, onOpenPatternLibrary, onSaveAsDefault, onOpenUserConfig }: MainMenuProps) {
   const mainMenu = MenuV2.useMenu();
+  const navigate = useNavigate();
 
   // Consolidated preferences state
   const [prefs, setPrefs] = useState({
@@ -89,7 +91,7 @@ export function MainMenu({ themeSetting, onThemeChange, onOpenActions, onToggleM
       { type: 'item', id: 'save-version', label: 'Save to version history...', shortcut: '⌥⌘S', onClick: noop },
       { type: 'item', id: 'version-history', label: 'Show version history', onClick: noop },
       { type: 'separator' },
-      { type: 'item', id: 'export', label: 'Export...', shortcut: '⇧⌘E', onClick: noop },
+      { type: 'item', id: 'export', label: 'Export...', shortcut: '⇧⌘E', onClick: () => { void navigate({ to: '/export' }); } },
       { type: 'item', id: 'export-pdf', label: 'Export frames to PDF...', onClick: noop },
       { type: 'separator' },
       { type: 'item', id: 'create-branch', label: 'Create branch...', onClick: noop },
