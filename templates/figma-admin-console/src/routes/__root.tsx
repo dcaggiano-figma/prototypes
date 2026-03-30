@@ -74,7 +74,7 @@ function Shell() {
               <div className="flex flex-col items-center justify-center px-2 pt-4 pb-3 w-[200px]">
                 <span className="mb-2"><Avatar size="xlg" src={config.avatarUrl ?? './assets/avatar.jpg'} /></span>
                 <span className="text-bodyMd text-text">{config.name}</span>
-                <span className="text-bodyMd text-text-secondary">dylan@figma.com</span>
+                <span className="text-bodyMd text-text-secondary">{`${config.name.charAt(0).toLowerCase()}${config.name.split(' ').slice(-1)[0]?.toLowerCase() ?? ''}@figma.com`}</span>
               </div>
               <MenuV2.Group>
                 <MenuV2.SubMenu title="Theme" titleLead={<Icon24Template />}>
