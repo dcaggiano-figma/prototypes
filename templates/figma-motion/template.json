@@ -1,5 +1,11 @@
 {
   "name": "Figma Motion",
   "description": "A Figma design editor template with motion and animation capabilities built-in",
-  "id": "figma-motion"
+  "id": "figma-motion",
+  "icons": {
+    "brandicon16": "Icon16MotionBrandicon",
+    "brandicon24": "Icon24MotionBrandicon",
+    "icon16": "Icon16Motion",
+    "colorThemeBrand": "design"
+  }
 }
