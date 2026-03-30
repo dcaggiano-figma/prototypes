@@ -78,7 +78,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isPlaying) return;
     let startTime = performance.now();
-    const baseMs = currentMsRef.current;
+    let baseMs = currentMsRef.current;
     const tick = (now: number) => {
       const effectiveEnd = endMsRef.current;
       const elapsed = (now - startTime) * speedRef.current;
@@ -87,6 +87,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         if (loop) {
           next = 0;
           startTime = now;
+          baseMs = 0;
         } else {
           next = effectiveEnd;
           setIsPlaying(false);

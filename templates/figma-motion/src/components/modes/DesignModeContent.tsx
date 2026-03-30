@@ -105,8 +105,7 @@ function KeyframeDiamondIcon({ active }: { active?: boolean }) {
       <path
         d="M4.23218 0.646484C4.42743 0.451336 4.74397 0.451311 4.93921 0.646484L8.52515 4.23242C8.7203 4.42766 8.7203 4.74421 8.52515 4.93945L4.93921 8.52539C4.74397 8.72057 4.42743 8.72054 4.23218 8.52539L0.64624 4.93945C0.451075 4.74421 0.451075 4.42767 0.64624 4.23242L4.23218 0.646484Z"
         fill={active ? 'var(--color-icon-selected' : 'none'}
-        stroke={active ? 'var(--color-icon-selected' : 'currentColor'}
-        strokeOpacity={active ? 1 : 0.5}
+        stroke={active ? 'var(--color-icon-selected' : 'var(--fpl-icon-color, var(--color-icon))'}
       />
     </svg>
   );
@@ -126,7 +125,7 @@ function KeyframePropToggle({ nodeId, property, value }: { nodeId: string; prope
   return (
     <ButtonPrimitive
       aria-label={`Toggle keyframe for ${property}`}
-      className="flex items-center justify-center size-24px shrink-0 p-0 cursor-pointer bg-bg outline-1 outline -outline-offset-1 outline-border rounded-md text-icon-secondary hover:text-icon focus-visible:outline focus-visible:outline-1 focus-visible:outline-border-selected"
+      className="flex items-center justify-center size-24px shrink-0 p-0 cursor-pointer bg-bg outline-1 outline -outline-offset-1 outline-border rounded-md icon-secondary hover:icon focus-visible:outline focus-visible:outline-1 focus-visible:outline-border-selected"
       onClick={() => {
         if (!isEnabled) {
           kfStore.togglePropertyKeyframing(nodeId, property, value, currentMs);

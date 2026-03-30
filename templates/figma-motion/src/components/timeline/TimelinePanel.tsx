@@ -127,9 +127,8 @@ function TimelineKeyframeDiamond({ filled }: { filled?: boolean }) {
     <svg width={10} height={10} viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
       <path
         d="M4.23218 0.646484C4.42743 0.451336 4.74397 0.451311 4.93921 0.646484L8.52515 4.23242C8.7203 4.42766 8.7203 4.74421 8.52515 4.93945L4.93921 8.52539C4.74397 8.72057 4.42743 8.72054 4.23218 8.52539L0.64624 4.93945C0.451075 4.74421 0.451075 4.42767 0.64624 4.23242L4.23218 0.646484Z"
-        fill={filled ? '#0D99FF' : 'none'}
-        stroke={filled ? '#0D99FF' : 'currentColor'}
-        strokeOpacity={filled ? 1 : 0.5}
+        fill={filled ? 'var(--color-icon-selected)' : 'none'}
+        stroke={filled ? 'var(--color-icon-selected)' : 'var(--color-icon-secondary)'}
       />
     </svg>
   );
@@ -147,7 +146,7 @@ function LayerChevronIcon({ className }: { className?: string }) {
     <svg className={className} width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
       <path
         d="M11.1817 6.23238C11.3769 6.42765 11.3769 6.74415 11.1817 6.93942L8.35355 9.76754C8.15829 9.9628 7.84178 9.9628 7.64652 9.76754L4.81742 6.93942C4.62248 6.74421 4.62248 6.42759 4.81742 6.23238C5.01268 6.03712 5.33017 6.03712 5.52543 6.23238L8.00004 8.70699L10.4746 6.23238C10.6699 6.03714 10.9864 6.03718 11.1817 6.23238Z"
-        fill="currentColor"
+        fill="var(--fpl-icon-color, var(--color-icon))"
       />
     </svg>
   );
@@ -160,11 +159,10 @@ function Icon24AutoKeyframe({ active, className }: { active?: boolean; className
     <svg className={className} width={24} height={24} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
       <path
         d="M10.5862 5.58567C11.3672 4.80482 12.6333 4.80473 13.4143 5.58567L18.4143 10.5857C19.1945 11.3667 19.1949 12.633 18.4143 13.4138L13.4143 18.4138C12.6335 19.1944 11.3672 19.1941 10.5862 18.4138L5.58616 13.4138C4.80522 12.6328 4.80531 11.3667 5.58616 10.5857L10.5862 5.58567ZM12.7073 6.2927C12.3168 5.90228 11.6837 5.90238 11.2932 6.2927L6.29319 11.2927C5.90287 11.6832 5.90277 12.3163 6.29319 12.7068L11.2932 17.7068C11.6837 18.0965 12.317 18.0969 12.7073 17.7068L17.7073 12.7068C18.0974 12.3165 18.097 11.6832 17.7073 11.2927L12.7073 6.2927Z"
-        fill="currentColor"
-        fillOpacity={0.9}
+        fill="var(--fpl-icon-color, var(--color-icon))"
       />
       {active && (
-        <path d="M12 10C13.1046 10 14 10.8954 14 12C14 13.1046 13.1046 14 12 14C10.8954 14 10 13.1046 10 12C10 10.8954 10.8954 10 12 10Z" fill="#DC3412" />
+        <path d="M12 10C13.1046 10 14 10.8954 14 12C14 13.1046 13.1046 14 12 14C10.8954 14 10 13.1046 10 12C10 10.8954 10.8954 10 12 10Z" fill="var(--color-icon-danger)" />
       )}
     </svg>
   );
