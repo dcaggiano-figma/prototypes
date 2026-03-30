@@ -50,7 +50,7 @@ import {
   Icon24ConnectorElbowLarge,
   Icon24CutLarge,
 } from '@figma/fpl-icons';
-import { Toolbar as SharedToolbar, ModeSwitcher, type SubTool } from '@prototype/shared';
+import { Toolbar as SharedToolbar, ModeSwitcher, type SubTool, useComments } from '@prototype/shared';
 import styles from './Toolbar.module.css';
 import { PenIllustration, BrushIllustration, PencilIllustration } from './ToolIllustrations';
 import { QUICK_ACTIONS_TABS } from './quickActionsData';
@@ -299,6 +299,7 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
   } = useActiveTool();
   const sg = useSceneGraph();
   const { selectedIds } = useSelection();
+  const { setShowComments } = useComments();
 
   /** Update draw tool state AND apply to any selected vector nodes */
   const handleDrawColorChange = useCallback((color: string) => {
@@ -344,7 +345,7 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
   useAction('tool.pen', useCallback(() => { setActiveTool('pen'); setProviderTool('PEN'); }, [setProviderTool]));
   useAction('tool.pencil', useCallback(() => { setActiveTool('pencil'); setProviderTool('PENCIL'); }, [setProviderTool]));
   useAction('tool.hand', useCallback(() => { setActiveTool('hand'); setProviderTool('HAND'); }, [setProviderTool]));
-  useAction('tool.comment', useCallback(() => { setActiveTool('comment'); setProviderTool('COMMENT'); }, [setProviderTool]));
+  useAction('tool.comment', useCallback(() => { setActiveTool('comment'); setProviderTool('COMMENT'); setShowComments(true); }, [setProviderTool, setShowComments]));
   useAction('tool.line', useCallback(() => { setActiveTool('line'); setProviderTool('LINE'); }, [setProviderTool]));
   useAction('tool.polygon', useCallback(() => { setActiveTool('polygon'); setProviderTool('POLYGON'); }, [setProviderTool]));
   useAction('tool.star', useCallback(() => { setActiveTool('star'); setProviderTool('STAR'); }, [setProviderTool]));

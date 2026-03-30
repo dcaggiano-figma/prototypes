@@ -11,6 +11,8 @@ interface CommentsContextValue {
   setInteraction: (interaction: CommentInteraction) => void;
   selectedThreadId: string | null;
   setSelectedThreadId: (id: string | null) => void;
+  showComments: boolean;
+  setShowComments: (show: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 const CommentsContext = createContext<CommentsContextValue | null>(null);
@@ -32,6 +34,7 @@ export function CommentsProvider({ children, defaultComments }: CommentsProvider
 
   const [interaction, setInteraction] = useState<CommentInteraction>({ type: 'none' });
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [showComments, setShowComments] = useState(true);
 
   const value = useMemo<CommentsContextValue>(() => ({
     store: storeRef.current!,
@@ -39,7 +42,9 @@ export function CommentsProvider({ children, defaultComments }: CommentsProvider
     setInteraction,
     selectedThreadId,
     setSelectedThreadId,
-  }), [interaction, selectedThreadId]);
+    showComments,
+    setShowComments,
+  }), [interaction, selectedThreadId, showComments]);
 
   return (
     <CommentsContext.Provider value={value}>
@@ -65,6 +70,8 @@ export function useComments() {
     setInteraction: ctx.setInteraction,
     selectedThreadId: ctx.selectedThreadId,
     setSelectedThreadId: ctx.setSelectedThreadId,
+    showComments: ctx.showComments,
+    setShowComments: ctx.setShowComments,
   };
 }
 

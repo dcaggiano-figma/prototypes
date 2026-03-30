@@ -27,6 +27,7 @@ import { SelectionOverlay } from '../selection/overlay';
 import { usePlaybackOptional } from '../../contexts/PlaybackContext';
 import { useAnimationStoreOptional } from '../../contexts/AnimationStoreContext';
 import { useActiveTool } from '../tools/provider';
+import { useDesignTabOptional } from '../../contexts/DesignTabContext';
 import { useBehaviorChain } from '../behaviors';
 import { CURSORS } from '../cursors';
 import { CanvasRenderer } from './canvas-renderer';
@@ -52,9 +53,10 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
   const pageBg = usePageBackground(canvasId);
   const { effectiveTool, setActiveTool, drawColor, drawStrokeWeight, drawOpacity, stickyColor, shapeColor, connectorLineShape } = useActiveTool();
   const textEditing = useTextEditing();
-  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore } = useComments();
+  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore, showComments } = useComments();
   const playback = usePlaybackOptional();
   const animStore = useAnimationStoreOptional();
+  const designTab = useDesignTabOptional();
 
   // Stable callbacks for CommentPinLayer's useSyncExternalStore.
   // The subscribe function must be referentially stable, and the snapshot
@@ -671,35 +673,37 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
               ref={pencilOverlayRef}
               className="absolute top-0 left-0 overflow-visible pointer-events-none"
             />
-            <CommentPinLayer
-              currentMs={playback?.isPlaying || (playback?.currentMs ?? 0) > 0 ? playback?.currentMs : undefined}
-              commentsStore={commentsStore}
-              interaction={interaction}
-              selectedThreadId={selectedThreadId}
-              zoom={scale}
-              getNodePosition={getNodePosition}
-              onPinClick={(threadId) => {
-                setSelectedThreadId(threadId);
-                setInteraction({ type: 'viewing', threadId });
-              }}
-              onPinHoverStart={(threadId) => {
-                if (interaction.type !== 'viewing' && interaction.type !== 'dragging') {
-                  setInteraction({ type: 'hovering', threadId });
-                }
-              }}
-              onPinHoverEnd={() => {
-                if (interaction.type === 'hovering') {
-                  setInteraction({ type: 'none' });
-                }
-              }}
-              onDragStart={handleCommentDragStart}
-              onDragMove={handleCommentDragMove}
-              onDragEnd={handleCommentDragEnd}
-              screenToWorld={screenToWorld}
-              containerRef={containerRef}
-              nodeStoreSubscribe={nodeStoreSubscribe}
-              nodeStoreGetSnapshot={nodeStoreGetSnapshot}
-            />
+            {showComments && (
+              <CommentPinLayer
+                currentMs={designTab?.activeTab === 'animation' && (playback?.isPlaying || (playback?.currentMs ?? 0) > 0) ? playback?.currentMs : undefined}
+                commentsStore={commentsStore}
+                interaction={interaction}
+                selectedThreadId={selectedThreadId}
+                zoom={scale}
+                getNodePosition={getNodePosition}
+                onPinClick={(threadId) => {
+                  setSelectedThreadId(threadId);
+                  setInteraction({ type: 'viewing', threadId });
+                }}
+                onPinHoverStart={(threadId) => {
+                  if (interaction.type !== 'viewing' && interaction.type !== 'dragging') {
+                    setInteraction({ type: 'hovering', threadId });
+                  }
+                }}
+                onPinHoverEnd={() => {
+                  if (interaction.type === 'hovering') {
+                    setInteraction({ type: 'none' });
+                  }
+                }}
+                onDragStart={handleCommentDragStart}
+                onDragMove={handleCommentDragMove}
+                onDragEnd={handleCommentDragEnd}
+                screenToWorld={screenToWorld}
+                containerRef={containerRef}
+                nodeStoreSubscribe={nodeStoreSubscribe}
+                nodeStoreGetSnapshot={nodeStoreGetSnapshot}
+              />
+            )}
           </>
         }
         reactOverlay={<SelectionOverlay />}

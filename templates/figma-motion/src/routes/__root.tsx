@@ -214,7 +214,7 @@ function EditorContent() {
   // Minimize UI state
   const [isMinimized, setIsMinimized] = useState(false);
   const viewport = useViewport();
-  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore, threads: commentThreads } = useComments();
+  const { interaction, setInteraction, selectedThreadId, setSelectedThreadId, store: commentsStore, threads: commentThreads, showComments, setShowComments } = useComments();
   const [fileName, setFileName] = useState('Untitled');
   const toggleMinimized = useCallback(() => setIsMinimized((v) => !v), []);
 
@@ -311,6 +311,7 @@ function EditorContent() {
 
   // Register keyboard shortcut for minimize UI
   useAction('view.minimize-ui', toggleMinimized);
+  useAction('view.toggle-comments', useCallback(() => setShowComments((prev: boolean) => !prev), [setShowComments]));
 
   const minimizeCtx = useMemo(
     () => ({ isMinimized, toggleMinimize: toggleMinimized, fileName, setFileName }),
@@ -544,18 +545,20 @@ function EditorContent() {
         extraSections={<AnimationExportSection onCopy={() => showToast({ message: 'JSON copied to clipboard' })} />}
       />
       <UserConfigModal open={showUserConfig} onClose={() => setShowUserConfig(false)} />
-      <CommentOverlay
-        interaction={interaction}
-        setInteraction={setInteraction}
-        selectedThreadId={selectedThreadId}
-        setSelectedThreadId={setSelectedThreadId}
-        store={commentsStore}
-        threads={commentThreads}
-        worldToScreen={viewport.worldToScreen}
-        onTimestampClick={(ms) => {
-          playback?.setCurrentMs(ms);
-        }}
-      />
+      {showComments && (
+        <CommentOverlay
+          interaction={interaction}
+          setInteraction={setInteraction}
+          selectedThreadId={selectedThreadId}
+          setSelectedThreadId={setSelectedThreadId}
+          store={commentsStore}
+          threads={commentThreads}
+          worldToScreen={viewport.worldToScreen}
+          onTimestampClick={(ms) => {
+            playback?.setCurrentMs(ms);
+          }}
+        />
+      )}
       </div>
 
       {/* Timeline — full width, animated slide in/out */}

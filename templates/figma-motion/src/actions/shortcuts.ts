@@ -63,6 +63,7 @@ export const SHORTCUT_MAP: Record<string, string> = {
 
   // View
   'Shift+Mod+\\': 'view.minimize-ui',
+  'Mod+.': 'view.toggle-comments',
 };
 
 /**

@@ -93,7 +93,7 @@ const COMMENT_PIN_STYLE_MULTI: React.CSSProperties = {
   width: 'fit-content',
   height: COMMENT_PIN_HEIGHT,
   paddingLeft: 2,
-  paddingRight: 2,
+  paddingRight: 6,
 };
 
 /** Ruler guide label style (includes red color). */
@@ -727,7 +727,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
     }
     return () => clearTimeout(expandTimerRef.current);
   }, [expanded]);
-  const { store: commentsStore, threads: commentThreads, setSelectedThreadId, setInteraction } = useComments();
+  const { store: commentsStore, threads: commentThreads, setSelectedThreadId, setInteraction, setShowComments } = useComments();
   const store = useSceneGraph();
   // Force re-render on structural scene graph changes so memos recompute
   const [sgRevision, setSgRevision] = useState(0);
@@ -974,8 +974,9 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
       setCurrentMs(timestampMs);
       setSelectedThreadId(threadId);
       setInteraction({ type: 'viewing', threadId });
+      setShowComments(true);
     },
-    [setCurrentMs, setSelectedThreadId, setInteraction],
+    [setCurrentMs, setSelectedThreadId, setInteraction, setShowComments],
   );
 
   const handleCommentPinPointerDown = useCallback(
