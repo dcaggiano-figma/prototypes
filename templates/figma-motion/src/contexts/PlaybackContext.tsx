@@ -54,7 +54,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const designTab = useDesignTabOptional();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
-  const [loop, setLoop] = useState(false);
+  const [loop, setLoop] = useState(true);
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
 
   useEffect(() => {
