@@ -653,8 +653,8 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
   }, [expanded]);
   const { store: commentsStore, threads: commentThreads, setSelectedThreadId, setInteraction } = useComments();
   const store = useSceneGraph();
-  // Revision counter — bumped on structural scene graph changes so memos recompute
-  const [sgRevision, setSgRevision] = useState(0);
+  // Force re-render on structural scene graph changes so memos recompute
+  const [, setSgRevision] = useState(0);
   useEffect(() => {
     return store.addListener((event) => {
       if (event.type === 'create' || event.type === 'delete' || event.type === 'reparent') {
@@ -796,8 +796,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
     const ids = new Set(descendants.map((d) => String(d.id)));
     ids.add(String(effectiveFrameId));
     return ids;
-    // sgRevision ensures this recomputes when scene graph structure changes
-  }, [effectiveFrameId, store, sgRevision]);
+  }, [effectiveFrameId, store]);
 
   const frameAnimations = useMemo(() => {
     if (!frameDescendantIds) return animations;
@@ -827,7 +826,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
       }
     }
     return order;
-  }, [frameAnimations, kfStore.keyframes, frameDescendantIds]);
+  }, [frameAnimations, kfStore, frameDescendantIds]);
 
   /** Row content map for marquee selection hit testing. */
   const rowContentMap = useMemo((): RowContent[] => {
@@ -987,22 +986,30 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
     if (!el) return;
 
     const wheelHandler = (e: WheelEvent) => {
-      e.preventDefault();
       const { rawVisibleStartMs: rawVs, rawVisibleDurationMs: rawVd, padMs: pm, timelineZoom: z, maxScrollMs: ms } = wheelStateRef.current;
 
       if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
         const rect = el.getBoundingClientRect();
         const pointerFrac = (e.clientX - rect.left) / rect.width;
         const anchorMs = (rawVs - pm) + pointerFrac * (rawVd + pm);
         const delta = -e.deltaY * TIMELINE_ZOOM_FACTOR;
         zoomAroundMsRef.current(z * Math.exp(delta), anchorMs);
-      } else {
+      } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        // Horizontal scroll: pan the timeline
+        e.preventDefault();
         if (ms <= 0) return;
-        const deltaPx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
         const rect = el.getBoundingClientRect();
-        const deltaMs = (deltaPx / rect.width) * rawVd;
+        const deltaMs = (e.deltaX / rect.width) * rawVd;
         const newStart = rawVs + deltaMs;
         setScrollFraction(Math.max(0, Math.min(1, newStart / ms)));
+      } else {
+        // Vertical scroll: forward to the parent scroll container
+        const scrollParent = el.closest('[data-timeline-scroll]');
+        if (scrollParent) {
+          scrollParent.scrollTop += e.deltaY;
+          e.preventDefault();
+        }
       }
     };
 
@@ -1723,7 +1730,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
       {showBody && (
         <>
           <div className="flex-1 flex min-h-0 overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-y-auto flex flex-row">
+            <div className="flex-1 min-h-0 overflow-y-auto flex flex-row" data-timeline-scroll>
               {/* Left: Tree grid */}
               <div
                 className="shrink-0 flex flex-col border-r border-border bg-bg"
@@ -1887,8 +1894,8 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                   aria-valuemax={endMs}
                   aria-valuenow={Math.round(currentMs)}
                   tabIndex={0}
-                  className="relative overflow-hidden flex flex-col flex-1 min-h-full bg-bg"
-                  style={{ cursor: isDragging ? CURSORS.resizeH : isNearPlayhead ? CURSORS.resizeH : isShiftHeld ? 'crosshair' : undefined, minWidth: 500 }}
+                  className="relative flex flex-col flex-1 bg-bg"
+                  style={{ overflowX: 'clip', cursor: isDragging ? CURSORS.resizeH : isNearPlayhead ? CURSORS.resizeH : isShiftHeld ? 'crosshair' : undefined, minWidth: 500 }}
                   onPointerDown={handleTrackPointerDown}
                   onPointerMove={handleTrackPointerMove}
                   onPointerUp={handleTrackPointerUp}

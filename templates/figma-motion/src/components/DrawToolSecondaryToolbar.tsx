@@ -39,7 +39,7 @@ export function DrawToolSecondaryToolbar({
       {/* Left section: Color swatch + stroke weight */}
       <div className="flex items-center gap-2 p-2 border-r border-solid border-border">
         {/* Color swatch with native color picker */}
-        {/* eslint-disable-next-line react/forbid-elements -- native color picker, no FPL equivalent */}
+        {/* eslint-disable-next-line react/forbid-elements, jsx-a11y/label-has-associated-control -- native color picker wrapping a hidden input, no FPL equivalent */}
         <label
           className="relative flex-shrink-0 cursor-pointer overflow-hidden w-4 h-4 rounded border-bordertranslucent focus-within:ring-1 focus-within:ring-border-selected focus-within:ring-offset-1 focus-within:ring-offset-bg"
         >
@@ -47,7 +47,6 @@ export function DrawToolSecondaryToolbar({
             className="absolute inset-0"
             style={{ backgroundColor: color }}
           />
-          {/* eslint-disable-next-line react/forbid-elements -- native color picker, no FPL equivalent */}
           <DrawColorInput color={color} onColorChange={onColorChange} />
         </label>
 

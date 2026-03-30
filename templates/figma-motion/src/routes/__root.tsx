@@ -9,6 +9,9 @@ import {
   Icon24Variable,
   Icon24Library,
   Icon24Star,
+  Icon24Clipboard,
+  Icon24Check,
+  Icon24Download,
 } from '@figma/fpl-icons';
 import { RightPanel } from '../components/RightPanel';
 import { Canvas, useViewport } from '../canvas';
@@ -18,7 +21,7 @@ import type { Mode } from '../components/menuTypes';
 import { getCanvasMenuItems, getNodeMenuItems } from '../components/CanvasContextMenu';
 import { useAppTheme } from '@prototype/shared';
 import { DEFAULT_MODE, MODE_TO_BRAND } from '../helpers/theme';
-import { ButtonPrimitive, IconButton } from '@figma/fpl-components';
+import { Button, ButtonPrimitive, IconButton } from '@figma/fpl-components';
 import { MenuV2 } from '@figma/fpl-components/beta';
 import { showToast } from '../components/toast';
 import { CommentOverlay, ContextMenuRenderer, LeftSidebar, useComments, useContextMenu } from '@prototype/shared';
@@ -29,7 +32,7 @@ import { MinimizeUIProvider } from '../components/MinimizeUIContext';
 import { FloatingFileHeader } from '../components/FloatingFileHeader';
 import { MinimizedRightPanel } from '../components/MinimizedRightPanel';
 import { clearSceneGraphStorage } from '@prototype/shared/canvas';
-import { SaveAsDefaultModal, UserConfigModal } from '@prototype/shared';
+import { SaveAsDefaultModal, UserConfigModal, Pre, Text } from '@prototype/shared';
 import { MainMenu } from '../components/MainMenu';
 import { FilePanel, SearchPanel, AiChatPanel, AssetsPanel } from '../components/panels';
 import { VariablesPanel } from '../components/variables';
@@ -39,7 +42,8 @@ import { PatternLibraryWindow } from '@prototype/shared';
 // Animation contexts
 import { DesignTabProvider, useDesignTabOptional } from '../contexts/DesignTabContext';
 import { TimelineVisibilityProvider } from '../contexts/TimelineVisibilityContext';
-import { AnimationStoreProvider } from '../contexts/AnimationStoreContext';
+import { AnimationStoreProvider, useAnimationStore } from '../contexts/AnimationStoreContext';
+import { loadDefaultAnimations } from '../defaults/loadDefaultAnimations';
 import { PlaybackProvider, usePlaybackOptional } from '../contexts/PlaybackContext';
 import { KeyframeStoreProvider } from '../contexts/KeyframeStoreContext';
 import { CanvasWorkspaceInsetsProvider, type CanvasWorkspaceInsets } from '../contexts/CanvasWorkspaceInsetsContext';
@@ -48,6 +52,62 @@ import { TimelinePanel, TIMELINE_PANEL_HEIGHT_PX, TIMELINE_COLLAPSED_HEIGHT_PX }
 // ---------------------------------------------------------------------------
 // Animation timing constants
 // ---------------------------------------------------------------------------
+
+const defaultAnimations = loadDefaultAnimations();
+
+function downloadJson(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function AnimationExportSection({ onCopy }: { onCopy?: () => void }) {
+  const { animations } = useAnimationStore();
+  const [copied, setCopied] = useState(false);
+
+  const json = useMemo(
+    () => JSON.stringify(animations, null, 2),
+    [animations],
+  );
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(json);
+    setCopied(true);
+    onCopy?.();
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (animations.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Text strong>default-animations.json</Text>
+      <Pre syntax="json" className="max-h-[150px] overflow-auto">
+        {json}
+      </Pre>
+      <div className="flex gap-2 mt-1">
+        <Button
+          variant="secondary"
+          iconPrefix={copied ? <Icon24Check /> : <Icon24Clipboard />}
+          onClick={handleCopy}
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+        <Button
+          variant="secondary"
+          iconPrefix={<Icon24Download />}
+          onClick={() => downloadJson(json, 'default-animations.json')}
+        >
+          Download
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 const TOOLBAR_SLIDE_MS = 420;
 const TIMELINE_SLIDE_MS = 300;
@@ -121,7 +181,7 @@ function EditorLayout() {
   return (
     <Providers>
       <DesignTabProvider>
-        <AnimationStoreProvider>
+        <AnimationStoreProvider initialAnimations={defaultAnimations}>
           <KeyframeStoreProvider>
             <PlaybackProvider>
               <EditorContent />
@@ -481,6 +541,7 @@ function EditorContent() {
         open={showSaveAsDefault}
         onClose={() => setShowSaveAsDefault(false)}
         onCopy={() => showToast({ message: 'JSON copied to clipboard' })}
+        extraSections={<AnimationExportSection onCopy={() => showToast({ message: 'JSON copied to clipboard' })} />}
       />
       <UserConfigModal open={showUserConfig} onClose={() => setShowUserConfig(false)} />
       <CommentOverlay
@@ -501,7 +562,7 @@ function EditorContent() {
       <div
         className="relative shrink-0 overflow-hidden"
         style={{
-          zIndex: 20,
+          zIndex: 7,
           height: effectiveTimelineHeight,
           transition: isResizingTimeline ? 'none' : `height ${String(TIMELINE_SLIDE_MS)}ms ease-out`,
         }}
@@ -510,7 +571,7 @@ function EditorContent() {
         {/* Resize handle — top edge, only when expanded */}
         {timelineOpen && timelineExpanded && (
           <ButtonPrimitive
-            className="absolute top-0 left-0 right-0 h-8px z-30 cursor-row-resize"
+            className="absolute top-0 left-0 right-0 h-8px z-[8] cursor-row-resize"
             onMouseDown={handleTimelineResizeStart}
             aria-label="Resize timeline"
           >
@@ -525,8 +586,8 @@ function EditorContent() {
         )}
       </div>
 
-      {/* Portal target for toolbar — z-50 so toolbar stays on top of timeline */}
-      <div id="toolbar-portal" className="fixed inset-0 pointer-events-none z-50" aria-hidden="true" />
+      {/* Portal target for toolbar — above timeline (7) but below windows (9) and modals (12) */}
+      <div id="toolbar-portal" className="fixed inset-0 pointer-events-none z-[8]" aria-hidden="true" />
     </div>
     </CanvasWorkspaceInsetsProvider>
     </MinimizeUIProvider>

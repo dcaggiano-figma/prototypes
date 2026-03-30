@@ -55,7 +55,7 @@ function FloatingFullPanel({ activeMode, isCommentMode }: { activeMode: Mode; is
         transition: resizing ? 'none' : `bottom ${String(TIMELINE_SLIDE_MS)}ms ease-out`,
       }}
     >
-      <div className="bg-bg-elevated rounded-lg shadow-300 flex flex-col h-full overflow-hidden">
+      <div className="bg-bg rounded-lg shadow-300 flex flex-col h-full overflow-hidden">
         <PanelHeader />
         {isCommentMode ? <CommentsPanelContent /> : <ModeContent />}
       </div>
@@ -69,7 +69,7 @@ function FloatingCompactHeader() {
 
   return (
     <div className="absolute top-12px right-12px z-nav pointer-events-auto">
-      <div className="bg-bg-elevated rounded-lg shadow-300 flex items-center gap-8px p-2 pl-2.5">
+      <div className="bg-bg rounded-lg shadow-300 flex items-center gap-8px p-2 pl-2.5">
         <ButtonPrimitive aria-label="User menu" className="flex items-center rounded-full hover:bg-bg-hover active:bg-bg-pressed">
           <UserAvatar size="md" />
           <Icon16ChevronDown />

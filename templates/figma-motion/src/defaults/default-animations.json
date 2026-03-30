@@ -1,0 +1,19 @@
+[
+  { "id": "default_fade_1", "nodeId": "140", "type": "fade-in", "easing": "ease-out", "startMs": 0, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+  { "id": "default_slide_1", "nodeId": "140", "type": "slide-in", "direction": "left", "easing": "ease-out-back", "startMs": 0, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+
+  { "id": "default_fade_2", "nodeId": "142", "type": "fade-in", "easing": "ease-out", "startMs": 150, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+  { "id": "default_slide_2", "nodeId": "142", "type": "slide-in", "direction": "up", "easing": "ease-out-back", "startMs": 150, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+
+  { "id": "default_fade_3", "nodeId": "139", "type": "fade-in", "easing": "ease-out", "startMs": 300, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+  { "id": "default_slide_3", "nodeId": "139", "type": "slide-in", "direction": "down", "easing": "ease-out-back", "startMs": 300, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+
+  { "id": "default_fade_4", "nodeId": "143", "type": "fade-in", "easing": "ease-out", "startMs": 450, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+  { "id": "default_slide_4", "nodeId": "143", "type": "slide-in", "direction": "right", "easing": "ease-out-back", "startMs": 450, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+
+  { "id": "default_fade_5", "nodeId": "141", "type": "fade-in", "easing": "ease-out", "startMs": 600, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+  { "id": "default_slide_5", "nodeId": "141", "type": "slide-in", "direction": "up", "easing": "ease-out-back", "startMs": 600, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+
+  { "id": "default_fade_6", "nodeId": "138", "type": "fade-in", "easing": "ease-out", "startMs": 750, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 },
+  { "id": "default_slide_6", "nodeId": "138", "type": "slide-in", "direction": "left", "easing": "ease-out-back", "startMs": 750, "durationMs": 450, "offsetMs": 0, "maxDurationMs": 450 }
+]

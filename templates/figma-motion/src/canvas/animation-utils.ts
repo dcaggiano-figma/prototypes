@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { TimelineAnimation, AnimationType, EasingType } from '../contexts/AnimationStoreContext';
+import type { TimelineAnimation, AnimationType, EasingType, SlideDirection } from '../contexts/AnimationStoreContext';
 import { usePlaybackOptional } from '../contexts/PlaybackContext';
 import { useAnimationStoreOptional } from '../contexts/AnimationStoreContext';
 import { useKeyframeStoreOptional, type Keyframe, type KeyframeableProperty } from '../contexts/KeyframeStoreContext';
@@ -57,6 +57,21 @@ const ANIM_DEFS: Record<AnimationType, AnimDef> = {
   'color': { property: 'opacity', from: 1, to: 1, unit: '' },
 };
 
+function getSlideAnimDef(type: 'slide-in' | 'slide-out', direction: SlideDirection = 'down'): AnimDef {
+  const isIn = type === 'slide-in';
+  const dist = 50;
+  switch (direction) {
+    case 'up':
+      return { property: 'transform', from: isIn ? -dist : 0, to: isIn ? 0 : -dist, unit: 'px', transformFn: 'translateY' };
+    case 'down':
+      return { property: 'transform', from: isIn ? dist : 0, to: isIn ? 0 : dist, unit: 'px', transformFn: 'translateY' };
+    case 'left':
+      return { property: 'transform', from: isIn ? -dist : 0, to: isIn ? 0 : -dist, unit: 'px', transformFn: 'translateX' };
+    case 'right':
+      return { property: 'transform', from: isIn ? dist : 0, to: isIn ? 0 : dist, unit: 'px', transformFn: 'translateX' };
+  }
+}
+
 function animProgress(anim: TimelineAnimation, currentMs: number): number {
   const end = anim.startMs + anim.durationMs;
   if (currentMs < anim.startMs) return -1;
@@ -87,7 +102,9 @@ export function computeAnimatedStyle(
       continue;
     }
 
-    const def = ANIM_DEFS[anim.type];
+    const def = (anim.type === 'slide-in' || anim.type === 'slide-out')
+      ? getSlideAnimDef(anim.type, anim.direction)
+      : ANIM_DEFS[anim.type];
     if (!def) continue;
 
     const easingFn = EASING_FNS[anim.easing] ?? EASING_FNS['ease-out'];
@@ -232,5 +249,5 @@ export function useAnimatedStyle(nodeId: string | number, baseNode?: BaseNodeFor
       merged.transform = [clipStyle.transform, kfStyle.transform].filter(Boolean).join(' ');
     }
     return merged;
-  }, [playback?.currentMs, playback?.isPlaying, nodeAnims, nodeKeyframes, baseNode?.x, baseNode?.y, baseNode?.rotation, baseNode?.opacity, baseNode?.width, baseNode?.height]);
+  }, [baseNode, playback, nodeAnims, nodeKeyframes]);
 }

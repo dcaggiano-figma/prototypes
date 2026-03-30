@@ -517,6 +517,7 @@ function VectorRenderer({ node }: { node: VectorNode }) {
   const fill = getFirstVisibleFill(node.fills);
   const hasStroke = !!stroke;
   const strokeWeight = stroke ? node.strokeWeight : 0;
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
 
   // Use path-space dimensions for viewBox (falls back to node size for legacy vectors)
   const pw = node.pathWidth ?? node.width;
@@ -538,6 +539,7 @@ function VectorRenderer({ node }: { node: VectorNode }) {
         height: node.height,
         opacity: node.opacity,
         overflow: 'visible',
+        ...animStyle,
       }}
     >
       {node.paths.map((p, i) => (
@@ -561,6 +563,7 @@ function LineRenderer({ node }: { node: LineNode }) {
   const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const stroke = getFirstVisibleStroke(node.strokes);
   const strokeWeight = stroke ? node.strokeWeight : 1;
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
   // Line height is 0; the SVG has a minimum height of the hit area so it's easily clickable
   const svgHeight = Math.max(node.height, strokeWeight * 2, LINE_HIT_AREA);
   const cy = svgHeight / 2;
@@ -577,6 +580,7 @@ function LineRenderer({ node }: { node: LineNode }) {
         overflow: 'visible',
         // Rotate around the start point of the line so (x,y) = visual start
         transformOrigin: '0 50%',
+        ...animStyle,
       }}
     >
       {/* Invisible hit area for easier clicking */}
@@ -598,6 +602,7 @@ function PolygonRenderer({ node }: { node: PolygonNode }) {
   const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
   const cx = node.width / 2;
   const cy = node.height / 2;
   const rx = node.width / 2;
@@ -619,6 +624,7 @@ function PolygonRenderer({ node }: { node: PolygonNode }) {
         height: node.height,
         opacity: node.opacity,
         overflow: 'visible',
+        ...animStyle,
       }}
     >
       <polygon
@@ -637,6 +643,7 @@ function StarRenderer({ node }: { node: StarNode }) {
   const ref = useNodeRef<SVGSVGElement>(node.id, nodeRegistry);
   const fill = getFirstVisibleFill(node.fills);
   const stroke = getFirstVisibleStroke(node.strokes);
+  const animStyle = useAnimatedStyle(node.id, toBaseNode(node));
   const cx = node.width / 2;
   const cy = node.height / 2;
   const outerRx = node.width / 2;
@@ -663,6 +670,7 @@ function StarRenderer({ node }: { node: StarNode }) {
         height: node.height,
         opacity: node.opacity,
         overflow: 'visible',
+        ...animStyle,
       }}
     >
       <polygon

@@ -98,7 +98,6 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, loop]);
 
   const stableSetCurrentMs = useCallback((ms: number) => setCurrentMs(ms), []);

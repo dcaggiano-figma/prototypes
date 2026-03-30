@@ -89,7 +89,7 @@ import { IconButtonGroup } from '../icon-button-group';
 import { PropertySection, PropertyRow, PlaceholderSection } from '@prototype/shared';
 import { NumericField, positiveFormatter, percentFormatter, type NumericFieldChangeOpts } from '../numeric-field';
 import { ColorSwatch, HexInput, OpacityInput } from '../color-inputs';
-import { useAnimationStore, type AnimationColor, type AnimationType, type EasingType, type TimelineAnimation } from '../../contexts/AnimationStoreContext';
+import { useAnimationStore, type AnimationColor, type AnimationType, type EasingType, type SlideDirection, type TimelineAnimation } from '../../contexts/AnimationStoreContext';
 import { useKeyframeStoreOptional, type KeyframeableProperty } from '../../contexts/KeyframeStoreContext';
 import { usePlaybackOptional } from '../../contexts/PlaybackContext';
 import { interpolateKeyframes } from '../../canvas/animation-utils';
@@ -1471,6 +1471,10 @@ function SelectedClipDetailView({ clip, onBack }: { clip: TimelineAnimation; onB
     if (v) updateAnimation(clip.id, { easing: v });
   }, [clip.id, updateAnimation]);
 
+  const handleDirectionChange = useCallback((v: SlideDirection | undefined) => {
+    if (v) updateAnimation(clip.id, { direction: v });
+  }, [clip.id, updateAnimation]);
+
   const handleColorFromChange = useCallback((color: Color) => {
     updateAnimation(clip.id, { colorFrom: color });
   }, [clip.id, updateAnimation]);
@@ -1505,6 +1509,23 @@ function SelectedClipDetailView({ clip, onBack }: { clip: TimelineAnimation; onB
             <div />
           </PropertyRow>
         </PropertySection>
+
+        {(clip.type === 'slide-in' || clip.type === 'slide-out') && (
+          <PropertySection title="Direction">
+            <PropertyRow columns="1fr 24px">
+              <Select.Root value={clip.direction ?? 'down'} onChange={handleDirectionChange}>
+                <Select.Trigger label={<HiddenLabel>Direction</HiddenLabel>} width="fill" />
+                <Select.Container>
+                  <Select.Option value="up">Up</Select.Option>
+                  <Select.Option value="down">Down</Select.Option>
+                  <Select.Option value="left">Left</Select.Option>
+                  <Select.Option value="right">Right</Select.Option>
+                </Select.Container>
+              </Select.Root>
+              <div />
+            </PropertyRow>
+          </PropertySection>
+        )}
 
         <PropertySection title="Duration">
           <PropertyRow columns="1fr 24px">

@@ -9,6 +9,8 @@ export type AnimationType =
   | 'audio'
   | 'color';
 
+export type SlideDirection = 'up' | 'down' | 'left' | 'right';
+
 export type EasingType =
   | 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
   | 'ease-in-back' | 'ease-out-back' | 'ease-in-out-back'
@@ -31,6 +33,8 @@ export interface TimelineAnimation {
   colorFrom?: AnimationColor;
   /** For color animations: ending color. */
   colorTo?: AnimationColor;
+  /** For slide-in/slide-out: which direction to slide from/to. Defaults to 'down'. */
+  direction?: SlideDirection;
 }
 
 const DEFAULT_DURATION_MS = 400;
@@ -45,7 +49,7 @@ interface AnimationStoreValue {
   setSelectedClipIds: (ids: Set<string>) => void;
   addAnimation: (nodeId: string, type: AnimationType, durationMs?: number, maxDurationMs?: number, colorFrom?: AnimationColor, colorTo?: AnimationColor) => void;
   removeAnimation: (id: string) => void;
-  updateAnimation: (id: string, patch: Partial<Pick<TimelineAnimation, 'startMs' | 'durationMs' | 'type' | 'easing' | 'offsetMs' | 'colorFrom' | 'colorTo'>>) => void;
+  updateAnimation: (id: string, patch: Partial<Pick<TimelineAnimation, 'startMs' | 'durationMs' | 'type' | 'easing' | 'offsetMs' | 'colorFrom' | 'colorTo' | 'direction'>>) => void;
   /** Move/resize a clip and push overlapping clips on the same layer so they don't overlap. */
   moveClipAndPush: (id: string, newStartMs: number, newDurationMs?: number) => void;
   /** Split a video or audio clip at a time (ms). Replaces the clip with two clips. */
@@ -66,12 +70,13 @@ export function useAnimationStoreOptional(): AnimationStoreValue | null {
 
 interface AnimationStoreProviderProps {
   children: ReactNode;
+  initialAnimations?: TimelineAnimation[];
 }
 
 const EMPTY_SET = new Set<string>();
 
-export function AnimationStoreProvider({ children }: AnimationStoreProviderProps) {
-  const [animations, setAnimations] = useState<TimelineAnimation[]>([]);
+export function AnimationStoreProvider({ children, initialAnimations }: AnimationStoreProviderProps) {
+  const [animations, setAnimations] = useState<TimelineAnimation[]>(initialAnimations ?? []);
   const [selectedClipIds, setSelectedClipIdsRaw] = useState<Set<string>>(EMPTY_SET);
 
   const setSelectedClipIds = useCallback((ids: Set<string>) => {
@@ -107,7 +112,7 @@ export function AnimationStoreProvider({ children }: AnimationStoreProviderProps
     setAnimations((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
-  const updateAnimation = useCallback((id: string, patch: Partial<Pick<TimelineAnimation, 'startMs' | 'durationMs' | 'type' | 'easing' | 'offsetMs' | 'colorFrom' | 'colorTo'>>) => {
+  const updateAnimation = useCallback((id: string, patch: Partial<Pick<TimelineAnimation, 'startMs' | 'durationMs' | 'type' | 'easing' | 'offsetMs' | 'colorFrom' | 'colorTo' | 'direction'>>) => {
     setAnimations((prev) =>
       prev.map((a) => (a.id === id ? { ...a, ...patch } : a)),
     );
