@@ -1867,7 +1867,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                             return [
                               ...nodeAnims.map((anim, animIdx) => {
                                 const isLast = kfProps.length === 0 && animIdx === totalSubRows - 1;
-                                const TREE_LINE_LEFT = 30;
+                                const TREE_LINE_LEFT = 35;
                                 return (
                                   <div
                                     key={anim.id}
@@ -1905,7 +1905,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                               }),
                               ...kfProps.map(([prop, kfs], kfIdx) => {
                                 const isLast = nodeAnims.length + kfIdx === totalSubRows - 1;
-                                const TREE_LINE_LEFT = 30;
+                                const TREE_LINE_LEFT = 35;
                                 return (
                                   <div
                                     key={`kf-${prop}`}
