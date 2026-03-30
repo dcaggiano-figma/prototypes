@@ -1,5 +1,6 @@
 import { Chip } from '@figma/fpl-components';
 import { Icon24Time } from '@figma/fpl-icons';
+import { Text } from '../typography';
 
 function formatTimestamp(ms: number): string {
   const totalSeconds = ms / 1000;
@@ -25,7 +26,7 @@ export function TimestampChip({ timestampMs, onClick }: TimestampChipProps) {
       leading={<Icon24Time />}
       onClick={onClick}
     >
-      {label}
+      <Text size='sm' mono>{label}</Text>
     </Chip>
   );
 }

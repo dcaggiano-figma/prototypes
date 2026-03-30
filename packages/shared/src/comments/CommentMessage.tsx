@@ -1,6 +1,7 @@
 import { IconButton } from '@figma/fpl-components';
 import { Icon24More } from '@figma/fpl-icons';
 import { Avatar } from '../avatar/Avatar';
+import { Text } from '../typography/Text';
 import type { MultiplayerColor } from '../avatar/Avatar';
 import { formatRelativeTime } from './utils';
 
@@ -31,18 +32,18 @@ export function CommentMessage({
         <Avatar size="md" initial={authorInitial} src={avatarUrl} color={color} alt={authorName} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
-            <span className="text-bodyLgStrong text-text truncate">{authorName}</span>
-            <span className="text-bodyLg text-text-tertiary whitespace-nowrap">{formatRelativeTime(createdAt)}</span>
+            <Text size='lg' strong truncate>{authorName}</Text>
+            <Text size='lg' color='tertiary' className="whitespace-nowrap pl-1">{formatRelativeTime(createdAt)}</Text>
             <div className="ml-auto">
               <IconButton aria-label="More options">
                 <Icon24More />
               </IconButton>
             </div>
           </div>
-          <div className="text-bodyLg text-text mt-2 mb-2 whitespace-pre-wrap break-words flex items-baseline gap-1 flex-wrap">
-            {timestampChip}
-            <span>{body}</span>
-          </div>
+          <Text size='lg' as='p' className="mt-2 inline-block">
+            {timestampChip && <span className="inline-flex align-middle pr-2">{timestampChip}</span>}
+            {body}
+          </Text>
         </div>
       </div>
     </div>
