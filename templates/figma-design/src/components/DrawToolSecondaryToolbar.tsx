@@ -41,14 +41,14 @@ export function DrawToolSecondaryToolbar({
         {/* Color swatch with native color picker */}
         {/* eslint-disable-next-line react/forbid-elements -- native color picker, no FPL equivalent */}
         <label
+          htmlFor="stroke-color"
           className="relative flex-shrink-0 cursor-pointer overflow-hidden w-4 h-4 rounded border-bordertranslucent focus-within:ring-1 focus-within:ring-border-selected focus-within:ring-offset-1 focus-within:ring-offset-bg"
         >
           <div
             className="absolute inset-0"
             style={{ backgroundColor: color }}
-          />
-          {/* eslint-disable-next-line react/forbid-elements -- native color picker, no FPL equivalent */}
-          <DrawColorInput color={color} onColorChange={onColorChange} />
+          />          
+          <DrawColorInput id="stroke-color" color={color} onColorChange={onColorChange} />
         </label>
 
         {/* Stroke weight input + slider */}
@@ -98,7 +98,7 @@ export function DrawToolSecondaryToolbar({
 // Uncontrolled color input (avoids closing the native picker on re-render)
 // ---------------------------------------------------------------------------
 
-function DrawColorInput({ color, onColorChange }: { color: string; onColorChange: (c: string) => void }) {
+function DrawColorInput({ id, color, onColorChange }: { id: string; color: string; onColorChange: (c: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -110,6 +110,7 @@ function DrawColorInput({ color, onColorChange }: { color: string; onColorChange
   return (
     // eslint-disable-next-line react/forbid-elements -- native color picker; replace with FPL ColorArea when available
     <input
+      id={id}
       ref={inputRef}
       type="color"
       aria-label="Stroke color"
