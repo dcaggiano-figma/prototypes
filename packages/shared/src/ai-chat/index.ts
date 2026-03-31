@@ -28,8 +28,17 @@ export {
   DEFAULT_MODEL_OPTIONS,
 } from './provider';
 
-// React hook wrapper
+// React hook wrappers
 export { useChatScript } from './useChatScript';
+export { useLiveChat } from './useLiveChat';
+export type { UseLiveChatOptions, LiveChatResult } from './useLiveChat';
+
+// Node serialization for AI context
+export { serializeSelectedNodes, createNodeWithDefaults, updateNodeWithTextRouting } from './serializeNodes';
+
+// Scene graph action parser
+export { SceneGraphActionParser, renderMarkdown } from './SceneGraphActionParser';
+export type { SceneGraphParserCallbacks } from './SceneGraphActionParser';
 
 // UI Components
 export { StreamingContent } from './StreamingContent';

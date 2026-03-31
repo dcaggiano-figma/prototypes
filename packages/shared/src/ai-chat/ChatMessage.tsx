@@ -79,6 +79,8 @@ export interface CollapsibleSectionProps {
   children?: ReactNode;
   /** Content streams in word-by-word when active, then collapses when done */
   status?: 'active' | 'complete';
+  /** Whether to animate content with streaming effect. When false, shows all content immediately. Defaults to true. */
+  streaming?: boolean;
   /** Called when streaming finishes (before the collapse animation) */
   onStreamComplete?: () => void;
 }
@@ -109,6 +111,7 @@ export function CollapsibleSection({
   label,
   children,
   status = 'complete',
+  streaming,
   onStreamComplete,
 }: CollapsibleSectionProps) {
   const isActive = status === 'active';
@@ -191,6 +194,7 @@ export function CollapsibleSection({
                     maxHeight={172}
                     chunkBy="words"
                     speed={WORDS_PER_SECOND}
+                    streaming={streaming}
                     onComplete={handleStreamComplete}
                   >
                     {(visible) => <span className="text-text-secondary">{visible}</span>}

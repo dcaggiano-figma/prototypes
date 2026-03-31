@@ -34,12 +34,21 @@ import {
   TodoList,
   VersionCard,
   useChatScript,
+  useLiveChat,
+  serializeSelectedNodes,
+  createNodeWithDefaults,
+  updateNodeWithTextRouting,
+  type Attachment,
   type ChatItem,
+  type InspectedElement,
   type TransientItem,
   type Task,
   type PromptSubmission,
 } from '@prototype/shared';
+import { useSceneGraph, useCanvasId, useSelection, duplicateNodes, type NodeId } from '../../canvas';
+import { aiClient, resolveModel } from '../../helpers/aiClient';
 import { DEFAULT_SCRIPT } from '../../data/chatScript';
+import { SYSTEM_PROMPT } from '../../data/systemPrompt';
 
 /* ------------------------------------------------------------------ */
 /*  ChatPanelItem – renders a single accumulated chat item              */
@@ -52,6 +61,7 @@ function ChatPanelItem({
   onStartTasks,
   onStreamComplete,
   toggleTipManager,
+  streaming,
 }: {
   item: ChatItem;
   tasks: Task[];
@@ -59,13 +69,22 @@ function ChatPanelItem({
   onStartTasks: () => void;
   onStreamComplete: () => void;
   toggleTipManager: ReturnType<typeof ToggleTip.useUncontrolledToggleTip>;
+  streaming?: boolean;
 }) {
   switch (item.type) {
+    case 'user-message':
+      return (
+        <ChatMessage sender="user" attachments={item.attachments} inspectedElements={item.inspectedElements}>
+          {item.content}
+        </ChatMessage>
+      );
+
     case 'reasoning':
       return (
         <CollapsibleSection
           label="Reasoning"
           status={item.status}
+          streaming={streaming}
           onStreamComplete={onStreamComplete}
         >
           <ChatMessage sender="ai">
@@ -85,15 +104,20 @@ function ChatPanelItem({
               chunkBy="words"
               speed={20}
               fade={false}
+              streaming={streaming}
               onComplete={onStreamComplete}
             >
-              {(visible) => <span>{visible}</span>}
+              {/* eslint-disable-next-line react/no-danger -- AI response HTML from renderMarkdown */}
+              {(visible) => <span dangerouslySetInnerHTML={{ __html: visible }} />}
             </StreamingContent>
           </ChatMessage>
         );
       }
       return (
-        <ChatMessage sender="ai">{item.content}</ChatMessage>
+        <ChatMessage sender="ai">
+          {/* eslint-disable-next-line react/no-danger -- AI response HTML from renderMarkdown */}
+          <span dangerouslySetInnerHTML={{ __html: item.content }} />
+        </ChatMessage>
       );
 
     case 'todo-list':
@@ -160,6 +184,9 @@ function TransientElement({
   switch (transient.type) {
     case 'progress':
       return <ProgressIndicator label={transient.label} spinner />;
+
+    case 'working':
+      return <FileCard variant="working" />;
 
     case 'view-file':
       return <FileCard variant="viewing" fileName={transient.fileName} />;
@@ -228,9 +255,29 @@ const SUGGESTIONS = [
 
 interface CompletedConversation {
   prompt: string;
+  attachments: Attachment[];
+  inspectedElements: InspectedElement[];
   items: ChatItem[];
   tasks: Task[];
   versionNumber: number;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+function getInspectedElements(
+  sg: ReturnType<typeof useSceneGraph>,
+  selectedIds: ReadonlySet<NodeId>,
+): InspectedElement[] {
+  const elements: InspectedElement[] = [];
+  for (const id of selectedIds) {
+    const node = sg.getNode(id);
+    if (node) {
+      elements.push({ id: String(id), type: node.type, label: node.name || node.type });
+    }
+  }
+  return elements;
 }
 
 /* ------------------------------------------------------------------ */
@@ -240,13 +287,34 @@ interface CompletedConversation {
 /* Animation phases for the user message on subsequent prompts */
 type AnimPhase = 'settled' | 'measuring' | 'appearing' | 'rising';
 
+/** Module-level cache so chat state survives panel unmount/remount. */
+const chatCache: {
+  phase: 'idle' | 'active';
+  submittedPrompt: string;
+  submittedAttachments: Attachment[];
+  submittedInspectedElements: InspectedElement[];
+  completedConversations: CompletedConversation[];
+} = {
+  phase: 'idle',
+  submittedPrompt: '',
+  submittedAttachments: [],
+  submittedInspectedElements: [],
+  completedConversations: [],
+};
+
 export function AiChatPanel() {
   const [openItem, setOpenItem] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
-  const [selectedModel, setSelectedModel] = useState('default');
-  const [phase, setPhase] = useState<'idle' | 'active'>('idle');
-  const [submittedPrompt, setSubmittedPrompt] = useState('');
-  const [completedConversations, setCompletedConversations] = useState<CompletedConversation[]>([]);
+  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ai-chat-model') ?? 'default');
+  const handleModelChange = useCallback((model: string) => {
+    setSelectedModel(model);
+    localStorage.setItem('ai-chat-model', model);
+  }, []);
+  const [phase, setPhase] = useState<'idle' | 'active'>(chatCache.phase);
+  const [submittedPrompt, setSubmittedPrompt] = useState(chatCache.submittedPrompt);
+  const [submittedAttachments, setSubmittedAttachments] = useState<Attachment[]>(chatCache.submittedAttachments);
+  const [submittedInspectedElements, setSubmittedInspectedElements] = useState<InspectedElement[]>(chatCache.submittedInspectedElements);
+  const [completedConversations, setCompletedConversations] = useState<CompletedConversation[]>(chatCache.completedConversations);
   const scrollRef = useRef<HTMLDivElement>(null);
   const msgRef = useRef<HTMLDivElement>(null);
 
@@ -260,10 +328,56 @@ export function AiChatPanel() {
   const [collapsePhase, setCollapsePhase] = useState<'expand' | 'collapse'>('expand');
   const prevConvCountRef = useRef(completedConversations.length);
 
-  const script = useChatScript(DEFAULT_SCRIPT, phase === 'active');
+  /* Scene graph access for live AI mode */
+  const sg = useSceneGraph();
+  const canvasId = useCanvasId();
+  const { selectedIds } = useSelection();
+  const inspectedElements = getInspectedElements(sg, selectedIds);
+
+  /* Dual-mode chat: scripted (default) vs live AI */
+  const isLiveMode = selectedModel !== 'default';
+
+  const script = useChatScript(DEFAULT_SCRIPT, phase === 'active' && !isLiveMode);
+  const liveChat = useLiveChat({
+    aiClient,
+    resolveModel,
+    systemPrompt: SYSTEM_PROMPT,
+    getCanvasContext() {
+      return serializeSelectedNodes(sg, selectedIds, canvasId);
+    },
+    onCreateNode(nodeType: string, parentId: string, props: Record<string, unknown>) {
+      return createNodeWithDefaults(sg, nodeType, Number(parentId) as NodeId, props);
+    },
+    onUpdateNode(nodeId: string, updates: Record<string, unknown>) {
+      updateNodeWithTextRouting(sg, Number(nodeId) as NodeId, updates);
+    },
+    onDeleteNode(nodeId: string) {
+      sg.deleteNode(Number(nodeId) as NodeId);
+    },
+    onReparentNode(nodeId: string, newParentId: string, index: number) {
+      sg.reparentNode(Number(nodeId) as NodeId, Number(newParentId) as NodeId, index);
+    },
+    onDuplicateNode(nodeId: string) {
+      const { topLevelIds, oldToNew } = duplicateNodes(sg, canvasId, new Set([Number(nodeId) as NodeId]));
+      const description = serializeSelectedNodes(sg, new Set(topLevelIds), canvasId);
+      const idMap = new Map<string, string>();
+      for (const [oldId, newId] of oldToNew) {
+        idMap.set(String(oldId), String(newId));
+      }
+      return { newIds: topLevelIds.map(String), description, idMap };
+    },
+  });
+  const chat = isLiveMode ? liveChat : script;
   const toggleTipManager = ToggleTip.useUncontrolledToggleTip({ placement: 'top' });
 
-  const effectiveIsWorking = animPhase !== 'settled' || script.isWorking;
+  const effectiveIsWorking = animPhase !== 'settled' || chat.isWorking;
+
+  /* Sync state to module-level cache so it survives unmount */
+  useEffect(() => { chatCache.phase = phase; }, [phase]);
+  useEffect(() => { chatCache.submittedPrompt = submittedPrompt; }, [submittedPrompt]);
+  useEffect(() => { chatCache.submittedAttachments = submittedAttachments; }, [submittedAttachments]);
+  useEffect(() => { chatCache.submittedInspectedElements = submittedInspectedElements; }, [submittedInspectedElements]);
+  useEffect(() => { chatCache.completedConversations = completedConversations; }, [completedConversations]);
 
   /* Auto-scroll when new items arrive (only when settled) */
   useEffect(() => {
@@ -272,7 +386,7 @@ export function AiChatPanel() {
     if (el) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [script.items, script.transient, animPhase]);
+  }, [chat.items, chat.transient, animPhase]);
 
   /* Detect new completed conversation and start collapse animation */
   useEffect(() => {
@@ -339,28 +453,59 @@ export function AiChatPanel() {
   const handleSubmit = useCallback((submission: PromptSubmission) => {
     if (!submission.text.trim()) return;
 
-    if (phase === 'active' && script.items.length > 0 && !effectiveIsWorking) {
-      // Subsequent prompt — archive current conversation, restart, and animate
+    const captureSubmission = () => {
+      setSubmittedPrompt(submission.text);
+      setSubmittedAttachments(submission.attachments);
+      setSubmittedInspectedElements(submission.inspectedElements);
+      setPrompt('');
+    };
+
+    if (isLiveMode) {
+      if (phase === 'active' && chat.items.length > 0 && !effectiveIsWorking) {
+        // Archive current thread into its own container
+        setCompletedConversations((prev) => [
+          ...prev,
+          {
+            prompt: submittedPrompt,
+            attachments: submittedAttachments,
+            inspectedElements: submittedInspectedElements,
+            items: [...chat.items],
+            tasks: [...chat.tasks],
+            versionNumber: prev.length + 1,
+          },
+        ]);
+        chat.restart();
+        captureSubmission();
+        setAnimPhase('measuring');
+      } else {
+        captureSubmission();
+        setPhase('active');
+      }
+      void liveChat.sendMessage(submission.text, selectedModel, {
+        attachments: submission.attachments,
+        inspectedElements: submission.inspectedElements,
+      });
+    } else if (phase === 'active' && chat.items.length > 0 && !effectiveIsWorking) {
+      // Subsequent prompt in scripted mode — archive current conversation, restart, and animate
       setCompletedConversations((prev) => [
         ...prev,
         {
           prompt: submittedPrompt,
-          items: [...script.items],
-          tasks: [...script.tasks],
+          attachments: submittedAttachments,
+          inspectedElements: submittedInspectedElements,
+          items: [...chat.items],
+          tasks: [...chat.tasks],
           versionNumber: prev.length + 1,
         },
       ]);
-      script.restart();
-      setSubmittedPrompt(submission.text);
-      setPrompt('');
+      chat.restart();
+      captureSubmission();
       setAnimPhase('measuring');
     } else {
-      // First prompt — switch from idle to active view
-      setSubmittedPrompt(submission.text);
-      setPrompt('');
+      captureSubmission();
       setPhase('active');
     }
-  }, [phase, submittedPrompt, script, effectiveIsWorking]);
+  }, [phase, submittedPrompt, submittedAttachments, submittedInspectedElements, chat, effectiveIsWorking, isLiveMode, liveChat, selectedModel]);
 
   if (phase === 'active') {
     return (
@@ -390,7 +535,7 @@ export function AiChatPanel() {
                 style={collapseStyle}
                 onTransitionEnd={isCollapsing ? () => handleCollapseTransitionEnd(conv.versionNumber) : undefined}
               >
-                <ChatMessage sender="user">{conv.prompt}</ChatMessage>
+                <ChatMessage sender="user" attachments={conv.attachments} inspectedElements={conv.inspectedElements}>{conv.prompt}</ChatMessage>
                 {conv.items.map((item) => (
                   <ChatPanelItem
                     key={item.id}
@@ -400,6 +545,7 @@ export function AiChatPanel() {
                     onStartTasks={() => {}}
                     onStreamComplete={() => {}}
                     toggleTipManager={toggleTipManager}
+                    streaming={!isLiveMode}
                   />
                 ))}
               </div>
@@ -432,30 +578,32 @@ export function AiChatPanel() {
                 animPhase === 'measuring' ? 'opacity-0' : 'opacity-100',
               )}
             >
-              <ChatMessage sender="user">{submittedPrompt}</ChatMessage>
+              <ChatMessage sender="user" attachments={submittedAttachments} inspectedElements={submittedInspectedElements}>{submittedPrompt}</ChatMessage>
             </div>
 
             {/* Current script items — only visible once animation settled */}
             {animPhase === 'settled' && (
               <>
-                {script.items.map((item) => (
+                {chat.items.map((item) => (
                   <ChatPanelItem
                     key={item.id}
                     item={item}
-                    tasks={script.tasks}
-                    awaitingUserAction={script.awaitingUserAction}
-                    onStartTasks={script.onStartTasks}
-                    onStreamComplete={script.onStreamComplete}
+                    tasks={chat.tasks}
+                    awaitingUserAction={chat.awaitingUserAction}
+                    onStartTasks={chat.onStartTasks}
+                    onStreamComplete={chat.onStreamComplete}
                     toggleTipManager={toggleTipManager}
+                    streaming={!isLiveMode}
                   />
                 ))}
 
-                {script.transient && (
+                {chat.transient && (
                   <TransientElement
-                    transient={script.transient}
-                    onStreamComplete={script.onStreamComplete}
+                    transient={chat.transient}
+                    onStreamComplete={chat.onStreamComplete}
                   />
                 )}
+
               </>
             )}
           </div>
@@ -468,8 +616,10 @@ export function AiChatPanel() {
             onChange={setPrompt}
             onSubmit={handleSubmit}
             selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
+            onModelChange={handleModelChange}
             isWorking={effectiveIsWorking}
+            onStop={isLiveMode ? liveChat.stopGeneration : undefined}
+            inspectedElements={inspectedElements}
             placeholder="Ask anything..."
           />
         </div>
@@ -549,7 +699,8 @@ export function AiChatPanel() {
           onChange={setPrompt}
           onSubmit={handleSubmit}
           selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
+          onModelChange={handleModelChange}
+          inspectedElements={inspectedElements}
           placeholder="Ask anything..."
         />
       </div>

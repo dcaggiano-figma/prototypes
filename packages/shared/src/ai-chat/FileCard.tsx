@@ -5,10 +5,10 @@ import { Icon24Eye, Icon24Write } from '@figma/fpl-icons';
 import { ProgressIndicator } from './ChatMessage';
 
 export interface FileCardProps {
-  /** Whether the card represents a file being read or written */
-  variant: 'viewing' | 'writing';
-  /** The file name to display */
-  fileName: string;
+  /** Whether the card represents a file being read, written, or the agent working */
+  variant: 'viewing' | 'writing' | 'working';
+  /** The file name to display (not used for 'working' variant) */
+  fileName?: string;
   /** Whether to show the loading spinner (default: true) */
   loading?: boolean;
   /** Optional content slot rendered below the header - typically streaming code content */
@@ -21,15 +21,18 @@ export function FileCard({
   loading = true,
   children,
 }: FileCardProps) {
+  const showIcon = variant !== 'working';
   const Icon = variant === 'viewing' ? Icon24Eye : Icon24Write;
-  const label = variant === 'viewing' ? `Viewing ${fileName}` : `Writing ${fileName}`;
+  const label = variant === 'working' ? 'Working...' : variant === 'viewing' ? `Viewing ${fileName ?? ''}` : `Writing ${fileName ?? ''}`;
 
   return (
     <div className="flex flex-col border-border border rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 py-2 px-12px">
-        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 w-full">
-          <Icon />
-          <ProgressIndicator label={label} />
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2 w-full">
+          <div className="flex items-center gap-2">
+            {showIcon && <Icon />}
+            <ProgressIndicator label={label} />
+          </div>
           {loading && (
             <div className="px-1">
               <LoadingSpinner size="sm" />

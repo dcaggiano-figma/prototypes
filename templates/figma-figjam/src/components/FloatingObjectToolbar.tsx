@@ -427,7 +427,7 @@ export function FloatingObjectToolbar() {
             </ButtonPrimitive>
             <MenuV2.Root manager={fontMenuManager}>
               <MenuV2.RadioGroup
-                title="Font"
+                aria-label="Font"
                 value={currentFontFamily}
                 onChange={handleFontFamilyChange}
               >
@@ -459,7 +459,7 @@ export function FloatingObjectToolbar() {
             </ButtonPrimitive>
             <MenuV2.Root manager={sizeMenuManager}>
               <MenuV2.RadioGroup
-                title="Font size"
+                aria-label="Font size"
                 value={String(currentFontSize)}
                 onChange={handleFontSizeChange}
               >

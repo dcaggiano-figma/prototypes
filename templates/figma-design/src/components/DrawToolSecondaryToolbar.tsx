@@ -83,7 +83,7 @@ export function DrawToolSecondaryToolbar({
           <Icon16ChevronDown />
         </ButtonPrimitive>
         <MenuV2.Root manager={strokeStyleMenu.manager}>
-          <MenuV2.RadioGroup title="Stroke style" value={strokeStyle} onChange={(value) => setStrokeStyle(value)}>
+          <MenuV2.RadioGroup aria-label="Stroke style" value={strokeStyle} onChange={(value) => setStrokeStyle(value)}>
             <MenuV2.RadioGroupItem value="solid">Solid</MenuV2.RadioGroupItem>
             <MenuV2.RadioGroupItem value="dashed">Dashed</MenuV2.RadioGroupItem>
             <MenuV2.RadioGroupItem value="dotted">Dotted</MenuV2.RadioGroupItem>

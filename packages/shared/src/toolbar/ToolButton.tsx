@@ -69,7 +69,7 @@ export function ToolButton({ id, Icon, label, activeTool, selectedSubToolId, sub
         </ButtonGroup>
         <MenuV2.Root manager={manager}>
           <MenuV2.RadioGroup
-            title={label}
+            aria-label={label}
             value={activeTool}
             onChange={onSelectTool}
           >

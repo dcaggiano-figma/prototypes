@@ -12,7 +12,7 @@ import type { AiChatSnapshot, AiChatStoreAPI, ModelOption } from './types';
 /* ------------------------------------------------------------------ */
 
 export const DEFAULT_MODEL_OPTIONS: ModelOption[] = [
-  { value: 'default', label: 'Default', description: 'Standard setup' },
+  { value: 'default', label: 'Default', description: 'Scripted demo' },
   { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', description: 'Fast, capable' },
   { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', description: 'Fastest, lightweight' },
 ];
