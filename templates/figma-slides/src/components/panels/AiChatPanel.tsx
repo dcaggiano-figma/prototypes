@@ -58,6 +58,7 @@ function ChatPanelItem({
   onStartTasks,
   onStreamComplete,
   toggleTipManager,
+  streaming,
 }: {
   item: ChatItem;
   tasks: Task[];
@@ -65,6 +66,7 @@ function ChatPanelItem({
   onStartTasks: () => void;
   onStreamComplete: () => void;
   toggleTipManager: ReturnType<typeof ToggleTip.useUncontrolledToggleTip>;
+  streaming?: boolean;
 }) {
   switch (item.type) {
     case 'user-message':
@@ -79,6 +81,7 @@ function ChatPanelItem({
         <CollapsibleSection
           label="Reasoning"
           status={item.status}
+          streaming={streaming}
           onStreamComplete={onStreamComplete}
         >
           <ChatMessage sender="ai">
@@ -98,6 +101,7 @@ function ChatPanelItem({
               chunkBy="words"
               speed={20}
               fade={false}
+              streaming={streaming}
               onComplete={onStreamComplete}
             >
               {/* eslint-disable-next-line react/no-danger -- AI response HTML from renderMarkdown */}
@@ -538,6 +542,7 @@ export function AiChatPanel() {
                     onStartTasks={() => {}}
                     onStreamComplete={() => {}}
                     toggleTipManager={toggleTipManager}
+                    streaming={!isLiveMode}
                   />
                 ))}
               </div>
@@ -585,6 +590,7 @@ export function AiChatPanel() {
                     onStartTasks={chat.onStartTasks}
                     onStreamComplete={chat.onStreamComplete}
                     toggleTipManager={toggleTipManager}
+                    streaming={!isLiveMode}
                   />
                 ))}
 

@@ -22,6 +22,8 @@ export interface StreamingContentProps {
   children: (visibleContent: string) => ReactNode;
   /** Show top/bottom fade overlays (useful for fixed-height containers). Defaults to true. */
   fade?: boolean;
+  /** Whether to animate content with streaming effect. When false, shows all content immediately. Defaults to true. */
+  streaming?: boolean;
   /** Fires once when all chunks have been revealed */
   onComplete?: () => void;
   className?: string;
@@ -34,6 +36,7 @@ export function StreamingContent({
   chunkBy = 'words',
   speed = 20,
   fade = true,
+  streaming = true,
   children,
   onComplete,
   className,
@@ -44,7 +47,8 @@ export function StreamingContent({
     ? content.split(/\s+/).filter(Boolean)
     : content.split('\n');
 
-  const [visibleCount, setVisibleCount] = useState(isActive ? 0 : chunks.length);
+  const shouldAnimate = streaming && isActive;
+  const [visibleCount, setVisibleCount] = useState(shouldAnimate ? 0 : chunks.length);
   const scrollRef = useRef<HTMLDivElement>(null);
   const completeFired = useRef(false);
 
@@ -55,9 +59,9 @@ export function StreamingContent({
     }
   }, [maxHeight]);
 
-  // Streaming interval
+  // Streaming interval — skip when streaming is disabled
   useEffect(() => {
-    if (!isActive) {
+    if (!shouldAnimate) {
       setVisibleCount(chunks.length);
       return undefined;
     }
@@ -74,23 +78,23 @@ export function StreamingContent({
       });
     }, intervalMs);
     return () => clearInterval(id);
-  }, [isActive, chunks.length, speed]);
+  }, [shouldAnimate, chunks.length, speed]);
 
   // Fire onComplete when streaming finishes
   useEffect(() => {
-    if (visibleCount >= chunks.length && chunks.length > 0 && !completeFired.current && isActive) {
+    if (visibleCount >= chunks.length && chunks.length > 0 && !completeFired.current && shouldAnimate) {
       completeFired.current = true;
       onComplete?.();
     }
-  }, [visibleCount, chunks.length, onComplete, isActive]);
+  }, [visibleCount, chunks.length, onComplete, shouldAnimate]);
 
   // Auto-scroll to follow new content
   useEffect(() => {
     const el = scrollRef.current;
-    if (el && isActive) {
+    if (el && shouldAnimate) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [visibleCount, isActive]);
+  }, [visibleCount, shouldAnimate]);
 
   const visibleContent = chunkBy === 'words'
     ? chunks.slice(0, visibleCount).join(' ')

@@ -52,6 +52,7 @@ function ChatPanelItem({
   onStartTasks,
   onStreamComplete,
   toggleTipManager,
+  streaming,
 }: {
   item: ChatItem;
   tasks: Task[];
@@ -59,6 +60,7 @@ function ChatPanelItem({
   onStartTasks: () => void;
   onStreamComplete: () => void;
   toggleTipManager: ReturnType<typeof ToggleTip.useUncontrolledToggleTip>;
+  streaming?: boolean;
 }) {
   switch (item.type) {
     case 'reasoning':
@@ -66,6 +68,7 @@ function ChatPanelItem({
         <CollapsibleSection
           label="Reasoning"
           status={item.status}
+          streaming={streaming}
           onStreamComplete={onStreamComplete}
         >
           <ChatMessage sender="ai">
@@ -85,6 +88,7 @@ function ChatPanelItem({
               chunkBy="words"
               speed={20}
               fade={false}
+              streaming={streaming}
               onComplete={onStreamComplete}
             >
               {(visible) => <span>{visible}</span>}
