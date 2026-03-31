@@ -1,31 +1,21 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import clsx from 'clsx';
-import { Button, ButtonGroup, ButtonPrimitive, Collapse, IconButton, Input, InputPrimitive } from '@figma/fpl-components';
+import { Button, ButtonGroup, Collapse, IconButton, Input } from '@figma/fpl-components';
 import { MenuV2 } from '@figma/fpl-components/beta';
 import { useMode } from '../ModeContext';
 import {
   Icon16ChevronDown,
-  Icon16Ellipse,
-  Icon16Frame,
-  Icon16Group,
-  Icon16Hidden,
-  Icon16Line,
-  Icon16Polygon,
-  Icon16Rectangle,
-  Icon16Section,
-  Icon16Star,
-  Icon16Text,
-  Icon16Visible,
+  Icon24CollapseLayers,
   Icon24Plus,
   Icon24SidebarOpen,
   Icon24Template,
 } from '@figma/fpl-icons';
 
 import { useCanvasId, useSceneGraph, useSelection } from '../../canvas';
-import type { FrameNode, SlideNode, SceneNode, VectorNode, NodeId } from '../../canvas';
+import type { FrameNode, SlideNode, SceneNode, NodeId } from '../../canvas';
+import type { LayersPanelHandle } from '@prototype/shared';
 import { useMinimizeUI } from '../MinimizeUIContext';
 import { useViewMode } from '../ViewModeContext';
-import { NavListThumbnail, ThumbnailPreview } from '@prototype/shared';
+import { NavListThumbnail, ThumbnailPreview, LayersPanel } from '@prototype/shared';
 import { colorToCSS, getFirstVisibleFill } from '../../canvas/components/render-helpers';
 import { ThumbnailRenderer } from '../../canvas/components/thumbnail-renderer';
 import { createSlideAfterFocused } from '../../canvas/scene-graph/grid';
@@ -46,6 +36,9 @@ export function FilePanel() {
 
   // File color profile
   const [colorProfile, setColorProfile] = useState<'srgb' | 'p3'>('srgb');
+
+  const layersPanelRef = useRef<LayersPanelHandle>(null);
+  const [hasExpandedLayers, setHasExpandedLayers] = useState(true);
 
   const fileMenu = MenuV2.useMenu();
 
@@ -190,15 +183,27 @@ export function FilePanel() {
 
         {/* Layers section — only shown in design mode */}
         {mode === 'design' && (
-          <div className='border-t border-border flex-1 min-h-0 flex flex-col'>
+          <div className='border-t border-border flex-1 min-h-0 flex flex-col overflow-hidden'>
             <Collapse.Root defaultOpen={true}>
               <Collapse.Header variant='leftPanel' size="lg">
                 <Collapse.Label size="md">Layers</Collapse.Label>
+                {hasExpandedLayers && (
+                  <Collapse.Trail>
+                    <IconButton
+                      aria-label="Collapse layers"
+                      onClick={() => layersPanelRef.current?.collapseAll()}
+                    >
+                      <Icon24CollapseLayers />
+                    </IconButton>
+                  </Collapse.Trail>
+                )}
               </Collapse.Header>
-              <Collapse.Content>
-                <LayersTree />
-              </Collapse.Content>
             </Collapse.Root>
+            <LayersPanel
+              ref={layersPanelRef}
+              rootId={focusedFrameId ?? canvasId}
+              onHasExpandedChange={setHasExpandedLayers}
+            />
           </div>
         )}
 
@@ -331,248 +336,3 @@ function FrameThumbnailPreview({ frameNode, store, storeVersion }: { frameNode: 
   );
 }
 
-// ── Layers tree ─────────────────────────────────────────────────────
-
-function LayersTree() {
-  const store = useSceneGraph();
-  const canvasId = useCanvasId();
-  const { selectedIds, select, toggle } = useSelection();
-  const { focusedFrameId } = useViewMode();
-  const [layers, setLayers] = useState<Array<{ node: SceneNode; depth: number }>>(() => collectLayersReversed(store, canvasId, focusedFrameId));
-
-  // Re-walk when store or focused frame changes
-  const refreshLayers = useCallback(() => {
-    setLayers(collectLayersReversed(store, canvasId, focusedFrameId));
-  }, [store, canvasId, focusedFrameId]);
-
-  // Subscribe to store changes and refresh when focused frame changes
-  useEffect(() => {
-    refreshLayers();
-    return store.addListener(refreshLayers);
-  }, [store, refreshLayers]);
-
-  return (
-    <div className="overflow-y-auto flex-1 min-h-0">
-      <div className="px-1 pb-2">
-        {layers.map(({ node, depth }) => (
-          <LayerRow
-            key={node.id}
-            node={node}
-            depth={depth}
-            selected={selectedIds.has(node.id)}
-            onSelect={select}
-            onToggle={toggle}
-            store={store}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Layer row ─────────────────────────────────────────────────────────
-
-interface LayerRowProps {
-  node: SceneNode
-  depth: number
-  selected: boolean
-  onSelect: (id: NodeId) => void
-  onToggle: (id: NodeId) => void
-  store: ReturnType<typeof useSceneGraph>
-}
-
-function LayerRow({
-  node, depth, selected, onSelect, onToggle, store,
-}: LayerRowProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.shiftKey) {
-        onToggle(node.id);
-      } else {
-        onSelect(node.id);
-      }
-    },
-    [node.id, onSelect, onToggle],
-  );
-
-  const handleDoubleClick = useCallback(() => {
-    setIsEditing(true);
-    requestAnimationFrame(() => {
-      inputRef.current?.select();
-    });
-  }, []);
-
-  const commitRename = useCallback(() => {
-    const value = inputRef.current?.value.trim();
-    if (value && value !== node.name) {
-      store.updateNode(node.id, { name: value });
-    }
-    setIsEditing(false);
-  }, [store, node.id, node.name]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') commitRename();
-      if (e.key === 'Escape') setIsEditing(false);
-    },
-    [commitRename],
-  );
-
-  const toggleVisibility = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      store.updateNode(node.id, { visible: !node.visible });
-    },
-    [store, node.id, node.visible],
-  );
-
-  return (
-    <ButtonPrimitive
-      className="relative flex items-center h-32px px-1 cursor-default select-none group w-full text-text"
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div
-        className={clsx(
-          'absolute inset-x-1 top-1/2 -translate-y-1/2 h-24px rounded-md',
-          selected ? 'bg-bg-selected' : 'group-hover:bg-bg-hover',
-        )}
-      />
-      <div
-        className={clsx(
-          'relative flex items-center gap-2 flex-1 min-w-0 h-24px px-1',
-          !node.visible && 'opacity-50',
-        )}
-        style={{ paddingLeft: 8 + depth * 24 }}
-      >
-        <span className="flex-shrink-0">
-          <NodeTypeIcon node={node} />
-        </span>
-        {isEditing ? (
-          <InputPrimitive
-            ref={inputRef}
-            className="flex-1 min-w-0 bg-bg text-text text-bodyMd px-1 py-0 rounded border border-border-brand outline-none"
-            aria-label="Rename layer"
-            defaultValue={node.name}
-            onBlur={commitRename}
-            onKeyDown={handleKeyDown}
-          />
-        ) : (
-          <span className="flex-1 min-w-0 truncate text-bodyMd">{node.name}</span>
-        )}
-        {(isHovered || !node.visible) && (
-          <ButtonPrimitive
-            className="flex-shrink-0 p-1 rounded text-text-secondary hover:bg-bg-hover"
-            onClick={toggleVisibility}
-            aria-label={node.visible ? 'Hide' : 'Show'}
-          >
-            {node.visible ? <Icon16Visible /> : <Icon16Hidden />}
-          </ButtonPrimitive>
-        )}
-      </div>
-    </ButtonPrimitive>
-  );
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────
-
-/**
- * Collect layers in reverse z-order: topmost node first, matching Figma convention.
- * When focusedFrameId is provided, only shows children of that frame.
- */
-function collectLayersReversed(
-  store: ReturnType<typeof useSceneGraph>,
-  canvasId: NodeId,
-  focusedFrameId: NodeId | null,
-): Array<{ node: SceneNode; depth: number }> {
-  const result: Array<{ node: SceneNode; depth: number }> = [];
-
-  function visitReversed(node: SceneNode, depth: number) {
-    result.push({ node, depth });
-    for (let i = node.children.length - 1; i >= 0; i--) {
-      const child = store.getNode(node.children[i]);
-      if (child) visitReversed(child, depth + 1);
-    }
-  }
-
-  if (focusedFrameId) {
-    const frame = store.getNode(focusedFrameId);
-    if (frame) {
-      for (let i = frame.children.length - 1; i >= 0; i--) {
-        const child = store.getNode(frame.children[i]);
-        if (child) visitReversed(child, 0);
-      }
-    }
-  } else {
-    const canvas = store.getNode(canvasId);
-    const roots = canvas ? canvas.children.map((id) => store.getNode(id)).filter(Boolean) as SceneNode[] : [];
-    for (let i = roots.length - 1; i >= 0; i--) {
-      visitReversed(roots[i], 0);
-    }
-  }
-
-  return result;
-}
-
-function NodeTypeIcon({ node }: { node: SceneNode }) {
-  switch (node.type) {
-    case 'RECTANGLE':
-      return <Icon16Rectangle />;
-    case 'ELLIPSE':
-      return <Icon16Ellipse />;
-    case 'FRAME':
-      return <Icon16Frame />;
-    case 'SLIDE':
-      return <Icon16Frame />;
-    case 'SECTION':
-      return <Icon16Section />;
-    case 'TEXT':
-      return <Icon16Text />;
-    case 'LINE':
-      return <Icon16Line />;
-    case 'GROUP':
-      return <Icon16Group />;
-    case 'STAR':
-      return <Icon16Star />;
-    case 'POLYGON':
-      return <Icon16Polygon />;
-    case 'VECTOR':
-      return <VectorPreviewIcon node={node} />;
-  }
-}
-
-function VectorPreviewIcon({ node }: { node: VectorNode }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [viewBox, setViewBox] = useState(`0 0 ${node.width} ${node.height}`);
-
-  useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const bbox = svg.getBBox();
-    if (bbox.width === 0 || bbox.height === 0) return;
-    const pad = 0.5;
-    setViewBox(`${bbox.x - pad} ${bbox.y - pad} ${bbox.width + pad * 2} ${bbox.height + pad * 2}`);
-  }, [node.paths]);
-
-  return (
-    <svg
-      ref={svgRef}
-      width="10"
-      height="10"
-      viewBox={viewBox}
-      fill="none"
-      stroke="var(--color-icon-tertiary)"
-      strokeWidth={1}
-    >
-      {node.paths.map((p, i) => (
-        <path key={i} d={p.d} vectorEffect="non-scaling-stroke" />
-      ))}
-    </svg>
-  );
-}
