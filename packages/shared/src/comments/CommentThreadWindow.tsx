@@ -3,6 +3,7 @@ import { IconButton, TextareaPrimitive, InputPrimitive } from '@figma/fpl-compon
 import { Icon24More, Icon24Resolve, Icon24Emoji, Icon24Mention, Icon24Image, Icon24Close, Icon24ArrowUp } from '@figma/fpl-icons';
 import { UserAvatar } from '../user-config';
 import { CommentMessage } from './CommentMessage';
+import { TimestampChip } from './TimestampChip';
 import type { CommentThread } from './types';
 import styles from './comments.module.css';
 
@@ -11,6 +12,7 @@ interface CommentThreadWindowProps {
   onClose: () => void;
   onResolve: () => void;
   onReply: (body: string) => void;
+  onTimestampClick?: (timestampMs: number) => void;
 }
 
 export function CommentThreadWindow({
@@ -18,6 +20,7 @@ export function CommentThreadWindow({
   onClose,
   onResolve,
   onReply,
+  onTimestampClick,
 }: CommentThreadWindowProps) {
   const [replyText, setReplyText] = useState('');
   const [expanded, setExpanded] = useState(false);
@@ -97,7 +100,7 @@ export function CommentThreadWindow({
 
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {thread.comments.map((comment) => (
+        {thread.comments.map((comment, i) => (
           <CommentMessage
             key={comment.id}
             authorName={comment.authorName}
@@ -106,6 +109,12 @@ export function CommentThreadWindow({
             color={comment.color}
             body={comment.body}
             createdAt={comment.createdAt}
+            timestampChip={i === 0 && thread.anchor.timestampMs != null ? (
+              <TimestampChip
+                timestampMs={thread.anchor.timestampMs}
+                onClick={onTimestampClick ? () => onTimestampClick(thread.anchor.timestampMs!) : undefined}
+              />
+            ) : undefined}
           />
         ))}
       </div>

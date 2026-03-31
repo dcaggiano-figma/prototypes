@@ -18,6 +18,8 @@ import cursorResize from '../../assets/cursors/cursor-resize-ui3.svg';
 import cursorResizeV from '../../assets/cursors/cursor-resize-v-ui3.svg';
 import cursorResizeNWSE from '../../assets/cursors/cursor-resize-nwse-ui3.svg';
 import cursorResizeNESW from '../../assets/cursors/cursor-resize-nesw-ui3.svg';
+import cursorTrimLeft from '../../assets/cursors/cursor-trim-left-ui3.svg';
+import cursorTrimRight from '../../assets/cursors/cursor-trim-right-ui3.svg';
 
 const cursor = (url: string, hx: number, hy: number, fallback: string) =>
   `url("${url}") ${hx} ${hy}, ${fallback}`;
@@ -46,4 +48,12 @@ export const CURSORS = {
   resizeV: cursor(cursorResizeV, 16, 16, 'ns-resize'),
   resizeNWSE: cursor(cursorResizeNWSE, 16, 16, 'nwse-resize'),
   resizeNESW: cursor(cursorResizeNESW, 16, 16, 'nesw-resize'),
+
+  // Timeline cursors
+  trimLeft: cursor(cursorTrimLeft, 16, 16, 'ew-resize'),
+  trimRight: cursor(cursorTrimRight, 16, 16, 'ew-resize'),
+  scissors: 'crosshair',
+  guideAdd: 'copy',
+  guideDelete: 'no-drop',
+  guideDrag: 'ew-resize',
 } as const;

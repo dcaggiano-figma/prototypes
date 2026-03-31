@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "threads": [
+    {
+      "id": "thread_motion_1",
+      "anchor": { "worldX": 200, "worldY": 150, "timestampMs": 400 },
+      "comments": [
+        {
+          "id": "c1",
+          "threadId": "thread_motion_1",
+          "authorName": "Alex",
+          "authorInitial": "A",
+          "body": "The fade-in timing feels too fast here",
+          "createdAt": 1711900000000
+        }
+      ],
+      "resolved": false,
+      "createdAt": 1711900000000
+    },
+    {
+      "id": "thread_motion_2",
+      "anchor": { "worldX": 400, "worldY": 300, "timestampMs": 1200 },
+      "comments": [
+        {
+          "id": "c2",
+          "threadId": "thread_motion_2",
+          "authorName": "Jordan",
+          "authorInitial": "J",
+          "body": "Can we add an ease-out here?",
+          "createdAt": 1711900100000
+        }
+      ],
+      "resolved": false,
+      "createdAt": 1711900100000
+    },
+    {
+      "id": "thread_motion_3",
+      "anchor": { "worldX": 100, "worldY": 200, "timestampMs": 2000 },
+      "comments": [
+        {
+          "id": "c3",
+          "threadId": "thread_motion_3",
+          "authorName": "Sam",
+          "authorInitial": "S",
+          "body": "This slide transition needs to be smoother",
+          "createdAt": 1711900200000
+        }
+      ],
+      "resolved": false,
+      "createdAt": 1711900200000
+    }
+  ]
+}

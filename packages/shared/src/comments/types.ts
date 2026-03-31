@@ -21,6 +21,8 @@ export interface CommentAnchor {
   /** Offset relative to node origin (for node-attached comments) */
   nodeOffsetX?: number;
   nodeOffsetY?: number;
+  /** If pinned to a timeline position, the timestamp in milliseconds */
+  timestampMs?: number;
 }
 
 /** A comment thread (one anchor, multiple messages) */
@@ -35,7 +37,7 @@ export interface CommentThread {
 /** Interaction states for the comment system */
 export type CommentInteraction =
   | { type: 'none' }
-  | { type: 'placing'; worldX: number; worldY: number; nodeId?: string; nodeOffsetX?: number; nodeOffsetY?: number }
+  | { type: 'placing'; worldX: number; worldY: number; nodeId?: string; nodeOffsetX?: number; nodeOffsetY?: number; timestampMs?: number }
   | { type: 'hovering'; threadId: string }
   | { type: 'viewing'; threadId: string }
   | { type: 'dragging'; threadId: string; worldX: number; worldY: number };

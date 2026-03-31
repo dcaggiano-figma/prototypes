@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Button, Modal } from '@figma/fpl-components'
 import { Icon24Clipboard, Icon24Check, Icon24Download } from '@figma/fpl-icons'
 import { useSceneGraph } from '../canvas/scene-graph/provider'
@@ -11,6 +11,7 @@ interface SaveAsDefaultModalProps {
   open: boolean
   onClose: () => void
   onCopy?: () => void
+  extraSections?: ReactNode
 }
 
 function escapeUnicode(json: string): string {
@@ -27,7 +28,7 @@ function downloadJson(content: string, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-export function SaveAsDefaultModal({ open, onClose, onCopy }: SaveAsDefaultModalProps) {
+export function SaveAsDefaultModal({ open, onClose, onCopy, extraSections }: SaveAsDefaultModalProps) {
   const sg = useSceneGraph()
   const { store: commentsStore, threads } = useComments()
   const [copiedScene, setCopiedScene] = useState(false)
@@ -128,6 +129,8 @@ export function SaveAsDefaultModal({ open, onClose, onCopy }: SaveAsDefaultModal
               </div>
             </div>
           )}
+
+          {extraSections}
         </Modal.Body>
         <Modal.Footer>
           <Modal.ActionStrip>

@@ -1,0 +1,255 @@
+/* Export page styles — animations and visual effects that can't use Tailwind */
+
+/* Spinner */
+@keyframes export-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  animation: export-spin 0.8s linear infinite;
+  transform-origin: 50% 50%;
+  display: block;
+  color: var(--color-text-secondary, rgba(0,0,0,0.5));
+}
+
+/* Figma loader keyframes */
+@keyframes figma-logo-top {
+  0%, 20% { transform: scaleX(.5); }
+  5%, 15%, 25%, 75% { transform: scaleX(1); }
+  10% { transform: scaleX(.5); }
+  80%, 90%, 100% { transform: scaleX(.5); }
+  85%, 95% { transform: scaleX(1); }
+}
+
+@keyframes figma-logo-middle {
+  0%, 22% { transform: rotateY(-90.1deg); }
+  30%, 72% { transform: rotateY(0); }
+  80%, 100% { transform: rotateY(90.1deg); }
+}
+
+@keyframes figma-logo-bottom {
+  0%, 26% { transform: rotateY(-90.1deg); }
+  32%, 70% { transform: rotateY(0); }
+  76%, 100% { transform: rotateY(90.1deg); }
+}
+
+@keyframes figma-middle-line {
+  0% { transform: translateX(-9px); }
+  5% { transform: translateX(0); }
+  10% { transform: translateX(9px); }
+  10.1% { transform: translateX(-9px); }
+  15% { transform: translateX(0); }
+  20% { transform: translateX(9px); }
+  20.1% { transform: translateX(-9px); }
+  25%, 75% { transform: translateX(0); }
+  80% { transform: translateX(9px); }
+  80.1% { transform: translateX(-9px); }
+  85% { transform: translateX(0); }
+  90% { transform: translateX(9px); }
+  90.1% { transform: translateX(-9px); }
+  95% { transform: translateX(0); }
+  100% { transform: translateX(9px); }
+}
+
+@keyframes figma-shimmer {
+  0% { transform: translateX(-200px); }
+  100% { transform: translateX(200px); }
+}
+
+@keyframes figma-loader-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Figma stroked logo SVG elements */
+.figmaLogoContainer {
+  width: 22px;
+  height: 30px;
+  user-select: none;
+}
+
+.figmaLogoTop {
+  display: block;
+  animation: figma-logo-top 4s cubic-bezier(0.12, 0, 0.39, 0) infinite;
+}
+
+.figmaLogoMiddleLine {
+  animation: figma-middle-line 4s cubic-bezier(0.12, 0, 0.39, 0) infinite;
+}
+
+.figmaLogoMiddle {
+  display: block;
+  margin-top: -2px;
+  animation: figma-logo-middle 4s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+}
+
+.figmaLogoBottom {
+  display: block;
+  margin-top: -2px;
+  animation: figma-logo-bottom 4s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+}
+
+/* Loader overlay */
+.loaderOverlay {
+  animation: figma-loader-fadein 0.5s both;
+}
+
+.loaderBarTrack {
+  margin-top: 24px;
+  width: 180px;
+  height: 5px;
+  border-radius: 2.5px;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.loaderBarFill {
+  position: relative;
+  height: 100%;
+  border-radius: 2.5px;
+  background-color: rgba(255, 255, 255, 0.85);
+  transition: width 300ms ease-out;
+  overflow: hidden;
+}
+
+.loaderBarShimmer {
+  position: absolute;
+  inset: 0;
+  width: 400%;
+  background: linear-gradient(to right, transparent 20%, rgba(255, 255, 255, 0.4) 50%, transparent 80%);
+  animation: figma-shimmer 1.5s linear infinite;
+}
+
+/* Header */
+.header {
+  height: 48px;
+  border-color: var(--color-border, #e6e6e6);
+  background-color: var(--color-bg, white);
+}
+
+.headerBreadcrumbRow {
+  height: 32px;
+}
+
+.headerBreadcrumbGap {
+  gap: 2px;
+}
+
+.headerBreadcrumbLabel {
+  font-weight: 450;
+}
+
+.headerSeparator {
+  font-weight: 300;
+}
+
+/* Hero card */
+.heroCard {
+  background-color: var(--color-bg, white);
+  box-shadow: var(--elevation-300);
+}
+
+.heroVideoContainer {
+  border: 1px solid var(--color-border, #e6e6e6);
+}
+
+.heroVideoBlurred {
+  filter: blur(20px);
+  transform: scale(1.1);
+}
+
+.heroProgressPercentage {
+  font-size: 72px;
+  font-weight: 600;
+  line-height: 1;
+  color: white;
+  letter-spacing: -0.02em;
+}
+
+.heroProgressTrack {
+  height: 6px;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.heroProgressFill {
+  height: 100%;
+  border-radius: 3px;
+  background-color: white;
+  transition: width 300ms ease-out;
+}
+
+/* Author avatar */
+.authorAvatar {
+  width: 16px;
+  height: 16px;
+  background-color: #A259FF;
+  font-size: 9px;
+  font-weight: 600;
+  color: white;
+  line-height: 1;
+}
+
+/* Queue row */
+.queueRowThumb {
+  width: 100px;
+  height: 56px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.05));
+  background-color: var(--color-bg-secondary);
+}
+
+/* Animated background blobs */
+.bgBlobBlue {
+  width: 50vw;
+  height: 60vh;
+  max-width: 668px;
+  max-height: 531px;
+  left: 20vw;
+  top: 10vh;
+  border-radius: 607px;
+  background: radial-gradient(circle, #0D99FF 0%, rgba(13, 153, 255, 0.8) 30%, rgba(13, 153, 255, 0.4) 60%, transparent 100%);
+  filter: blur(60px);
+}
+
+.bgBlobDark {
+  width: 35vw;
+  height: 45vh;
+  max-width: 496px;
+  max-height: 496px;
+  left: 10vw;
+  top: 30vh;
+  border-radius: 607px;
+  background: radial-gradient(circle, #0866B5 0%, rgba(8, 102, 181, 0.8) 30%, rgba(8, 102, 181, 0.4) 60%, transparent 100%);
+  filter: blur(60px);
+}
+
+/* Overlay button backgrounds */
+.overlayBg {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+}
+
+/* Background container positioned below header */
+.bgContainer {
+  top: 48px;
+}
+
+/* Content area */
+.contentArea {
+  padding-top: 48px;
+  padding-bottom: 64px;
+}
+
+/* Animated background motion container */
+.motionBg {
+  width: 120vw;
+  height: 120vh;
+  left: -10vw;
+  top: -10vh;
+}
+
+/* Export page root */
+.exportPage {
+  background-color: var(--color-bg, white);
+}

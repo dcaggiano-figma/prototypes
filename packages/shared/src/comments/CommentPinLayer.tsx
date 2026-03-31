@@ -30,6 +30,8 @@ interface CommentPinLayerProps {
   /** Subscribe to scene-graph changes so pins update when nodes move */
   nodeStoreSubscribe?: (listener: () => void) => () => void;
   nodeStoreGetSnapshot?: () => unknown;
+  /** Current playback time in ms — pins not near this time are dimmed */
+  currentMs?: number;
 }
 
 export function CommentPinLayer({
@@ -48,6 +50,7 @@ export function CommentPinLayer({
   containerRef,
   nodeStoreSubscribe,
   nodeStoreGetSnapshot,
+  currentMs,
 }: CommentPinLayerProps) {
   const threads = useSyncExternalStore(
     commentsStore.subscribe,
@@ -129,6 +132,9 @@ export function CommentPinLayer({
           : resolveCommentPosition(thread.anchor, getNodePosition);
         const isSelected = selectedThreadId === thread.id;
         const isHovered = interaction.type === 'hovering' && interaction.threadId === thread.id;
+        const hasTimestamp = thread.anchor.timestampMs != null;
+        const isNearPlayhead = !hasTimestamp || currentMs == null ||
+          Math.abs(currentMs - thread.anchor.timestampMs!) <= 200;
         const firstComment = thread.comments[0];
         if (!firstComment) return null;
 
@@ -142,7 +148,8 @@ export function CommentPinLayer({
               transform: `scale(${1 / zoom})`,
               transformOrigin: 'bottom left',
               cursor: isDragging ? 'grabbing' : 'pointer',
-              opacity: isDragging ? 0.8 : 1,
+              opacity: isDragging ? 0.8 : isHovered || isSelected ? 1 : isNearPlayhead ? 1 : 0.3,
+              transition: 'opacity 200ms ease',
             }}
             onPointerDown={(e) => handlePointerDown(e, thread.id)}
             onPointerMove={handlePointerMove}
