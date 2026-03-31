@@ -305,15 +305,22 @@ export function pasteExternalNodes(
   return topLevelIds.map((id) => oldToNew.get(id)!).filter(Boolean);
 }
 
+export interface DuplicateResult {
+  /** The new top-level node IDs (one per selected node). */
+  topLevelIds: NodeId[];
+  /** Full mapping from every original node ID to its cloned counterpart. */
+  oldToNew: Map<NodeId, NodeId>;
+}
+
 export function duplicateNodes(
   sg: SceneGraph,
   canvasId: NodeId,
   selectedIds: ReadonlySet<NodeId>,
-): NodeId[] {
-  if (selectedIds.size === 0) return [];
+): DuplicateResult {
+  if (selectedIds.size === 0) return { topLevelIds: [], oldToNew: new Map() };
 
   const topLevelIds = collectTopLevelIds(sg, selectedIds);
-  if (topLevelIds.length === 0) return [];
+  if (topLevelIds.length === 0) return { topLevelIds: [], oldToNew: new Map() };
 
   const allNodes: SceneNode[] = [];
   for (const id of topLevelIds) {
@@ -354,7 +361,10 @@ export function duplicateNodes(
     oldToNew.set(node.id, newNode.id);
   }
 
-  return topLevelIds.map((id) => oldToNew.get(id)!).filter(Boolean);
+  return {
+    topLevelIds: topLevelIds.map((id) => oldToNew.get(id)!).filter(Boolean),
+    oldToNew,
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────

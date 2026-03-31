@@ -356,9 +356,13 @@ export function AiChatPanel() {
       sg.reparentNode(Number(nodeId) as NodeId, Number(newParentId) as NodeId, index);
     },
     onDuplicateNode(nodeId: string) {
-      const newIds = duplicateNodes(sg, canvasId, new Set([Number(nodeId) as NodeId]));
-      const description = serializeSelectedNodes(sg, new Set(newIds), canvasId);
-      return { newIds: newIds.map(String), description };
+      const { topLevelIds, oldToNew } = duplicateNodes(sg, canvasId, new Set([Number(nodeId) as NodeId]));
+      const description = serializeSelectedNodes(sg, new Set(topLevelIds), canvasId);
+      const idMap = new Map<string, string>();
+      for (const [oldId, newId] of oldToNew) {
+        idMap.set(String(oldId), String(newId));
+      }
+      return { newIds: topLevelIds.map(String), description, idMap };
     },
   });
   const chat = isLiveMode ? liveChat : script;

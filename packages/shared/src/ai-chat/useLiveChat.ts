@@ -33,8 +33,8 @@ export interface UseLiveChatOptions {
   onDeleteNode?: (nodeId: string) => void;
   /** Called when the AI reparents a node. */
   onReparentNode?: (nodeId: string, newParentId: string, index: number) => void;
-  /** Called when the AI duplicates a node subtree. Returns new top-level IDs and a serialized description. */
-  onDuplicateNode?: (nodeId: string) => { newIds: string[]; description: string };
+  /** Called when the AI duplicates a node subtree. Returns new top-level IDs, a serialized description, and the full old→new ID mapping so the AI can reference original child IDs. */
+  onDuplicateNode?: (nodeId: string) => { newIds: string[]; description: string; idMap: Map<string, string> };
 }
 
 export interface LiveChatResult {
@@ -213,7 +213,7 @@ export function useLiveChat(options: UseLiveChatOptions): LiveChatResult {
         didActionRef.current = true;
         store.setTransient({ type: 'working' });
         if (opts.onDuplicateNode) {
-          const { newIds, description } = opts.onDuplicateNode(nodeId);
+          const { newIds, description, idMap } = opts.onDuplicateNode(nodeId);
           // Inject the duplicated subtree info into message history so the AI
           // can reference child IDs for subsequent update-node actions
           if (description) {
@@ -222,9 +222,9 @@ export function useLiveChat(options: UseLiveChatOptions): LiveChatResult {
               content: `[System: Node duplicated successfully. New subtree:\n${description}]`,
             });
           }
-          return newIds;
+          return { newIds, idMap };
         }
-        return [];
+        return { newIds: [], idMap: new Map() };
       },
     });
 

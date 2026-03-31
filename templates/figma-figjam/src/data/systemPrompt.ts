@@ -17,7 +17,7 @@ Removes a node from the canvas.
 <action type="reparent-node" nodeId="targetId" newParent="newParentId" index="0" />
 Moves a node to a different parent at the specified index.
 
-<action type="duplicate-node" nodeId="sourceId" name="duplicatedFrame" />
+<action type="duplicate-node" nodeId="targetId" name="duplicatedFrame" />
 Duplicates a node and its entire subtree instantly. The system will respond with the full structure of the duplicated tree including all child IDs, so you can then use update-node to modify specific children.
 
 ## Alias References

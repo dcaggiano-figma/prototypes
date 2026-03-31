@@ -91,8 +91,8 @@ export interface SceneGraphParserCallbacks {
   onUpdateNode: (nodeId: string, updates: Record<string, unknown>) => void;
   onDeleteNode: (nodeId: string) => void;
   onReparentNode: (nodeId: string, newParentId: string, index: number) => void;
-  /** Duplicate a node and its entire subtree. Returns new top-level node IDs. */
-  onDuplicateNode?: (nodeId: string) => string[];
+  /** Duplicate a node and its entire subtree. Returns new top-level node IDs and an old→new ID mapping for all cloned descendants. */
+  onDuplicateNode?: (nodeId: string) => { newIds: string[]; idMap: Map<string, string> };
 }
 
 const ACTION_OPEN_RE = /<action\s+([^>]*?)(?:\/>|>)/;
@@ -137,9 +137,16 @@ export class SceneGraphActionParser {
    * Resolve `$alias` references in a string using the alias map.
    */
   private resolveAliases(value: string): string {
-    return value.replace(/\$([a-zA-Z0-9_]+)/g, (_match, alias: string) => {
+    // First try $alias syntax (e.g. "$myRect")
+    const resolved = value.replace(/\$([a-zA-Z0-9_]+)/g, (_match, alias: string) => {
       return this.aliasMap.get(alias) ?? _match;
     });
+    // If no $alias matched, check if the entire value is a bare ID in the map
+    // (e.g. after duplicate-node, original child IDs map to their new copies)
+    if (resolved === value && this.aliasMap.has(value)) {
+      return this.aliasMap.get(value)!;
+    }
+    return resolved;
   }
 
   /**
@@ -250,11 +257,16 @@ export class SceneGraphActionParser {
         }
 
         if (actionType === 'duplicate-node' && isSelfClosing) {
-          const nodeId = this.resolveAliases(attrs.nodeId || '');
+          const nodeId = this.resolveAliases(attrs.nodeId || attrs.sourceId || '');
           if (this.callbacks.onDuplicateNode) {
-            const newIds = this.callbacks.onDuplicateNode(nodeId);
+            const { newIds, idMap } = this.callbacks.onDuplicateNode(nodeId);
             if (attrs.name && newIds.length > 0) {
               this.aliasMap.set(attrs.name, newIds[0]);
+            }
+            // Register all old→new ID mappings so the AI can reference
+            // original child IDs and have them resolve to the duplicated copies
+            for (const [oldId, newId] of idMap) {
+              this.aliasMap.set(oldId, newId);
             }
           }
           continue;

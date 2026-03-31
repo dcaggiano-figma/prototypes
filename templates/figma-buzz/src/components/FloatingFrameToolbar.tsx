@@ -234,6 +234,15 @@ export function FloatingFrameToolbar() {
 
   // Compute visible canvas bounds for clamping
   const container = viewport.containerRef.current;
+
+  // worldToScreen returns container-local coords; offset to screen coords for fixed positioning
+  if (container) {
+    const containerRect = container.getBoundingClientRect();
+    minX += containerRect.left;
+    minY += containerRect.top;
+    maxX += containerRect.left;
+  }
+
   let canvasBounds: { left: number; top: number; right: number; bottom: number } | null = null;
   if (container) {
     const full = container.getBoundingClientRect();

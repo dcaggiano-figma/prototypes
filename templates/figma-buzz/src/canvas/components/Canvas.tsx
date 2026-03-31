@@ -293,7 +293,7 @@ export function Canvas({ onOpenContextMenu }: CanvasProps) {
     'duplicate',
     useCallback(() => {
       if (selection.selectedIds.size === 0) return;
-      const newIds = duplicateNodes(store, canvasId, selection.selectedIds);
+      const { topLevelIds: newIds } = duplicateNodes(store, canvasId, selection.selectedIds);
       if (newIds.length > 0) {
         selection.selectMany(newIds);
       }
