@@ -41,6 +41,7 @@ export function DrawToolSecondaryToolbar({
         {/* Color swatch with native color picker */}
         {/* eslint-disable-next-line react/forbid-elements -- native color picker, no FPL equivalent */}
         <label
+          htmlFor="stroke-color"
           className="relative flex-shrink-0 cursor-pointer overflow-hidden w-4 h-4 rounded border-bordertranslucent focus-within:ring-1 focus-within:ring-border-selected focus-within:ring-offset-1 focus-within:ring-offset-bg"
         >
           <div
@@ -49,6 +50,7 @@ export function DrawToolSecondaryToolbar({
           />
           {/* eslint-disable-next-line react/forbid-elements -- native color picker, no FPL equivalent */}
           <input
+            id="stroke-color"
             type="color"
             aria-label="Stroke color"
             className="absolute inset-0 opacity-0 cursor-pointer"
