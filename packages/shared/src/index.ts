@@ -87,7 +87,14 @@ export {
   useAiChatSnapshot,
   DEFAULT_MODEL_OPTIONS,
   useChatScript,
+  useLiveChat,
+  SceneGraphActionParser,
+  renderMarkdown,
+  serializeSelectedNodes,
+  createNodeWithDefaults,
 } from './ai-chat';
+export type { UseLiveChatOptions, LiveChatResult } from './ai-chat';
+export type { SceneGraphParserCallbacks } from './ai-chat';
 export { StreamingContent } from './ai-chat/StreamingContent';
 export { ChatMessage, CollapsibleSection, ProgressIndicator } from './ai-chat/ChatMessage';
 export { AttachmentThumbnail } from './ai-chat/AttachmentThumbnail';

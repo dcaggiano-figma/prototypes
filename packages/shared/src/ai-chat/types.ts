@@ -36,6 +36,7 @@ export interface Task {
 }
 
 export type ChatItem =
+  | { id: string; type: 'user-message'; content: string; attachments: Attachment[]; inspectedElements: InspectedElement[] }
   | { id: string; type: 'reasoning'; content: string; status: 'active' | 'complete' }
   | { id: string; type: 'ai-message'; content: string; streaming: boolean }
   | { id: string; type: 'todo-list' }
@@ -45,6 +46,7 @@ export type ChatItem =
 
 export type TransientItem =
   | { type: 'progress'; label: string }
+  | { type: 'working' }
   | { type: 'view-file'; fileName: string }
   | { type: 'write-file'; fileName: string; code: string };
 
