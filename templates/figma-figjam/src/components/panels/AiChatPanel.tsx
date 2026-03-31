@@ -37,6 +37,7 @@ import {
   useLiveChat,
   serializeSelectedNodes,
   createNodeWithDefaults,
+  updateNodeWithTextRouting,
   type Attachment,
   type ChatItem,
   type InspectedElement,
@@ -346,7 +347,7 @@ export function AiChatPanel() {
       return createNodeWithDefaults(sg, nodeType, Number(parentId) as NodeId, props);
     },
     onUpdateNode(nodeId: string, updates: Record<string, unknown>) {
-      sg.updateNode(Number(nodeId) as NodeId, updates);
+      updateNodeWithTextRouting(sg, Number(nodeId) as NodeId, updates);
     },
     onDeleteNode(nodeId: string) {
       sg.deleteNode(Number(nodeId) as NodeId);
@@ -455,6 +456,19 @@ export function AiChatPanel() {
 
     if (isLiveMode) {
       if (phase === 'active' && chat.items.length > 0 && !effectiveIsWorking) {
+        // Archive current thread into its own container
+        setCompletedConversations((prev) => [
+          ...prev,
+          {
+            prompt: submittedPrompt,
+            attachments: submittedAttachments,
+            inspectedElements: submittedInspectedElements,
+            items: [...chat.items],
+            tasks: [...chat.tasks],
+            versionNumber: prev.length + 1,
+          },
+        ]);
+        chat.restart();
         captureSubmission();
         setAnimPhase('measuring');
       } else {

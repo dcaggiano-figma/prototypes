@@ -34,7 +34,7 @@ export { useLiveChat } from './useLiveChat';
 export type { UseLiveChatOptions, LiveChatResult } from './useLiveChat';
 
 // Node serialization for AI context
-export { serializeSelectedNodes, createNodeWithDefaults } from './serializeNodes';
+export { serializeSelectedNodes, createNodeWithDefaults, updateNodeWithTextRouting } from './serializeNodes';
 
 // Scene graph action parser
 export { SceneGraphActionParser, renderMarkdown } from './SceneGraphActionParser';

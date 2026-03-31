@@ -102,16 +102,49 @@ function serializeSubtree(sg: SceneGraph, nodeId: NodeId, depth: number, maxDept
 }
 
 /**
+ * Serialize a node's position and size as a compact summary (no children).
+ */
+function serializeNodeBounds(node: SceneNode): string {
+  const parts: string[] = [`type=${node.type}`, `id=${String(node.id)}`, `name="${node.name}"`];
+  if ('x' in node) parts.push(`x=${String(node.x)}`, `y=${String(node.y)}`, `width=${String(node.width)}`, `height=${String(node.height)}`);
+  return `[${parts.join(', ')}]`;
+}
+
+/**
  * Serialize selected nodes with their full subtrees for AI context.
+ * Includes parent node bounds so the AI knows where to place new nodes relative to the selection.
  */
 export function serializeSelectedNodes(sg: SceneGraph, selectedIds: ReadonlySet<NodeId>, canvasId: NodeId): string {
   const trees: string[] = [];
+  const parentIds = new Set<NodeId>();
+
   for (const id of selectedIds) {
     const tree = serializeSubtree(sg, id, 0, 3);
     if (tree) trees.push(tree);
+    // Collect non-canvas parent IDs for spatial context
+    const node = sg.getNode(id);
+    if (node?.parentId != null && node.parentId !== canvasId) {
+      parentIds.add(node.parentId);
+    }
   }
+
   if (trees.length === 0) return `[Canvas ID: ${String(canvasId)}]\nNo objects selected.`;
-  return `[Canvas ID: ${String(canvasId)}]\nSelected objects:\n${trees.join('\n\n')}`;
+
+  let result = `[Canvas ID: ${String(canvasId)}]\nSelected objects:\n${trees.join('\n\n')}`;
+
+  // Include parent containers so the AI can place new nodes within bounds
+  if (parentIds.size > 0) {
+    const parentLines: string[] = [];
+    for (const pid of parentIds) {
+      const parentNode = sg.getNode(pid);
+      if (parentNode) parentLines.push(serializeNodeBounds(parentNode));
+    }
+    if (parentLines.length > 0) {
+      result += `\n\nParent containers (place new nodes within these bounds):\n${parentLines.join('\n')}`;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -134,8 +167,11 @@ export function createNodeWithDefaults(
   const nodeProps: Record<string, unknown> = {};
 
   if (isCompoundType) {
+    // Font-related fields go to the text slot child; `characters` stays on
+    // the compound node itself because the renderer reads it directly from
+    // the sticky/shape node, NOT from the text slot.
     const TEXT_SLOT_FIELDS = new Set([
-      'characters', 'fontFamily', 'fontSize', 'fontWeight',
+      'fontFamily', 'fontSize', 'fontWeight',
       'lineHeight', 'letterSpacing', 'textAlignHorizontal',
       'textAlignVertical', 'textAutoResize',
     ]);
@@ -156,9 +192,14 @@ export function createNodeWithDefaults(
     nodeProps.textAutoResize = 'NONE';
   }
 
+  // AI-created sticky notes should show "Claude · AI" as the author
+  if (type === 'STICKY_NOTE' && !('authorName' in nodeProps)) {
+    nodeProps.authorName = 'Claude \u00B7 AI';
+  }
+
   const node = sg.createNode(type, parentId, { ...getTypeDefaults(type), ...nodeProps });
 
-  // For compound nodes, apply text properties to the auto-created text slot
+  // For compound nodes, apply font properties to the auto-created text slot
   if (isCompoundNode(node) && Object.keys(textProps).length > 0) {
     const textSlotId = getTextSlotId(node);
     if (textSlotId != null) {
@@ -167,4 +208,46 @@ export function createNodeWithDefaults(
   }
 
   return String(node.id);
+}
+
+/**
+ * Update a node, routing font properties to the text slot for compound nodes.
+ * `characters` stays on the compound node (the renderer reads it from there).
+ * Only font-related fields are routed to the text slot child.
+ */
+export function updateNodeWithTextRouting(
+  sg: SceneGraph,
+  nodeId: NodeId,
+  updates: Record<string, unknown>,
+): void {
+  const node = sg.getNode(nodeId);
+  if (!node) return;
+
+  if (isCompoundNode(node)) {
+    const TEXT_SLOT_FIELDS = new Set([
+      'fontFamily', 'fontSize', 'fontWeight',
+      'lineHeight', 'letterSpacing', 'textAlignHorizontal',
+      'textAlignVertical', 'textAutoResize',
+    ]);
+    const textUpdates: Record<string, unknown> = {};
+    const nodeUpdates: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (TEXT_SLOT_FIELDS.has(key)) {
+        textUpdates[key] = value;
+      } else {
+        nodeUpdates[key] = value;
+      }
+    }
+    if (Object.keys(nodeUpdates).length > 0) {
+      sg.updateNode(nodeId, nodeUpdates);
+    }
+    if (Object.keys(textUpdates).length > 0) {
+      const textSlotId = getTextSlotId(node);
+      if (textSlotId != null) {
+        sg.updateNode(textSlotId, textUpdates);
+      }
+    }
+  } else {
+    sg.updateNode(nodeId, updates);
+  }
 }

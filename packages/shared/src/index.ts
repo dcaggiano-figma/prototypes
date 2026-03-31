@@ -92,6 +92,7 @@ export {
   renderMarkdown,
   serializeSelectedNodes,
   createNodeWithDefaults,
+  updateNodeWithTextRouting,
 } from './ai-chat';
 export type { UseLiveChatOptions, LiveChatResult } from './ai-chat';
 export type { SceneGraphParserCallbacks } from './ai-chat';
