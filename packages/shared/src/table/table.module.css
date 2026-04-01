@@ -16,8 +16,10 @@
 /* Use outline instead of border so it collapses when the table is full-width
    against a parent edge — outlines don't take up layout space. */
 .wrapper :global(.ag-root-wrapper) {
+  width: 100%;
   border: none;
-  outline: 1px solid var(--color-border);
+  outline: none;
+  border-top: 1px solid var(--color-border);
 }
 
 
@@ -72,8 +74,9 @@
   border-left-color: var(--color-border-onselected) !important;
 }
 
-/* Actions column — center the icon button with uniform padding */
-.wrapper :global(.ag-cell[col-id="__actions"]) {
+/* Actions and chevron columns — center the icon button, remove default padding */
+.wrapper :global(.ag-cell[col-id="__actions"]),
+.wrapper :global(.ag-cell[col-id="__chevron"]) {
   justify-content: center;
   padding: 0;
 }
@@ -118,6 +121,22 @@
   line-height: var(--table-line-height);
 }
 
+/* Checkbox column header — 48px-wide column, drop default horizontal inset on the right */
+.wrapper :global(.ag-header-cell[col-id='__checkbox']) {
+  padding-right: 0;
+}
+
+/* When checkbox selection is active: remove left padding from the first scrollable
+   column so the gap between the centered checkbox and the column text is exactly
+   the 16px right-space inside the 48px checkbox column. */
+.hasCheckbox :global(.ag-center-cols-container .ag-cell:first-child) {
+  padding-left: 0;
+}
+
+.hasCheckbox :global(.ag-header-viewport .ag-header-cell:first-child) {
+  padding-left: 0;
+}
+
 /* Replace AG Grid's ::after-based header borders with explicit border-right
    so dynamically added columns reliably show the separator.
    Skip cells in editing mode — they use ::after for the focus ring. */
@@ -125,13 +144,15 @@
   display: none;
 }
 
-.wrapper :global(.ag-header-cell) {
+/* Vertical header separators only when `gridLines.vertical` is enabled */
+.verticalGridLines :global(.ag-header-cell) {
   border-right: 1px solid var(--color-border);
 }
 
-.wrapper :global(.ag-header-cell:last-child) {
+.verticalGridLines :global(.ag-header-cell:last-child) {
   border-right: none;
 }
+
 
 .wrapper :global(.ag-row) {
   height: var(--table-row-height);
@@ -336,6 +357,19 @@
   justify-content: center;
   height: 100%;
   overflow: hidden;
+  transition: opacity 150ms ease;
+}
+
+/* Checkbox cells — only visible on row hover or when selected.
+   Uses .ag-row-hover (not :hover) because the checkbox column is pinned left
+   and renders in a separate container synced via this class. */
+.wrapper :global(.ag-row:not(.ag-row-hover):not(.ag-row-selected)) :global(.ag-cell[col-id="__checkbox"]) .checkboxCell {
+  opacity: 0;
+}
+
+.wrapper :global(.ag-row-hover) :global(.ag-cell[col-id="__checkbox"]) .checkboxCell,
+.wrapper :global(.ag-row-selected) :global(.ag-cell[col-id="__checkbox"]) .checkboxCell {
+  opacity: 1;
 }
 
 /* Hide the empty label span added for FPL Checkbox API compliance */

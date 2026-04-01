@@ -21,6 +21,7 @@ declare const styles: {
   readonly sortIconActive: string;
   readonly cellContentWrapper: string;
   readonly verticalGridLines: string;
+  readonly hasCheckbox: string;
   readonly headerEditing: string;
   readonly headerEditingInput: string;
 };

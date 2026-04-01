@@ -250,6 +250,7 @@ export function Table<TData = unknown>({
     return fplTableTheme.withParams({
       rowBorder: gridLines?.horizontal !== false,
       columnBorder: gridLines?.vertical ?? false,
+      headerColumnBorder: gridLines?.vertical ?? false,
     });
   }, [gridLines]);
 
@@ -335,6 +336,7 @@ export function Table<TData = unknown>({
     SIZE_CLASSES[size],
     DENSITY_CLASSES[density],
     gridLines?.vertical && styles.verticalGridLines,
+    checkboxSelection && styles.hasCheckbox,
     className,
   );
 

@@ -107,7 +107,6 @@ function ChatPanelItem({
               streaming={streaming}
               onComplete={onStreamComplete}
             >
-              {/* eslint-disable-next-line react/no-danger -- AI response HTML from renderMarkdown */}
               {(visible) => <span dangerouslySetInnerHTML={{ __html: visible }} />}
             </StreamingContent>
           </ChatMessage>
@@ -115,7 +114,6 @@ function ChatPanelItem({
       }
       return (
         <ChatMessage sender="ai">
-          {/* eslint-disable-next-line react/no-danger -- AI response HTML from renderMarkdown */}
           <span dangerouslySetInnerHTML={{ __html: item.content }} />
         </ChatMessage>
       );
