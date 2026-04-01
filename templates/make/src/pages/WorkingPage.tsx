@@ -30,6 +30,7 @@ import {
 } from '@figma/fpl-icons';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
+import { useRegisterPopupObstacle } from '@figma/fpl-components';
 import { useResizablePanel, UserAvatar, ResizeHandle, PatternLibraryWindow, UserConfigModal, type Attachment, type InspectedElement } from '@prototype/shared';
 import { ChatPanel } from '../components/ChatPanel';
 import { LoadingView } from '../components/LoadingView';
@@ -89,6 +90,7 @@ export function WorkingPage() {
 
   /* Resizable left panel */
   const { panelRef, onMouseDown: onResizeMouseDown } = useResizablePanel({ minWidth: 280 });
+  const obstacleRef = useRegisterPopupObstacle(panelRef);
 
   /* Publish window */
   const [isPublishOpen, setIsPublishOpen] = useState(false);
@@ -137,7 +139,7 @@ export function WorkingPage() {
       {/* ============================================================ */}
       {/*  Left sidebar (chat panel with its own header)                */}
       {/* ============================================================ */}
-      <aside ref={panelRef} className="relative w-[280px] shrink-0 border-r border-border flex flex-col bg-bg">
+      <aside ref={obstacleRef} className="relative w-[280px] shrink-0 border-r border-border flex flex-col bg-bg">
         {/* ---- Sidebar header ---- */}
         <header className="flex items-center px-8px py-8px border-b border-border shrink-0">
           <div className="flex items-center gap-4px">

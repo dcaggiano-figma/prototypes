@@ -1,3 +1,4 @@
+import { useRegisterPopupObstacle } from '@figma/fpl-components';
 import { useActiveTool } from '../canvas';
 import { useResizablePanel, ResizeHandle } from '@prototype/shared';
 import type { Mode } from './menuTypes';
@@ -17,12 +18,13 @@ const MODE_CONTENT: Record<Mode, React.FC> = {
 
 export function RightPanel({ activeMode }: RightPanelProps) {
   const { panelRef, onMouseDown } = useResizablePanel({ minWidth: 240, side: 'left' });
+  const obstacleRef = useRegisterPopupObstacle(panelRef);
   const { activeTool } = useActiveTool();
   const ModeContent = MODE_CONTENT[activeMode];
 
   return (
     <aside
-      ref={panelRef}
+      ref={obstacleRef}
       className="relative w-[240px] shrink-0 bg-bg border-l border-border flex flex-col z-sidebar"
     >
       <PanelHeader />

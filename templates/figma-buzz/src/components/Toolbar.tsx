@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, type ComponentType } from 'react';
 import clsx from 'clsx';
+import { useRegisterPopupObstacle } from '@figma/fpl-components';
 import {
   Icon24MoveLarge,
   Icon24FrameLarge,
@@ -227,6 +228,7 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
   const [visualIndex, setVisualIndex] = useState(() => MODE_ORDER.indexOf(activeMode));
 
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const obstacleRef = useRegisterPopupObstacle(toolbarRef);
   const [toolbarWidth, setToolbarWidth] = useState(0);
 
   const rowRefs = useRef<Record<Mode, HTMLDivElement | null>>({ buzz: null, design: null });
@@ -374,7 +376,7 @@ export function Toolbar({ activeMode, onModeChange, isActionsOpen, onActionsOpen
 
   return (
     <div className="flex flex-col items-center gap-2">
-    <div ref={toolbarRef} className="bg-bg flex items-end rounded-lg shadow-300">
+    <div ref={obstacleRef} className="bg-bg flex items-end rounded-lg shadow-300">
         {/* Tools viewport — clips via clip-path, animates width */}
         <div
           className={clsx(

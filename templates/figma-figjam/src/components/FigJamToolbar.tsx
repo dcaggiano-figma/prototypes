@@ -1,6 +1,6 @@
 import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Button, ButtonPrimitive, IconButton } from '@figma/fpl-components';
+import { Button, ButtonPrimitive, IconButton, useRegisterPopupObstacle } from '@figma/fpl-components';
 import { Toolbar as SharedToolbar } from '@prototype/shared';
 import { useAction } from '../actions/provider';
 import {
@@ -121,6 +121,7 @@ export function FigJamToolbar() {
   } = useActiveTool();
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const obstacleRef = useRegisterPopupObstacle(toolbarRef);
 
   // Register quick-actions action so it can be triggered from the main menu
   useAction('quick-actions', useCallback(() => setIsActionsOpen(true), []));
@@ -236,7 +237,7 @@ export function FigJamToolbar() {
       )}
 
       {/* Main toolbar */}
-      <div ref={toolbarRef} className="flex items-end bg-bg rounded-lg shadow-300">
+      <div ref={obstacleRef} className="flex items-end bg-bg rounded-lg shadow-300">
         {/* Section 1: Move + Hand */}
         <div className="flex items-center p-2 gap-2">
           <FlatToolButton

@@ -40,6 +40,7 @@ import {
 import { z } from 'zod';
 import { useTheme, type ThemeSetting } from '../helpers/theme';
 import { useWorkingState } from '../helpers/workingState';
+import { useRegisterPopupObstacle } from '@figma/fpl-components';
 import { useResizablePanel, UserAvatar, ResizeHandle, NavList, PatternLibraryWindow, UserConfigModal } from '@prototype/shared';
 
 /* ------------------------------------------------------------------ */
@@ -407,6 +408,7 @@ export function SettingsPage() {
 
   /* Resizable left panel */
   const { panelRef, onMouseDown: onResizeMouseDown } = useResizablePanel({ minWidth: 280 });
+  const obstacleRef = useRegisterPopupObstacle(panelRef);
 
   /* Menus */
   const chevronMenu = MenuV2.useMenu();
@@ -445,7 +447,7 @@ export function SettingsPage() {
       {/* ============================================================ */}
       {/*  Left sidebar (settings navigation)                           */}
       {/* ============================================================ */}
-      <aside ref={panelRef} className="relative w-[280px] shrink-0 border-r border-border flex flex-col bg-bg">
+      <aside ref={obstacleRef} className="relative w-[280px] shrink-0 border-r border-border flex flex-col bg-bg">
         {/* ---- Sidebar header ---- */}
         <header className="flex items-center px-8px py-8px border-b border-border shrink-0">
           <div className="flex items-center gap-4px">
