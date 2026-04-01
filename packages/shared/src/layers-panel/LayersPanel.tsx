@@ -120,7 +120,7 @@ export const LayersPanel = forwardRef<LayersPanelHandle, LayersPanelProps>(funct
   })
 
   return (
-    <div className={`flex-1 min-h-0 overflow-hidden${className ? ` ${className}` : ''}`}>
+    <div className={`text-text flex-1 min-h-0 overflow-hidden${className ? ` ${className}` : ''}`}>
       <TreeGrid.Root manager={manager}>
         <TreeGrid.Body>
           {({ id, index, style }) => {

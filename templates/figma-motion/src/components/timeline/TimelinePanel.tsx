@@ -18,7 +18,7 @@ import type { CommentThread } from '@prototype/shared';
 
 
 // NodeTypeIcon is shared with the layers panel to keep icons consistent
-import { NodeTypeIcon } from '../panels/FilePanel';
+import { NodeTypeIcon } from '@prototype/shared';
 
 /** Fixed height of the timeline panel (matches Figma: header 80px + body). */
 export const TIMELINE_PANEL_HEIGHT_PX = 302;
@@ -1506,7 +1506,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
               {speed}x
             </ButtonPrimitive>
           </div>
-          {layoutEndMs > 0 && (() => {
+          {!expanded && layoutEndMs > 0 && (() => {
             const cPad = layoutEndMs * TIMELINE_PAD_FRAC;
             const cTotal = layoutEndMs + 2 * cPad;
             const cLeft = (ms: number) => ((ms + cPad) / cTotal) * 100;
@@ -1514,10 +1514,6 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
               <div
                 ref={collapsedStripRef}
                 className="flex-1 min-w-0 mx-2 relative flex items-center self-stretch cursor-default"
-                style={{
-                  opacity: expanded ? 0 : 1,
-                  pointerEvents: expanded ? 'none' : 'auto',
-                }}
                 onPointerDown={handleCollapsedStripPointerDown}
                 role="slider"
                 aria-label="Scrub playhead"
@@ -1539,7 +1535,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                   }}
                   aria-hidden
                 >
-                  <div className="sticky top-0"><PlayheadThumb /></div>
+                  <PlayheadThumb />
                   <PlayheadLine />
                 </div>
                 {groupedCollapsedCommentPins.map((group) => {
@@ -2282,7 +2278,7 @@ export function TimelinePanel({ expanded, onExpandCollapse }: TimelinePanelProps
                     className="absolute top-0 bottom-0 z-[100] pointer-events-none flex flex-col items-center"
                     style={{ left: `${playheadPercent}%`, transform: 'translateX(-5.5px)', width: 11 }}
                   >
-                    <PlayheadThumb />
+                    <div className="sticky top-0"><PlayheadThumb /></div>
                     <PlayheadLine />
                   </div>
                   </div>
