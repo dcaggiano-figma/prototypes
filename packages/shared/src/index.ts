@@ -144,6 +144,10 @@ export type { SkeletonProps, BoneProps, SkeletonVariant, SkeletonSize } from './
 export { Swatch } from './swatch';
 export type { SwatchProps, SwatchType, SwatchSize } from './swatch';
 
+// Layers Panel
+export { LayersPanel, NodeTypeIcon } from './layers-panel';
+export type { LayersPanelHandle, LayersPanelProps } from './layers-panel';
+
 // Pattern Library
 export { PatternLibraryWindow } from './pattern-library';
 
