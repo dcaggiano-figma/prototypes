@@ -270,7 +270,7 @@ function CanvasInner({ onOpenContextMenu }: CanvasProps) {
     'duplicate',
     useCallback(() => {
       if (selection.selectedIds.size === 0) return;
-      const newIds = duplicateNodes(sg, canvasId, selection.selectedIds);
+      const { topLevelIds: newIds } = duplicateNodes(sg, canvasId, selection.selectedIds);
       if (newIds.length > 0) {
         selection.selectMany(newIds);
       }
