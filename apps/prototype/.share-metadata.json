@@ -1,9 +1,12 @@
 {
   "$comment": "This file contains some metadata we use to tell people about your prototype!  This description is viewable in your published prototype, as well as on protov2.figma.design.  Claude automatically tries to keep this up to date, but feel free to take over.",
-  "description": "",
+  "description": "Org admin People table with a 480px right flyout matching the Figma member panel: Manage/Activity tabs, seat and AI credits cards with seat-type credit caps, read-only details, dotted underlines for future links, and no backdrop.",
   "author": "DeAnna Caggiano",
   "tags": [
-    "figma-admin-console"
+    "figma-admin-console",
+    "people-table",
+    "flyout-panel",
+    "ag-grid"
   ],
   "base": {
     "branch": "main",

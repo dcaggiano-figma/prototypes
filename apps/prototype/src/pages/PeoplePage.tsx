@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { clsx } from 'clsx';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Badge,
   Button,
@@ -11,15 +13,20 @@ import {
 } from '@figma/fpl-components';
 import {
   Icon16ChevronDown,
+  Icon24BorderSquareLarge,
+  Icon24Calendar,
   Icon24ChevronRightLarge,
+  Icon24Close,
   Icon24Export,
   Icon24Filter,
   Icon24Insert,
+  Icon24Person,
   Icon24Plus,
   Icon24SeatCollab,
   Icon24SeatDev,
   Icon24SeatFull,
   Icon24SeatView,
+  Icon24Team,
   Icon24UserGroups,
 } from '@figma/fpl-icons';
 import { Avatar, Table, type TableColumnDef, type MultiplayerColor } from '@prototype/shared';
@@ -32,7 +39,21 @@ type PeopleTab = 'people' | 'groups';
 
 const PEOPLE_TAB_MAP: Record<PeopleTab, true> = { people: true, groups: true };
 
+type FlyoutMemberTab = 'manage' | 'activity';
+
+const FLYOUT_MEMBER_TAB_MAP: Record<FlyoutMemberTab, true> = {
+  manage: true,
+  activity: true,
+};
+
 type SeatKind = 'full' | 'collab' | 'dev' | 'view';
+
+const AI_CREDIT_LIMIT_BY_SEAT: Record<SeatKind, number> = {
+  collab: 500,
+  dev: 500,
+  full: 4250,
+  view: 500,
+};
 
 type AvatarSpec =
   | { kind: 'photo'; src: string }
@@ -81,6 +102,22 @@ const SEAT_META: Record<
     iconColor: 'var(--color-icon-secondary)',
   },
 };
+
+const SEAT_PICKER_ORDER: SeatKind[] = ['full', 'dev', 'collab', 'view'];
+
+const SEAT_PRICE_LABEL: Record<SeatKind, string> = {
+  full: '$200/yr',
+  dev: '$150/yr',
+  collab: '$50/yr',
+  view: 'Free',
+};
+
+/** Shown in seat-change copy (matches design). */
+const FLYOUT_ORG_DISPLAY_NAME = 'Twigma';
+
+function formatFlyoutInvoiceDate(date: Date = new Date()): string {
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
 
 const SEAT_COUNTS = [
   { count: 30, kind: 'view' as const },
@@ -431,6 +468,432 @@ function PersonChevronCell({ data }: { data?: PersonRow }) {
   );
 }
 
+const FLYOUT_DOT_LINK_CLASS =
+  'cursor-pointer border-0 bg-transparent p-0 text-left font-bold text-bodyLg text-text underline decoration-dotted underline-offset-2 hover:bg-bg-hover rounded-sm';
+
+function flyoutAiCreditsUsed(personId: string, limit: number): number {
+  let h = 0;
+  for (let i = 0; i < personId.length; i += 1) {
+    h = (h * 31 + personId.charCodeAt(i)) >>> 0;
+  }
+  const ratio = 0.12 + (h % 55) / 100;
+  return Math.max(1, Math.min(limit - 1, Math.round(limit * ratio)));
+}
+
+function flyoutMockDetails(person: PersonRow) {
+  const n = parseInt(person.id, 10) || 0;
+  const workspaces = ['New York', 'Design systems', 'Marketing', 'Workspace'];
+  const billings = ['Vibers', 'Engineering', 'Growth', 'Billing group'];
+  const roles = ['Designer', 'Developer', 'Product designer', 'Content designer'];
+  return {
+    role: roles[n % roles.length],
+    workspaceLabel: workspaces[n % workspaces.length],
+    billingLabel: billings[n % billings.length],
+    joinedLabel: 'March 11, 2025',
+    seatLastUpdated: 'Mar 12, 2024',
+    aiResetLabel: 'August 5',
+  };
+}
+
+function FlyoutHeaderAvatar({ spec, name }: { spec: AvatarSpec; name: string }) {
+  if (spec.kind === 'photo') {
+    return (
+      <img
+        src={spec.src}
+        alt={name}
+        width={48}
+        height={48}
+        className="size-48px shrink-0 rounded-full border border-border object-cover"
+      />
+    );
+  }
+  return <Avatar size="xlg" initial={spec.initial} color={spec.color ?? 'grey'} alt={name} />;
+}
+
+function FlyoutDetailRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex w-full items-center justify-between py-4px">
+      <div className="flex min-w-0 items-center gap-8px">
+        <span
+          className="flex size-24px shrink-0 items-center justify-center text-icon"
+          style={{ '--fpl-icon-color': 'var(--color-icon)' } as React.CSSProperties}
+        >
+          {icon}
+        </span>
+        <span className="truncate text-bodyLg font-normal text-text">{label}</span>
+      </div>
+      <span className="truncate text-right text-bodyLg font-normal text-text-secondary">{value}</span>
+    </div>
+  );
+}
+
+function flyoutSeatPickerBadge(kind: SeatKind, currentSeat: SeatKind) {
+  if (kind !== currentSeat) return null;
+  return kind === 'collab' ? (
+    <Badge variant="componentOutline" size="md">
+      Current
+    </Badge>
+  ) : (
+    <Badge variant="defaultOutline" size="md">
+      Current
+    </Badge>
+  );
+}
+
+function FlyoutSeatPickerRow({
+  kind,
+  currentSeat,
+  pendingSeatKind,
+  onPick,
+}: {
+  kind: SeatKind;
+  currentSeat: SeatKind;
+  pendingSeatKind: SeatKind | null;
+  onPick: (k: SeatKind) => void;
+}) {
+  const { Icon, label, iconWrapClass, iconColor } = SEAT_META[kind];
+  const isCurrent = kind === currentSeat;
+  const isPendingNewSeat =
+    pendingSeatKind !== null && pendingSeatKind === kind && pendingSeatKind !== currentSeat;
+  const isSelectedPending = pendingSeatKind === kind && !isPendingNewSeat;
+  return (
+    <ButtonPrimitive
+      type="button"
+      onClick={() => onPick(kind)}
+      className={clsx(
+        'flex w-full cursor-pointer items-center justify-between rounded-[4px] border border-solid px-12px py-4px text-left transition-colors',
+        isPendingNewSeat
+          ? 'border-bg-brand bg-[#f2f9ff] hover:bg-[#f2f9ff]'
+          : 'border-border hover:bg-bg-secondary',
+        !isPendingNewSeat && isSelectedPending && 'bg-bg-secondary',
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-8px py-4px">
+        <div
+          className={iconWrapClass}
+          style={{ '--fpl-icon-color': iconColor } as React.CSSProperties}
+        >
+          <Icon />
+        </div>
+        <span
+          className={clsx(
+            'truncate text-bodyLg font-bold underline decoration-dotted underline-offset-2',
+            isCurrent ? 'text-text-secondary' : 'text-text',
+          )}
+        >
+          {label}
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-8px">
+        {flyoutSeatPickerBadge(kind, currentSeat)}
+        <span
+          className={clsx(
+            'shrink-0 text-bodyLg font-normal tabular-nums',
+            isCurrent ? 'text-text-secondary' : 'text-text',
+          )}
+        >
+          {SEAT_PRICE_LABEL[kind]}
+        </span>
+      </div>
+    </ButtonPrimitive>
+  );
+}
+
+function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: () => void }) {
+  const [tabPropsMap, tabPanelPropsMap, tabManager] = Tabs.useTabs<FlyoutMemberTab>(FLYOUT_MEMBER_TAB_MAP, {
+    defaultActive: 'manage',
+  });
+
+  const [flyoutSeatKind, setFlyoutSeatKind] = useState<SeatKind | null>(null);
+  const [seatChangeOpen, setSeatChangeOpen] = useState(false);
+  const [pendingSeatKind, setPendingSeatKind] = useState<SeatKind | null>(null);
+
+  const effectiveSeat = flyoutSeatKind ?? person.seatType;
+
+  useEffect(() => {
+    setFlyoutSeatKind(null);
+    setSeatChangeOpen(false);
+    setPendingSeatKind(null);
+  }, [person.id]);
+
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return;
+      if (seatChangeOpen) {
+        setSeatChangeOpen(false);
+        setPendingSeatKind(null);
+      } else {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, seatChangeOpen]);
+
+  const details = useMemo(() => flyoutMockDetails(person), [person]);
+  const limit = AI_CREDIT_LIMIT_BY_SEAT[effectiveSeat];
+  const used = useMemo(() => flyoutAiCreditsUsed(person.id, limit), [person.id, limit]);
+  const seatMeta = SEAT_META[effectiveSeat];
+  const { Icon: SeatIcon, label: seatLabel, iconWrapClass, iconColor } = seatMeta;
+  const fillPct = Math.min(100, Math.max(0, (used / limit) * 100));
+
+  const canConfirmSeatChange =
+    pendingSeatKind !== null && pendingSeatKind !== effectiveSeat;
+
+  const cancelSeatChange = () => {
+    setSeatChangeOpen(false);
+    setPendingSeatKind(null);
+  };
+
+  const confirmSeatChange = () => {
+    if (!canConfirmSeatChange || pendingSeatKind === null) return;
+    setFlyoutSeatKind(pendingSeatKind);
+    setSeatChangeOpen(false);
+    setPendingSeatKind(null);
+  };
+
+  return (
+    <>
+      <div className="flex min-h-96px w-full shrink-0 items-start gap-16px px-24px py-24px">
+        <FlyoutHeaderAvatar spec={person.avatar} name={person.name} />
+        <div className="flex min-w-0 flex-1 flex-col gap-4px">
+          <div className="flex min-w-0 flex-wrap items-center gap-8px">
+            <span id="person-flyout-name" className="truncate text-headingMd font-bold text-text">
+              {person.name}
+            </span>
+            <Badge variant={person.guest ? 'defaultOutline' : 'defaultFilled'} size="md">
+              {person.guest ? 'Guest' : 'Member'}
+            </Badge>
+          </div>
+          <span className="break-all text-bodyMd text-text-secondary">{person.email}</span>
+        </div>
+        <div className="shrink-0">
+          <IconButton variant="ghost" aria-label="Close member details" onClick={onClose}>
+            <Icon24Close />
+          </IconButton>
+        </div>
+      </div>
+
+      <div className="flex h-42px w-full min-w-0 shrink-0 items-center border-t border-b border-border px-16px py-8px">
+        <Tabs.TabStrip manager={tabManager}>
+          <Tabs.Tab {...tabPropsMap.manage}>Manage</Tabs.Tab>
+          <Tabs.Tab {...tabPropsMap.activity}>Activity</Tabs.Tab>
+        </Tabs.TabStrip>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col">
+        <Tabs.TabPanel {...tabPanelPropsMap.manage} height="fill" width="fill">
+          <div className="flex max-h-full flex-col gap-24px overflow-y-auto p-24px">
+            <div className="flex w-full flex-col gap-16px rounded-[6px] border border-border border-solid p-16px">
+              {!seatChangeOpen ? (
+                <>
+                  <div className="flex w-full items-center justify-between">
+                    <span className="text-bodyLg font-bold text-text">Seat</span>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setSeatChangeOpen(true);
+                        setPendingSeatKind(null);
+                      }}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                  <div className="flex h-32px w-full items-center justify-between py-4px">
+                    <div className="flex min-w-0 items-center gap-8px">
+                      <div
+                        className={iconWrapClass}
+                        style={{ '--fpl-icon-color': iconColor } as React.CSSProperties}
+                      >
+                        <SeatIcon />
+                      </div>
+                      <ButtonPrimitive type="button" className={FLYOUT_DOT_LINK_CLASS}>
+                        {seatLabel}
+                      </ButtonPrimitive>
+                    </div>
+                    <span className="shrink-0 pl-8px text-right text-bodyLg font-normal text-text-secondary">
+                      Last updated {details.seatLastUpdated}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex w-full items-center justify-between">
+                    <span className="text-bodyLg font-bold text-text">Seat</span>
+                    <ButtonPrimitive
+                      type="button"
+                      onClick={cancelSeatChange}
+                      className="cursor-pointer border-0 bg-transparent p-0 text-bodyLg text-text-brand"
+                    >
+                      Cancel
+                    </ButtonPrimitive>
+                  </div>
+                  <div className="flex w-full flex-col gap-8px">
+                    {SEAT_PICKER_ORDER.map((kind) => (
+                      <FlyoutSeatPickerRow
+                        key={kind}
+                        kind={kind}
+                        currentSeat={effectiveSeat}
+                        pendingSeatKind={pendingSeatKind}
+                        onPick={setPendingSeatKind}
+                      />
+                    ))}
+                  </div>
+                  {canConfirmSeatChange && pendingSeatKind !== null ? (
+                    <div className="flex w-full flex-col gap-12px">
+                      <div className="flex w-full flex-col gap-8px">
+                        <p className="m-0 text-bodyLg font-bold text-text">
+                          Change {person.name} from {SEAT_META[effectiveSeat].label} to{' '}
+                          {SEAT_META[pendingSeatKind].label}?
+                        </p>
+                        <p className="m-0 text-bodyLg font-normal text-text">
+                          This will add one {SEAT_META[pendingSeatKind].label} seat to{' '}
+                          {FLYOUT_ORG_DISPLAY_NAME}. Their {SEAT_META[effectiveSeat].label} seat will be
+                          removed from your plan and credited on your {formatFlyoutInvoiceDate()} invoice.
+                        </p>
+                      </div>
+                      <div className="flex w-full flex-col gap-[5px]">
+                        <div className="flex w-full flex-col gap-4px">
+                          <div className="flex w-full items-center justify-between">
+                            <span className="text-bodyLg font-bold text-text">Billing preview</span>
+                            <span
+                              className="flex size-24px shrink-0 items-center justify-center text-icon"
+                              style={{ '--fpl-icon-color': 'var(--color-icon)' } as React.CSSProperties}
+                              aria-hidden
+                            >
+                              <span className="inline-block rotate-90">
+                                <Icon24ChevronRightLarge />
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex w-full flex-col gap-4px">
+                          <div className="flex w-full items-center justify-between">
+                            <ButtonPrimitive
+                              type="button"
+                              className="cursor-default border-0 bg-transparent p-0 text-left text-bodyLg font-normal text-text-secondary underline decoration-dotted underline-offset-2"
+                            >
+                              Prorated cost
+                            </ButtonPrimitive>
+                            <span className="text-bodyLg font-normal text-text-secondary tabular-nums">$120</span>
+                          </div>
+                          <div className="flex w-full items-center justify-between">
+                            <span className="text-bodyLg font-normal text-text-secondary">
+                              {SEAT_META[effectiveSeat].label} seat credit
+                            </span>
+                            <span className="text-bodyLg font-normal tabular-nums text-text-handoff">+$70</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="h-px w-full bg-border" />
+                      <Button variant="primary" width="fill" onClick={confirmSeatChange}>
+                        Change seat
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+
+            <div className="flex w-full flex-col overflow-hidden rounded-[5px] border border-border border-solid bg-bg">
+              <div className="flex w-full items-center justify-between px-16px pb-12px pt-16px">
+                <span className="text-bodyLg font-bold text-text">AI Credits</span>
+                <span className="text-bodyLg font-normal text-text-secondary">
+                  Reset: {details.aiResetLabel}
+                </span>
+              </div>
+              <div className="flex w-full flex-col gap-8px px-16px pb-12px">
+                <div className="flex h-32px w-full items-center justify-between py-4px">
+                  <ButtonPrimitive type="button" className={FLYOUT_DOT_LINK_CLASS}>
+                    Seat credits used
+                  </ButtonPrimitive>
+                  <span className="text-bodyLg font-normal text-text-secondary tabular-nums">
+                    {used} / {limit}
+                  </span>
+                </div>
+                <div className="flex h-8px w-full items-center overflow-hidden rounded-md bg-bg-hover">
+                  <div
+                    className="h-6px shrink-0 rounded-l-full border-r-2 border-solid border-icon-onbrand bg-bg-brand"
+                    style={{ width: `${fillPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex w-full flex-col overflow-hidden rounded-[5px] border border-border border-solid bg-bg">
+              <div className="flex w-full items-center justify-between px-16px pb-12px pt-16px">
+                <span className="text-bodyLg font-bold text-text">Details</span>
+                <Button variant="secondary" onClick={() => undefined}>
+                  Edit
+                </Button>
+              </div>
+              <div className="flex w-full flex-col gap-8px px-16px pb-12px">
+                <FlyoutDetailRow icon={<Icon24Person />} label="Role" value={details.role} />
+                <FlyoutDetailRow
+                  icon={<Icon24BorderSquareLarge />}
+                  label="Workspaces"
+                  value={details.workspaceLabel}
+                />
+                <FlyoutDetailRow icon={<Icon24Team />} label="Billing group" value={details.billingLabel} />
+                <FlyoutDetailRow icon={<Icon24Calendar />} label="Joined" value={details.joinedLabel} />
+              </div>
+            </div>
+          </div>
+        </Tabs.TabPanel>
+
+        <Tabs.TabPanel {...tabPanelPropsMap.activity} height="fill" width="fill">
+          <div
+            className="h-full min-h-[120px] w-full bg-bg"
+            aria-label="Activity"
+          />
+        </Tabs.TabPanel>
+      </div>
+
+      <div className="shrink-0 border-t border-border p-24px">
+        <Button variant="destructiveSecondary" onClick={() => undefined}>
+          Remove from organization
+        </Button>
+      </div>
+    </>
+  );
+}
+
+function PersonDetailFlyout({
+  person,
+  onClose,
+}: {
+  person: PersonRow | null;
+  onClose: () => void;
+}) {
+  return (
+    <AnimatePresence>
+      {person ? (
+        <motion.aside
+          key={person.id}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="person-flyout-name"
+          className="fixed top-0 right-0 bottom-0 z-[101] flex w-[min(480px,100vw)] flex-col border border-border bg-bg"
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+        >
+          <PersonFlyoutInner person={person} onClose={onClose} />
+        </motion.aside>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
 const PEOPLE_COLUMNS: TableColumnDef<PersonRow>[] = [
   {
     field: 'name',
@@ -497,6 +960,7 @@ function PeoplePage() {
   const [search, setSearch] = useState('');
   const [toolbarBilling, setToolbarBilling] = useState<string | undefined>('all');
   const [groupSearch, setGroupSearch] = useState('');
+  const [flyoutPerson, setFlyoutPerson] = useState<PersonRow | null>(null);
 
   const filteredGroups = useMemo(() => {
     const q = groupSearch.trim().toLowerCase();
@@ -616,7 +1080,21 @@ function PeoplePage() {
               getRowId={(row) => row.id}
               checkboxSelection
               gridLines={{ horizontal: true }}
-              gridOptions={{ rowHeight: 48, headerHeight: 48 }}
+              gridOptions={{
+                rowHeight: 48,
+                headerHeight: 48,
+                onRowClicked: (event) => {
+                  const mouse = event.event;
+                  const cell =
+                    mouse?.target instanceof Element ? mouse.target.closest('.ag-cell') : null;
+                  const colId = cell?.getAttribute('col-id');
+                  if (colId === '__checkbox' || colId === 'workspace' || colId === 'billingGroup') {
+                    return;
+                  }
+                  const row = event.data;
+                  if (row) setFlyoutPerson(row);
+                },
+              }}
             />
           </div>
         </div>
@@ -651,6 +1129,8 @@ function PeoplePage() {
         </div>
       </Tabs.TabPanel>
       </div>
+
+      <PersonDetailFlyout person={flyoutPerson} onClose={() => setFlyoutPerson(null)} />
     </div>
   );
 }
