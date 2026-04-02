@@ -94,6 +94,9 @@ importers:
       '@figma/ppg-ui':
         specifier: 'catalog:'
         version: 1.10.0(@types/node@20.19.33)(@types/react@18.3.28)(csstype@3.2.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@3.25.76)
+      '@floating-ui/react':
+        specifier: ^0.26.25
+        version: 0.26.28(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@prototype/shared':
         specifier: workspace:*
         version: link:../../packages/shared

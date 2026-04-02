@@ -1,3 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Member flyout uses z-[101]; FPL tooltips use --z-index-tooltip (13) by default and would render underneath. */
+:root {
+  --z-index-tooltip: 200;
+}

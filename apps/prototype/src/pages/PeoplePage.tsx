@@ -1,5 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
+import {
+  autoUpdate,
+  flip,
+  FloatingPortal,
+  offset,
+  shift,
+  useDismiss,
+  useFloating,
+  useInteractions,
+  useRole,
+} from '@floating-ui/react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   Badge,
@@ -30,6 +41,7 @@ import {
   Icon24UserGroups,
 } from '@figma/fpl-icons';
 import { Avatar, Table, type TableColumnDef, type MultiplayerColor } from '@prototype/shared';
+import { showToast } from '../components/toast';
 
 /* -------------------------------------------------------------------------- */
 /*  Layout: match ContentPage inset column (mx-32px + w-[calc(100%-64px)])      */
@@ -67,6 +79,16 @@ interface PersonRow {
   avatar: AvatarSpec;
   seatType: SeatKind;
   lastActive: string;
+}
+
+/** One table row per person: email is the stable org identity; first row wins. */
+function dedupePersonRowsByEmail(rows: PersonRow[]): PersonRow[] {
+  const byEmail = new Map<string, PersonRow>();
+  for (const row of rows) {
+    const key = row.email.trim().toLowerCase();
+    if (!byEmail.has(key)) byEmail.set(key, row);
+  }
+  return [...byEmail.values()];
 }
 
 const SEAT_META: Record<
@@ -112,6 +134,190 @@ const SEAT_PRICE_LABEL: Record<SeatKind, string> = {
   view: 'Free',
 };
 
+/** Hover copy for underlined seat names in the member flyout seat section (Figma full-seat wording + limits for others). */
+const FLYOUT_SEAT_TOOLTIP_COPY: Record<SeatKind, string> = {
+  full: 'Includes 5,000 seat credits and access to all Figma products.',
+  dev: `Includes ${AI_CREDIT_LIMIT_BY_SEAT.dev.toLocaleString('en-US')} seat credits per billing period for Dev seats.`,
+  collab: `Includes ${AI_CREDIT_LIMIT_BY_SEAT.collab.toLocaleString('en-US')} seat credits per billing period for Collab seats.`,
+  view: `Includes ${AI_CREDIT_LIMIT_BY_SEAT.view.toLocaleString('en-US')} seat credits per billing period for View seats.`,
+};
+
+const FLYOUT_PRORATED_COST_TOOLTIP =
+  'Prorated charges reflect the time remaining in your billing period before your next invoice.';
+
+const FLYOUT_SEAT_CREDITS_USED_TOOLTIP =
+  "Credits this member has used toward their seat's AI credit limit for the current billing period.";
+
+/** Flip to top, bottom, or right of the term (not left) so the flyout edge doesn’t trap the panel. */
+const FLYOUT_DOTTED_TERM_TOOLTIP_MIDDLEWARE = [
+  offset(8),
+  flip({
+    padding: 12,
+    fallbackPlacements: [
+      'top',
+      'bottom',
+      'right',
+      'top-start',
+      'top-end',
+      'bottom-start',
+      'bottom-end',
+      'right-start',
+      'right-end',
+    ],
+  }),
+  shift({ padding: 12 }),
+];
+
+/**
+ * Flyout dotted-term hovers: position with Floating UI, but open/close with plain mouse events.
+ * `useHover` can set `document.body { pointer-events: none }` when certain close handlers run,
+ * which blocks every other trigger in the flyout. `strategy: 'fixed'` avoids bad coords when the
+ * flyout sits under a transformed `motion` panel.
+ */
+function FlyoutDottedTermTooltip({
+  children,
+  tooltip,
+  className,
+  /** When true, span fills a flex slot and truncates (seat picker rows). Otherwise shrink-wrap for a reliable hit target (AI credits, etc.). */
+  fillRow = false,
+}: {
+  children: React.ReactNode;
+  tooltip: React.ReactNode;
+  className?: string;
+  fillRow?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const openTimerRef = useRef<number | undefined>(undefined);
+  const closeTimerRef = useRef<number | undefined>(undefined);
+
+  const clearOpenTimer = () => {
+    if (openTimerRef.current !== undefined) {
+      window.clearTimeout(openTimerRef.current);
+      openTimerRef.current = undefined;
+    }
+  };
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current !== undefined) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
+  };
+
+  const { refs, floatingStyles, context } = useFloating({
+    open,
+    onOpenChange: setOpen,
+    placement: 'bottom',
+    strategy: 'fixed',
+    middleware: FLYOUT_DOTTED_TERM_TOOLTIP_MIDDLEWARE,
+    whileElementsMounted: autoUpdate,
+  });
+
+  const dismiss = useDismiss(context);
+  const role = useRole(context, { role: 'tooltip' });
+  const { getFloatingProps } = useInteractions([dismiss, role]);
+  const fp = getFloatingProps() as React.HTMLAttributes<HTMLDivElement>;
+  const {
+    onMouseEnter: floatingOnMouseEnter,
+    onMouseLeave: floatingOnMouseLeave,
+    ...floatingRest
+  } = fp;
+
+  const scheduleOpen = () => {
+    clearCloseTimer();
+    clearOpenTimer();
+    openTimerRef.current = window.setTimeout(() => setOpen(true), 200);
+  };
+  const scheduleClose = () => {
+    clearOpenTimer();
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => setOpen(false), 120);
+  };
+
+  useEffect(
+    () => () => {
+      clearOpenTimer();
+      clearCloseTimer();
+    },
+    [],
+  );
+
+  return (
+    <>
+      <span
+        ref={refs.setReference}
+        className={clsx(
+          'pointer-events-auto cursor-default max-w-full',
+          fillRow ? 'block min-w-0 w-full truncate' : 'inline-block shrink-0',
+          className,
+        )}
+        onMouseEnter={scheduleOpen}
+        onMouseLeave={scheduleClose}
+      >
+        {children}
+      </span>
+      {open ? (
+        <FloatingPortal>
+          <div
+            style={{
+              ...floatingStyles,
+              zIndex: 'var(--z-index-tooltip, 200)',
+              maxWidth: 'min(320px, calc(100vw - 48px))',
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-medium, 5px)',
+              backgroundColor: 'var(--color-bg-tooltip)',
+              color: 'var(--color-text-tooltip)',
+              boxShadow:
+                '0 0.5px 0 rgba(0,0,0,0.15), 0 5px 12px rgba(0,0,0,0.13), 0 1px 3px rgba(0,0,0,0.1)',
+            }}
+            className="pointer-events-auto text-bodyMd font-normal leading-[16px]"
+            {...floatingRest}
+            ref={refs.setFloating}
+            onMouseEnter={(e) => {
+              clearCloseTimer();
+              floatingOnMouseEnter?.(e);
+            }}
+            onMouseLeave={(e) => {
+              scheduleClose();
+              floatingOnMouseLeave?.(e);
+            }}
+          >
+            {tooltip}
+          </div>
+        </FloatingPortal>
+      ) : null}
+    </>
+  );
+}
+
+function FlyoutSeatUnderlinedWithTooltip({
+  kind,
+  triggerClassName,
+  muted,
+  fillRow = false,
+}: {
+  kind: SeatKind;
+  /** Optional; defaults to picker row label styles */
+  triggerClassName?: string;
+  muted?: boolean;
+  fillRow?: boolean;
+}) {
+  const { label } = SEAT_META[kind];
+  return (
+    <FlyoutDottedTermTooltip
+      fillRow={fillRow}
+      tooltip={FLYOUT_SEAT_TOOLTIP_COPY[kind]}
+      className={clsx(
+        triggerClassName,
+        !triggerClassName &&
+          'rounded-sm text-bodyLg font-bold underline decoration-dotted underline-offset-2 hover:bg-bg-hover',
+        muted ? 'text-text-secondary' : !triggerClassName && 'text-text',
+      )}
+    >
+      {label}
+    </FlyoutDottedTermTooltip>
+  );
+}
+
 /** Shown in seat-change copy (matches design). */
 const FLYOUT_ORG_DISPLAY_NAME = 'Twigma';
 
@@ -119,12 +325,20 @@ function formatFlyoutInvoiceDate(date: Date = new Date()): string {
   return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-const SEAT_COUNTS = [
-  { count: 30, kind: 'view' as const },
-  { count: 30, kind: 'collab' as const },
-  { count: 40, kind: 'dev' as const },
-  { count: 30, kind: 'full' as const },
-];
+/** Relative “last updated” after a seat change (matches flyout design, e.g. “1 min ago”). */
+function formatFlyoutSeatLastUpdatedRelative(changedAtMs: number, nowMs: number = Date.now()): string {
+  const sec = Math.max(0, Math.floor((nowMs - changedAtMs) / 1000));
+  if (sec < 45) return 'Just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return min === 1 ? '1 min ago' : `${min} mins ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr === 1 ? '1 hour ago' : `${hr} hours ago`;
+  const day = Math.floor(hr / 24);
+  return day === 1 ? '1 day ago' : `${day} days ago`;
+}
+
+/** Seat kinds shown in the People tab toolbar (order matches layout). Counts are derived from live `peopleRows`. */
+const PEOPLE_TOOLBAR_SEAT_KINDS: SeatKind[] = ['view', 'collab', 'dev', 'full'];
 
 const WORKSPACE_OPTIONS = [
   { value: 'ws-default', label: 'Workspace' },
@@ -149,6 +363,7 @@ const AVATAR_1 = 'https://i.pravatar.cc/150?img=47';
 const AVATAR_2 = 'https://i.pravatar.cc/150?img=11';
 const AVATAR_3 = 'https://i.pravatar.cc/150?img=32';
 const AVATAR_4 = 'https://i.pravatar.cc/150?img=20';
+const AVATAR_5 = 'https://i.pravatar.cc/150?img=52';
 
 const PEOPLE_DATA: PersonRow[] = [
   {
@@ -218,7 +433,7 @@ const PEOPLE_DATA: PersonRow[] = [
   },
   { id: '9',  name: 'Sam Okafor',       email: 'sam.okafor@acme.com',       avatar: { kind: 'initial', initial: 'S', color: 'red' }, seatType: 'full',   lastActive: '2 minutes ago' },
   { id: '10', name: 'Taylor Reyes',     email: 'taylor.r@acme.com',         avatar: { kind: 'initial', initial: 'T', color: 'pink' },   seatType: 'dev',    lastActive: '15 minutes ago' },
-  { id: '11', name: 'Avery Kim',        email: 'avery.kim@acme.com',        avatar: { kind: 'photo',   src: AVATAR_1 },                 seatType: 'collab', lastActive: '1 hour ago' },
+  { id: '11', name: 'Avery Kim',        email: 'avery.kim@acme.com',        avatar: { kind: 'photo',   src: AVATAR_5 },                 seatType: 'collab', lastActive: '1 hour ago' },
   { id: '12', name: 'Blake Torres',     email: 'blake.torres@acme.com',     avatar: { kind: 'initial', initial: 'B', color: 'green' },   seatType: 'view',   lastActive: '3 hours ago' },
   { id: '13', name: 'Cameron Patel',    email: 'cpatel@acme.com',           avatar: { kind: 'initial', initial: 'C', color: 'blue' },   seatType: 'full',   lastActive: 'Yesterday' },
   { id: '14', name: 'Devon Walsh',      email: 'devon.walsh@acme.com',      avatar: { kind: 'photo',   src: AVATAR_2 },                 seatType: 'dev',    lastActive: 'Yesterday' },
@@ -407,11 +622,11 @@ function PersonSeatCell({ data }: { data?: PersonRow }) {
   if (!data) return null;
   const { Icon, label, iconWrapClass, iconColor } = SEAT_META[data.seatType];
   return (
-    <div className="flex items-center gap-8px min-w-0 w-full">
+    <div className="flex min-w-0 w-full items-center gap-8px">
       <div className={iconWrapClass} style={{ '--fpl-icon-color': iconColor } as React.CSSProperties}>
         <Icon />
       </div>
-      <span className="text-bodyMd text-text truncate">{label}</span>
+      <span className="min-w-0 truncate text-bodyMd text-text">{label}</span>
     </div>
   );
 }
@@ -472,12 +687,14 @@ const FLYOUT_DOT_LINK_CLASS =
   'cursor-pointer border-0 bg-transparent p-0 text-left font-bold text-bodyLg text-text underline decoration-dotted underline-offset-2 hover:bg-bg-hover rounded-sm';
 
 function flyoutAiCreditsUsed(personId: string, limit: number): number {
+  if (limit <= 0) return 0;
   let h = 0;
   for (let i = 0; i < personId.length; i += 1) {
     h = (h * 31 + personId.charCodeAt(i)) >>> 0;
   }
   const ratio = 0.12 + (h % 55) / 100;
-  return Math.max(1, Math.min(limit - 1, Math.round(limit * ratio)));
+  const raw = Math.round(limit * ratio);
+  return Math.min(limit, Math.max(0, raw));
 }
 
 function flyoutMockDetails(person: PersonRow) {
@@ -559,38 +776,40 @@ function FlyoutSeatPickerRow({
   pendingSeatKind: SeatKind | null;
   onPick: (k: SeatKind) => void;
 }) {
-  const { Icon, label, iconWrapClass, iconColor } = SEAT_META[kind];
+  const { Icon, iconWrapClass, iconColor } = SEAT_META[kind];
   const isCurrent = kind === currentSeat;
   const isPendingNewSeat =
     pendingSeatKind !== null && pendingSeatKind === kind && pendingSeatKind !== currentSeat;
   const isSelectedPending = pendingSeatKind === kind && !isPendingNewSeat;
   return (
-    <ButtonPrimitive
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onPick(kind)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onPick(kind);
+        }
+      }}
       className={clsx(
-        'flex w-full cursor-pointer items-center justify-between rounded-[4px] border border-solid px-12px py-4px text-left transition-colors',
+        'flex w-full cursor-pointer items-center justify-between rounded-[4px] border border-solid px-12px py-4px text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-selected focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
         isPendingNewSeat
           ? 'border-bg-brand bg-[#f2f9ff] hover:bg-[#f2f9ff]'
           : 'border-border hover:bg-bg-secondary',
         !isPendingNewSeat && isSelectedPending && 'bg-bg-secondary',
       )}
     >
-      <div className="flex min-w-0 items-center gap-8px py-4px">
+      <div className="flex min-w-0 flex-1 items-center gap-8px py-4px">
         <div
           className={iconWrapClass}
           style={{ '--fpl-icon-color': iconColor } as React.CSSProperties}
         >
           <Icon />
         </div>
-        <span
-          className={clsx(
-            'truncate text-bodyLg font-bold underline decoration-dotted underline-offset-2',
-            isCurrent ? 'text-text-secondary' : 'text-text',
-          )}
-        >
-          {label}
-        </span>
+        <div className="min-w-0 flex-1">
+          <FlyoutSeatUnderlinedWithTooltip kind={kind} muted={isCurrent} fillRow />
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-8px">
         {flyoutSeatPickerBadge(kind, currentSeat)}
@@ -603,11 +822,19 @@ function FlyoutSeatPickerRow({
           {SEAT_PRICE_LABEL[kind]}
         </span>
       </div>
-    </ButtonPrimitive>
+    </div>
   );
 }
 
-function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: () => void }) {
+function PersonFlyoutInner({
+  person,
+  onClose,
+  onSeatChange,
+}: {
+  person: PersonRow;
+  onClose: () => void;
+  onSeatChange?: (personId: string, seatKind: SeatKind) => void;
+}) {
   const [tabPropsMap, tabPanelPropsMap, tabManager] = Tabs.useTabs<FlyoutMemberTab>(FLYOUT_MEMBER_TAB_MAP, {
     defaultActive: 'manage',
   });
@@ -615,6 +842,9 @@ function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: ()
   const [flyoutSeatKind, setFlyoutSeatKind] = useState<SeatKind | null>(null);
   const [seatChangeOpen, setSeatChangeOpen] = useState(false);
   const [pendingSeatKind, setPendingSeatKind] = useState<SeatKind | null>(null);
+  /** Wall-clock ms when the user last confirmed a seat change in this flyout session. */
+  const [flyoutSeatChangedAt, setFlyoutSeatChangedAt] = useState<number | null>(null);
+  const [, setSeatUpdatedTick] = useState(0);
 
   const effectiveSeat = flyoutSeatKind ?? person.seatType;
 
@@ -622,7 +852,14 @@ function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: ()
     setFlyoutSeatKind(null);
     setSeatChangeOpen(false);
     setPendingSeatKind(null);
+    setFlyoutSeatChangedAt(null);
   }, [person.id]);
+
+  useEffect(() => {
+    if (flyoutSeatChangedAt === null) return;
+    const id = window.setInterval(() => setSeatUpdatedTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, [flyoutSeatChangedAt]);
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -641,9 +878,14 @@ function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: ()
   const details = useMemo(() => flyoutMockDetails(person), [person]);
   const limit = AI_CREDIT_LIMIT_BY_SEAT[effectiveSeat];
   const used = useMemo(() => flyoutAiCreditsUsed(person.id, limit), [person.id, limit]);
+  const usedClamped = limit > 0 ? Math.min(limit, Math.max(0, used)) : 0;
+  const fillPct = limit > 0 ? Math.min(100, Math.max(0, (usedClamped / limit) * 100)) : 0;
+  const seatLastUpdatedSuffix =
+    flyoutSeatChangedAt !== null
+      ? formatFlyoutSeatLastUpdatedRelative(flyoutSeatChangedAt)
+      : details.seatLastUpdated;
   const seatMeta = SEAT_META[effectiveSeat];
-  const { Icon: SeatIcon, label: seatLabel, iconWrapClass, iconColor } = seatMeta;
-  const fillPct = Math.min(100, Math.max(0, (used / limit) * 100));
+  const { Icon: SeatIcon, iconWrapClass, iconColor } = seatMeta;
 
   const canConfirmSeatChange =
     pendingSeatKind !== null && pendingSeatKind !== effectiveSeat;
@@ -655,9 +897,12 @@ function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: ()
 
   const confirmSeatChange = () => {
     if (!canConfirmSeatChange || pendingSeatKind === null) return;
-    setFlyoutSeatKind(pendingSeatKind);
+    const next = pendingSeatKind;
+    setFlyoutSeatKind(next);
+    setFlyoutSeatChangedAt(Date.now());
     setSeatChangeOpen(false);
     setPendingSeatKind(null);
+    onSeatChange?.(person.id, next);
   };
 
   return (
@@ -708,19 +953,22 @@ function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: ()
                     </Button>
                   </div>
                   <div className="flex h-32px w-full items-center justify-between py-4px">
-                    <div className="flex min-w-0 items-center gap-8px">
+                    <div className="flex min-w-0 flex-1 items-center gap-8px">
                       <div
                         className={iconWrapClass}
                         style={{ '--fpl-icon-color': iconColor } as React.CSSProperties}
                       >
                         <SeatIcon />
                       </div>
-                      <ButtonPrimitive type="button" className={FLYOUT_DOT_LINK_CLASS}>
-                        {seatLabel}
-                      </ButtonPrimitive>
+                      <div className="min-w-0 shrink-0">
+                        <FlyoutSeatUnderlinedWithTooltip
+                          kind={effectiveSeat}
+                          triggerClassName={FLYOUT_DOT_LINK_CLASS}
+                        />
+                      </div>
                     </div>
                     <span className="shrink-0 pl-8px text-right text-bodyLg font-normal text-text-secondary">
-                      Last updated {details.seatLastUpdated}
+                      Last updated {seatLastUpdatedSuffix}
                     </span>
                   </div>
                 </>
@@ -776,13 +1024,15 @@ function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: ()
                           </div>
                         </div>
                         <div className="flex w-full flex-col gap-4px">
-                          <div className="flex w-full items-center justify-between">
-                            <ButtonPrimitive
-                              type="button"
-                              className="cursor-default border-0 bg-transparent p-0 text-left text-bodyLg font-normal text-text-secondary underline decoration-dotted underline-offset-2"
-                            >
-                              Prorated cost
-                            </ButtonPrimitive>
+                          <div className="flex w-full items-center justify-between gap-8px">
+                            <div className="shrink-0">
+                              <FlyoutDottedTermTooltip
+                                className="cursor-default border-0 bg-transparent p-0 text-left text-bodyLg font-normal text-text-secondary underline decoration-dotted underline-offset-2"
+                                tooltip={FLYOUT_PRORATED_COST_TOOLTIP}
+                              >
+                                Prorated cost
+                              </FlyoutDottedTermTooltip>
+                            </div>
                             <span className="text-bodyLg font-normal text-text-secondary tabular-nums">$120</span>
                           </div>
                           <div className="flex w-full items-center justify-between">
@@ -811,17 +1061,29 @@ function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: ()
                 </span>
               </div>
               <div className="flex w-full flex-col gap-8px px-16px pb-12px">
-                <div className="flex h-32px w-full items-center justify-between py-4px">
-                  <ButtonPrimitive type="button" className={FLYOUT_DOT_LINK_CLASS}>
-                    Seat credits used
-                  </ButtonPrimitive>
+                <div className="flex h-32px w-full items-center justify-between gap-8px py-4px">
+                  <div className="shrink-0">
+                    <FlyoutDottedTermTooltip
+                      className={FLYOUT_DOT_LINK_CLASS}
+                      tooltip={FLYOUT_SEAT_CREDITS_USED_TOOLTIP}
+                    >
+                      Seat credits used
+                    </FlyoutDottedTermTooltip>
+                  </div>
                   <span className="text-bodyLg font-normal text-text-secondary tabular-nums">
-                    {used} / {limit}
+                    {usedClamped.toLocaleString('en-US')} / {limit.toLocaleString('en-US')}
                   </span>
                 </div>
-                <div className="flex h-8px w-full items-center overflow-hidden rounded-md bg-bg-hover">
+                <div
+                  className="relative h-8px w-full min-w-0 overflow-hidden rounded-md bg-bg-hover"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={limit}
+                  aria-valuenow={usedClamped}
+                  aria-label="Seat credits used"
+                >
                   <div
-                    className="h-6px shrink-0 rounded-l-full border-r-2 border-solid border-icon-onbrand bg-bg-brand"
+                    className="box-border absolute left-0 top-1/2 h-6px max-w-full -translate-y-1/2 rounded-l-full border-r-2 border-solid border-icon-onbrand bg-bg-brand transition-[width] duration-200 ease-out"
                     style={{ width: `${fillPct}%` }}
                   />
                 </div>
@@ -869,9 +1131,11 @@ function PersonFlyoutInner({ person, onClose }: { person: PersonRow; onClose: ()
 function PersonDetailFlyout({
   person,
   onClose,
+  onSeatChange,
 }: {
   person: PersonRow | null;
   onClose: () => void;
+  onSeatChange?: (personId: string, seatKind: SeatKind) => void;
 }) {
   return (
     <AnimatePresence>
@@ -881,13 +1145,13 @@ function PersonDetailFlyout({
           role="dialog"
           aria-modal="true"
           aria-labelledby="person-flyout-name"
-          className="fixed top-0 right-0 bottom-0 z-[101] flex w-[min(480px,100vw)] flex-col border border-border bg-bg"
+          className="pointer-events-auto fixed top-0 right-0 bottom-0 z-[101] flex w-[min(480px,100vw)] flex-col border border-border bg-bg"
           initial={{ x: '100%' }}
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', stiffness: 420, damping: 36 }}
         >
-          <PersonFlyoutInner person={person} onClose={onClose} />
+          <PersonFlyoutInner person={person} onClose={onClose} onSeatChange={onSeatChange} />
         </motion.aside>
       ) : null}
     </AnimatePresence>
@@ -949,6 +1213,10 @@ const PEOPLE_COLUMNS: TableColumnDef<PersonRow>[] = [
   },
 ];
 
+type PeopleTableGridApi = {
+  refreshCells: (params?: { force?: boolean }) => void;
+};
+
 /* -------------------------------------------------------------------------- */
 /*  Page                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -960,7 +1228,39 @@ function PeoplePage() {
   const [search, setSearch] = useState('');
   const [toolbarBilling, setToolbarBilling] = useState<string | undefined>('all');
   const [groupSearch, setGroupSearch] = useState('');
-  const [flyoutPerson, setFlyoutPerson] = useState<PersonRow | null>(null);
+  const [peopleRows, setPeopleRows] = useState<PersonRow[]>(() =>
+    dedupePersonRowsByEmail(PEOPLE_DATA.map((r) => ({ ...r }))),
+  );
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+
+  const flyoutPerson = useMemo(() => {
+    if (!selectedPersonId) return null;
+    return peopleRows.find((p) => p.id === selectedPersonId) ?? null;
+  }, [selectedPersonId, peopleRows]);
+
+  const peopleGridApiRef = useRef<PeopleTableGridApi | null>(null);
+
+  const handleSeatChange = useCallback((personId: string, seatKind: SeatKind) => {
+    let changed = false;
+    setPeopleRows((prev) => {
+      const row = prev.find((p) => p.id === personId);
+      if (!row || row.seatType === seatKind) return prev;
+      changed = true;
+      queueMicrotask(() => {
+        showToast({
+          message: `${row.name} is now on a ${SEAT_META[seatKind].label} seat.`,
+        });
+      });
+      return prev.map((p) => (p.id === personId ? { ...p, seatType: seatKind } : p));
+    });
+    if (changed) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          peopleGridApiRef.current?.refreshCells({ force: true });
+        });
+      });
+    }
+  }, []);
 
   const filteredGroups = useMemo(() => {
     const q = groupSearch.trim().toLowerCase();
@@ -970,12 +1270,21 @@ function PeoplePage() {
   const filteredPeople = useMemo(() => {
     const q = search.trim().toLowerCase();
     const data = q
-      ? PEOPLE_DATA.filter(
+      ? peopleRows.filter(
           (r) => r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q),
         )
-      : PEOPLE_DATA;
-    return [...data].sort((a, b) => a.name.localeCompare(b.name));
-  }, [search]);
+      : peopleRows;
+    return dedupePersonRowsByEmail(data).sort((a, b) => a.name.localeCompare(b.name));
+  }, [search, peopleRows]);
+
+  const seatToolbarCounts = useMemo(
+    () =>
+      PEOPLE_TOOLBAR_SEAT_KINDS.map((kind) => ({
+        kind,
+        count: peopleRows.filter((p) => p.seatType === kind).length,
+      })),
+    [peopleRows],
+  );
 
   return (
     <div className="flex w-full flex-col h-full">
@@ -1001,7 +1310,7 @@ function PeoplePage() {
         ) : (
           <div className="flex flex-wrap items-center gap-16px shrink-0 justify-end">
             <div className="flex items-center gap-16px h-24px">
-              {SEAT_COUNTS.map(({ count, kind }) => {
+              {seatToolbarCounts.map(({ count, kind }) => {
                 const { Icon, iconColor } = SEAT_META[kind];
                 return (
                   <div key={kind} className="flex items-center gap-4px shrink-0">
@@ -1083,6 +1392,9 @@ function PeoplePage() {
               gridOptions={{
                 rowHeight: 48,
                 headerHeight: 48,
+                onGridReady: (e) => {
+                  peopleGridApiRef.current = e.api as PeopleTableGridApi;
+                },
                 onRowClicked: (event) => {
                   const mouse = event.event;
                   const cell =
@@ -1092,7 +1404,7 @@ function PeoplePage() {
                     return;
                   }
                   const row = event.data;
-                  if (row) setFlyoutPerson(row);
+                  if (row) setSelectedPersonId(row.id);
                 },
               }}
             />
@@ -1130,7 +1442,11 @@ function PeoplePage() {
       </Tabs.TabPanel>
       </div>
 
-      <PersonDetailFlyout person={flyoutPerson} onClose={() => setFlyoutPerson(null)} />
+      <PersonDetailFlyout
+        person={flyoutPerson}
+        onClose={() => setSelectedPersonId(null)}
+        onSeatChange={handleSeatChange}
+      />
     </div>
   );
 }

@@ -30,6 +30,7 @@ import {
 } from '@figma/fpl-icons';
 import { ThemeProvider } from '@figma/fpl-tokens';
 import { Avatar } from '@prototype/shared';
+import { ToastContainer } from '../components/toast';
 
 /* ------------------------------------------------------------------ */
 /*  Nav data                                                           */
@@ -61,6 +62,7 @@ function Shell() {
   const { config } = useUserConfig();
 
   return (
+    <>
     <div className="bg-bg h-screen flex overflow-hidden">
       {/* Sidebar */}
       <aside className="w-[240px] bg-bg border-r border-border flex flex-col shrink-0">
@@ -177,6 +179,8 @@ function Shell() {
       {showPatternLibrary && <PatternLibraryWindow onClose={() => setShowPatternLibrary(false)} />}
       <UserConfigModal open={showUserConfig} onClose={() => setShowUserConfig(false)} />
     </div>
+    <ToastContainer />
+    </>
   );
 }
 
