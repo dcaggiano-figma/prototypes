@@ -2,6 +2,7 @@
   "name": "@apps/prototype",
   "version": "1.0.0",
   "private": true,
+  "description": "A Figma admin console with sidebar navigation, people management, billing, AI credits, settings, and more",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,10 +11,10 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:file": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm build && pnpm lint && pnpm typecheck",
-    "logs": "cat $(ls -t logs/vite-*.log 2>/dev/null | head -1) 2>/dev/null || echo 'No log files found in logs/'"
+    "verify": "pnpm build && pnpm lint && pnpm typecheck"
   },
   "dependencies": {
+    "clsx": "^2.1.1",
     "@figma/fpl-components": "catalog:",
     "@figma/fpl-icons": "catalog:",
     "@figma/fpl-tokens": "catalog:",
@@ -21,7 +22,7 @@
     "@figma/ppg-ui": "catalog:",
     "@prototype/shared": "workspace:*",
     "@tanstack/react-router": "^1.114.0",
-    "clsx": "^2.1.1",
+    "motion": "catalog:",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

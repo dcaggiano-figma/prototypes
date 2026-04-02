@@ -1,0 +1,15 @@
+{
+  "$comment": "This file contains some metadata we use to tell people about your prototype!  This description is viewable in your published prototype, as well as on protov2.figma.design.  Claude automatically tries to keep this up to date, but feel free to take over.",
+  "description": "",
+  "author": "DeAnna Caggiano",
+  "tags": [
+    "figma-admin-console"
+  ],
+  "base": {
+    "branch": "main",
+    "commit": "d2969874a10d6593b91a3e3b91dd2e39b3f24e1d",
+    "timestamp": "2026-04-02T01:26:00.191Z"
+  },
+  "hideFromSharePage": false,
+  "template": "figma-admin-console"
+}

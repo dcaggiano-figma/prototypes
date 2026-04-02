@@ -1,5 +1,5 @@
 {
-  "name": "Figma Design",
-  "description": "A minimal starter for Figma design-related prototypes",
-  "id": "figma-design"
+  "name": "Figma Admin Console",
+  "description": "A Figma admin console with sidebar navigation, people management, billing, AI credits, settings, and more",
+  "id": "figma-admin-console"
 }

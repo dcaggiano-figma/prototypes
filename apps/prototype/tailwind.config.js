@@ -11,8 +11,7 @@ export default {
   theme: {
     extend: {
       spacing: {
-        /** Panel header row height (48px) */
-        'panel-header': '48px',
+        '6px': '6px',
       },
     },
   },

@@ -1,5 +1,12 @@
 {
-  "name": "testing-share",
-  "template": "figma-design",
-  "createdAt": "2026-03-03T02:13:05.579Z"
+  "name": "seat-management",
+  "template": "figma-admin-console",
+  "createdAt": "2026-04-02T01:26:01.466Z",
+  "devPort": 5179,
+  "wsPort": 5180,
+  "base": {
+    "branch": "main",
+    "commit": "d2969874a10d6593b91a3e3b91dd2e39b3f24e1d",
+    "timestamp": "2026-04-02T01:26:00.191Z"
+  }
 }
