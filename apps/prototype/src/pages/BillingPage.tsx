@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useResearch } from '../research/researchCopy';
 import {
   Button,
   ButtonPrimitive,
@@ -33,6 +34,7 @@ function CounterBadge({ children }: { children: React.ReactNode }) {
 }
 
 function BillingOverview() {
+  const { variant } = useResearch();
   const navigate = useNavigate();
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-24px items-start w-full">
@@ -86,7 +88,11 @@ function BillingOverview() {
               </div>
             </div>
             <div className="shrink-0">
-              <Button variant="secondary" size="md" onClick={() => void navigate({ to: '/ai-credits' })}>
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => void navigate({ to: '/ai-credits', search: { variant } })}
+              >
                 View usage
               </Button>
             </div>

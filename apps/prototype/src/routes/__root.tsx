@@ -31,6 +31,7 @@ import {
 import { ThemeProvider } from '@figma/fpl-tokens';
 import { Avatar } from '@prototype/shared';
 import { ToastContainer } from '../components/toast';
+import { ResearchCopyProvider, useResearch } from '../research/researchCopy';
 
 /* ------------------------------------------------------------------ */
 /*  Nav data                                                           */
@@ -54,6 +55,7 @@ const SECONDARY_NAV = [
 /* ------------------------------------------------------------------ */
 
 function Shell() {
+  const { variant, copy } = useResearch();
   const [theme, setTheme] = useAppTheme();
   const { getTriggerProps, manager } = MenuV2.useMenu();
   const [showPatternLibrary, setShowPatternLibrary] = useState(false);
@@ -106,7 +108,12 @@ function Shell() {
               </MenuV2.Group>
               <MenuV2.SubMenu title="Prototype">
                 <MenuV2.Group>
-                  <MenuV2.Item onClick={() => { void navigate({ to: '/' }); window.location.reload(); }}>
+                  <MenuV2.Item
+                    onClick={() => {
+                      void navigate({ to: '/', search: { variant } });
+                      window.location.reload();
+                    }}
+                  >
                     Reset prototype
                   </MenuV2.Item>
                 </MenuV2.Group>
@@ -128,7 +135,7 @@ function Shell() {
           <IconButton aria-label="Back">
             <Icon24ChevronLeftLarge />
           </IconButton>
-          <span className="text-bodyLg text-text">Admin</span>
+          <span className="text-bodyLg text-text">{copy.shellAdminLabel}</span>
         </div>
         <div className="flex flex-col gap-4px overflow-auto">
           <nav className="flex flex-col gap-4px px-8px py-8px">
@@ -136,6 +143,7 @@ function Shell() {
               <Link
                 key={item.path}
                 to={item.path}
+                search={{ variant }}
                 activeOptions={{ exact: item.path === '/' }}
                 activeProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline bg-bg-selected text-text' }}
                 inactiveProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline text-text hover:bg-bg-transparent-hover' }}
@@ -148,6 +156,7 @@ function Shell() {
               <Link
                 key={item.path}
                 to={item.path}
+                search={{ variant }}
                 activeProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline bg-bg-selected text-text' }}
                 inactiveProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline text-text hover:bg-bg-transparent-hover' }}
               >
@@ -189,15 +198,23 @@ function Shell() {
 /* ------------------------------------------------------------------ */
 
 function RootLayout() {
+  const { variant } = Route.useSearch();
   return (
     <ThemeProvider initialVersion="ui3">
       <UserConfigProvider defaultConfig={{ name: 'Kelly Shin', avatarUrl: './assets/avatar.jpg' }}>
-        <Shell />
+        <ResearchCopyProvider variant={variant}>
+          <Shell />
+        </ResearchCopyProvider>
       </UserConfigProvider>
     </ThemeProvider>
   );
 }
 
 export const Route = createRootRoute({
+  validateSearch: (search: Record<string, unknown>) => {
+    const v = search.variant;
+    if (v === 'pro') return { variant: 'pro' as const };
+    return { variant: 'org' as const };
+  },
   component: RootLayout,
 });

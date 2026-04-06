@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useResearch } from '../research/researchCopy';
 import { Avatar, Heading, Text } from '@prototype/shared';
 import { Badge, Button, IconButton } from '@figma/fpl-components';
 import {
@@ -164,6 +165,7 @@ function RequestAvatarStack({
 }
 
 function HomePage() {
+  const { variant, copy } = useResearch();
   const navigate = useNavigate();
   const [seatRequests, setSeatRequests] = useState<SeatRequest[]>(() => [...INITIAL_SEAT_REQUESTS]);
   const [seatRequestFlyout, setSeatRequestFlyout] = useState<SeatRequest | null>(null);
@@ -195,7 +197,7 @@ function HomePage() {
       <div className="w-full px-32px pb-24px border-b border-border">
         <div className="flex items-center gap-16px">
           <TwigmaMark />
-          <Heading as='h1' size='lg'>Twigma admin</Heading>
+          <Heading as='h1' size='lg'>{copy.productAdminTitle}</Heading>
         </div>
       </div>
 
@@ -317,7 +319,11 @@ function HomePage() {
           <section className="border border-border rounded-lg bg-bg flex flex-col">
             <div className="flex items-center justify-between p-16px">
               <h2 className="text-bodyLg font-bold text-text m-0">AI credit usage</h2>
-              <Button variant="secondary" size="md" onClick={() => void navigate({ to: '/ai-credits' })}>
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => void navigate({ to: '/ai-credits', search: { variant } })}
+              >
                 View
               </Button>
             </div>

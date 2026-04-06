@@ -32,6 +32,7 @@ import {
 } from '@figma/fpl-icons';
 import { Avatar, Table, Text, type TableColumnDef, type MultiplayerColor } from '@prototype/shared';
 import { showToast } from '../components/toast';
+import { useResearch } from '../research/researchCopy';
 
 /* -------------------------------------------------------------------------- */
 /*  Layout: match ContentPage inset column (mx-32px + w-[calc(100%-64px)])      */
@@ -251,9 +252,6 @@ function FlyoutSeatUnderlinedWithTooltip({
     </FlyoutDottedTermTooltip>
   );
 }
-
-/** Shown in seat-change copy (matches design). */
-const FLYOUT_ORG_DISPLAY_NAME = 'Twigma';
 
 function formatFlyoutInvoiceDate(date: Date = new Date()): string {
   return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -786,6 +784,7 @@ function PersonFlyoutInner({
   onSeatChange?: (personId: string, seatKind: SeatKind) => void;
   seatApproval?: SeatRequestApprovalContext;
 }) {
+  const { copy } = useResearch();
   const [tabPropsMap, tabPanelPropsMap, tabManager] = Tabs.useTabs<FlyoutMemberTab>(FLYOUT_MEMBER_TAB_MAP, {
     defaultActive: 'manage',
   });
@@ -965,13 +964,13 @@ function PersonFlyoutInner({
                         </Text>
                         {seatApproval ? (
                           <Text as="p" size="lg" className="m-0">
-                            If you approve, {FLYOUT_ORG_DISPLAY_NAME} will assign them a{' '}
+                            If you approve, {copy.seatFlyoutEntityName} will assign them a{' '}
                             {SEAT_META[pendingSeatKind].label} seat and use one seat from your plan. Their{' '}
                             {SEAT_META[effectiveSeat].label} seat will become available to assign later.
                           </Text>
                         ) : (
                           <Text as="p" size="lg" className="m-0">
-                            This will add one {SEAT_META[pendingSeatKind].label} seat to {FLYOUT_ORG_DISPLAY_NAME}.
+                            This will add one {SEAT_META[pendingSeatKind].label} seat to {copy.seatFlyoutEntityName}.
                             Their {SEAT_META[effectiveSeat].label} seat will be removed from your plan and credited
                             on your {formatFlyoutInvoiceDate()} invoice.
                           </Text>
@@ -1097,7 +1096,7 @@ function PersonFlyoutInner({
 
       <div className="shrink-0 border-t border-border p-24px">
         <Button variant="destructiveSecondary" onClick={() => undefined}>
-          Remove from organization
+          {copy.removeMemberLabel}
         </Button>
       </div>
     </div>
