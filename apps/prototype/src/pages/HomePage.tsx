@@ -1,15 +1,25 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Avatar, Heading, Text } from '@prototype/shared';
 import { Badge, Button, IconButton } from '@figma/fpl-components';
 import {
+  PersonDetailFlyout,
+  SEAT_KIND_VISUAL,
+  type PersonRow,
+  type SeatKind,
+  type SeatRequestApprovalContext,
+} from './PeoplePage';
+import { showToast } from '../components/toast';
+import {
+  Icon16SeatCollab,
+  Icon16SeatDev,
+  Icon16SeatFull,
+  Icon16SeatView,
   Icon24AiCredit,
   Icon24ApprovedCheckmark,
   Icon24ChevronRightLarge,
   Icon24Eye,
-  Icon24SeatCollab,
-  Icon24SeatDev,
-  Icon24SeatFull,
   Icon24Placeholder,
 } from '@figma/fpl-icons';
 
@@ -42,8 +52,6 @@ function TwigmaMark() {
   );
 }
 
-type SeatKind = 'collab' | 'full' | 'dev';
-
 type SeatRequest = {
   id: string;
   name: string;
@@ -53,7 +61,7 @@ type SeatRequest = {
   avatar: { type: 'photo'; src: string; alt: string } | { type: 'initial'; initial: string; color: 'green' | 'purple' };
 };
 
-const SEAT_REQUESTS: SeatRequest[] = [
+const INITIAL_SEAT_REQUESTS: SeatRequest[] = [
   {
     id: '1',
     name: 'Mariko Hyder-Fukawa',
@@ -69,7 +77,7 @@ const SEAT_REQUESTS: SeatRequest[] = [
   {
     id: '2',
     name: 'Molly Sapiro',
-    seatKind: 'collab',
+    seatKind: 'full',
     subhead: 'Wants to edit the file Galaxy Design System, in the team Dream Team',
     metaParts: { email: 'msapiro@memorymachines.com', time: '1 day ago' },
     avatar: { type: 'initial', initial: 'M', color: 'green' },
@@ -100,13 +108,34 @@ const SEAT_LABEL: Record<SeatKind, string> = {
   collab: 'Collab seat',
   full: 'Full seat',
   dev: 'Dev seat',
+  view: 'View seat',
 };
 
-const SEAT_ICON: Record<SeatKind, ReactNode> = {
-  collab: <Icon24SeatCollab />,
-  full: <Icon24SeatFull />,
-  dev: <Icon24SeatDev />,
+/** Pause after toast + flyout close so the list row disappearing reads clearly. */
+const SEAT_REQUEST_ROW_REMOVE_DELAY_MS = 450;
+
+/** FPL seat glyphs for the dashboard request avatar chip (icon.16.seat-* in UI3). */
+const SEAT_REQUEST_AVATAR_BADGE_ICON: Record<SeatKind, ReactNode> = {
+  collab: <Icon16SeatCollab className="size-16px shrink-0" aria-hidden />,
+  full: <Icon16SeatFull className="size-16px shrink-0" aria-hidden />,
+  dev: <Icon16SeatDev className="size-16px shrink-0" aria-hidden />,
+  view: <Icon16SeatView className="size-16px shrink-0" aria-hidden />,
 };
+
+function seatRequestToPersonRow(req: SeatRequest): PersonRow {
+  return {
+    id: `seat-req-${req.id}`,
+    name: req.name,
+    email: req.metaParts.email,
+    guest: req.metaParts.guest,
+    avatar:
+      req.avatar.type === 'photo'
+        ? { kind: 'photo', src: req.avatar.src }
+        : { kind: 'initial', initial: req.avatar.initial, color: req.avatar.color },
+    seatType: 'view',
+    lastActive: req.metaParts.time,
+  };
+}
 
 function RequestAvatarStack({
   avatar,
@@ -115,20 +144,20 @@ function RequestAvatarStack({
   avatar: SeatRequest['avatar'];
   seatKind: SeatKind;
 }) {
+  const { surfaceClass, iconColor } = SEAT_KIND_VISUAL[seatKind];
   return (
-    <div className="relative shrink-0 w-32px h-32px">
+    <div className="relative size-32px shrink-0 rounded-[24px]">
       {avatar.type === 'photo' ? (
         <Avatar size="lg" src={avatar.src} alt={avatar.alt} />
       ) : (
         <Avatar size="lg" initial={avatar.initial} color={avatar.color} alt="" />
       )}
       <div
-        className="absolute -right-8px -bottom-8px size-24px rounded-full bg-bg border-0 flex items-center justify-center text-icon"
+        className={`absolute -right-8px -bottom-8px box-border flex size-24px shrink-0 items-center justify-center overflow-hidden rounded-full border-0 ${surfaceClass}`}
+        style={{ '--fpl-icon-color': iconColor } as CSSProperties}
         aria-hidden
       >
-        <span className="flex size-24px shrink-0 items-center justify-center [&>svg]:block [&>svg]:size-24px">
-          {SEAT_ICON[seatKind]}
-        </span>
+        {SEAT_REQUEST_AVATAR_BADGE_ICON[seatKind]}
       </div>
     </div>
   );
@@ -136,9 +165,30 @@ function RequestAvatarStack({
 
 function HomePage() {
   const navigate = useNavigate();
+  const [seatRequests, setSeatRequests] = useState<SeatRequest[]>(() => [...INITIAL_SEAT_REQUESTS]);
+  const [seatRequestFlyout, setSeatRequestFlyout] = useState<SeatRequest | null>(null);
+  const pendingRowRemoveTimeoutsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    const pending = pendingRowRemoveTimeoutsRef.current;
+    return () => {
+      pending.forEach(clearTimeout);
+      pending.length = 0;
+    };
+  }, []);
+
   const creditUsed = 2500;
   const creditTotal = 10000;
   const creditPct = Math.round((creditUsed / creditTotal) * 100);
+
+  const seatApprovalContext = useMemo((): SeatRequestApprovalContext | undefined => {
+    if (!seatRequestFlyout) return undefined;
+    return { requestedSeat: seatRequestFlyout.seatKind };
+  }, [seatRequestFlyout]);
+
+  const approvalPerson = seatRequestFlyout ? seatRequestToPersonRow(seatRequestFlyout) : null;
+
+  const openSeatRequestFlyout = (row: SeatRequest) => setSeatRequestFlyout(row);
 
   return (
     <div className="flex w-full flex-col">
@@ -156,7 +206,9 @@ function HomePage() {
           <div className="flex flex-wrap items-center gap-12px justify-between px-16px py-16px border-b border-border">
             <div className="flex items-center gap-8px min-w-0">
               <h2 className="text-bodyLg font-bold text-text m-0">Seat requests</h2>
-              <Badge variant='brandOutline' size="md">4</Badge>
+              <Badge variant="brandOutline" size="md">
+                {seatRequests.length}
+              </Badge>
             </div>
             <div className="flex items-center gap-8px shrink-0">
               <Button variant="secondary" size="md">
@@ -169,7 +221,7 @@ function HomePage() {
           </div>
           <div className="px-16px py-8px">
             <ul className="list-none m-0 p-0">
-              {SEAT_REQUESTS.map((row) => (
+              {seatRequests.map((row) => (
                 <li
                   key={row.id}
                   className="flex gap-24px items-start py-16px [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border"
@@ -183,10 +235,13 @@ function HomePage() {
                         <Text size='lg' strong>{SEAT_LABEL[row.seatKind]}</Text>
                       </p>
                       <div className="flex items-center gap-8px shrink-0">
-                        <Button variant="secondary" size="md">
+                        <Button variant="secondary" size="md" onClick={() => openSeatRequestFlyout(row)}>
                           Approve
                         </Button>
-                        <IconButton aria-label="Open request">
+                        <IconButton
+                          aria-label={`Open seat request for ${row.name}`}
+                          onClick={() => openSeatRequestFlyout(row)}
+                        >
                           <Icon24ChevronRightLarge />
                         </IconButton>
                       </div>
@@ -302,6 +357,25 @@ function HomePage() {
         </aside>
       </div>
       </div>
+
+      <PersonDetailFlyout
+        person={approvalPerson}
+        onClose={() => setSeatRequestFlyout(null)}
+        seatApproval={seatApprovalContext}
+        onSeatChange={(personId, seatKind) => {
+          const name = approvalPerson?.name ?? 'Member';
+          showToast({
+            message: `Approved ${name} for a ${SEAT_LABEL[seatKind]}.`,
+          });
+          const approvedId = personId.replace(/^seat-req-/, '');
+          setSeatRequestFlyout(null);
+          const handle = window.setTimeout(() => {
+            pendingRowRemoveTimeoutsRef.current = pendingRowRemoveTimeoutsRef.current.filter((id) => id !== handle);
+            setSeatRequests((prev) => prev.filter((r) => r.id !== approvedId));
+          }, SEAT_REQUEST_ROW_REMOVE_DELAY_MS);
+          pendingRowRemoveTimeoutsRef.current.push(handle);
+        }}
+      />
     </div>
   );
 }

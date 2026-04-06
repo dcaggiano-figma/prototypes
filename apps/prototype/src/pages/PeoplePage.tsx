@@ -1,16 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
-import {
-  autoUpdate,
-  flip,
-  FloatingPortal,
-  offset,
-  shift,
-  useDismiss,
-  useFloating,
-  useInteractions,
-  useRole,
-} from '@floating-ui/react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   Badge,
@@ -21,6 +10,7 @@ import {
   SearchInput,
   Select,
   Tabs,
+  ToggleTip,
 } from '@figma/fpl-components';
 import {
   Icon16ChevronDown,
@@ -40,7 +30,7 @@ import {
   Icon24Team,
   Icon24UserGroups,
 } from '@figma/fpl-icons';
-import { Avatar, Table, type TableColumnDef, type MultiplayerColor } from '@prototype/shared';
+import { Avatar, Table, Text, type TableColumnDef, type MultiplayerColor } from '@prototype/shared';
 import { showToast } from '../components/toast';
 
 /* -------------------------------------------------------------------------- */
@@ -58,7 +48,15 @@ const FLYOUT_MEMBER_TAB_MAP: Record<FlyoutMemberTab, true> = {
   activity: true,
 };
 
-type SeatKind = 'full' | 'collab' | 'dev' | 'view';
+export type SeatKind = 'full' | 'collab' | 'dev' | 'view';
+
+/** Tinted surface + `--fpl-icon-color` per seat kind (member flyout, dashboard request avatars, etc.). */
+export const SEAT_KIND_VISUAL: Record<SeatKind, { surfaceClass: string; iconColor: string }> = {
+  full: { surfaceClass: 'bg-bg-selected', iconColor: 'var(--color-icon-brand)' },
+  collab: { surfaceClass: 'bg-bg-figjam-tertiary', iconColor: 'var(--color-icon-component)' },
+  dev: { surfaceClass: 'bg-bg-handoff-tertiary', iconColor: 'var(--color-icon-success)' },
+  view: { surfaceClass: 'bg-bg-secondary', iconColor: 'var(--color-icon-secondary)' },
+};
 
 const AI_CREDIT_LIMIT_BY_SEAT: Record<SeatKind, number> = {
   collab: 500,
@@ -67,11 +65,11 @@ const AI_CREDIT_LIMIT_BY_SEAT: Record<SeatKind, number> = {
   view: 500,
 };
 
-type AvatarSpec =
+export type AvatarSpec =
   | { kind: 'photo'; src: string }
   | { kind: 'initial'; initial: string; color?: MultiplayerColor };
 
-interface PersonRow {
+export interface PersonRow {
   id: string;
   name: string;
   email: string;
@@ -80,6 +78,11 @@ interface PersonRow {
   seatType: SeatKind;
   lastActive: string;
 }
+
+/** Dashboard “seat request” flyout: user asked for a specific seat (see Figma User Details / approval). */
+export type SeatRequestApprovalContext = {
+  requestedSeat: SeatKind;
+};
 
 /** One table row per person: email is the stable org identity; first row wins. */
 function dedupePersonRowsByEmail(rows: PersonRow[]): PersonRow[] {
@@ -98,30 +101,38 @@ const SEAT_META: Record<
   full: {
     Icon: Icon24SeatFull,
     label: 'Full',
-    iconWrapClass:
-      'relative shrink-0 size-24px rounded-md flex items-center justify-center overflow-hidden bg-bg-selected',
-    iconColor: 'var(--color-icon-brand)',
+    iconWrapClass: clsx(
+      'relative shrink-0 size-24px rounded-md flex items-center justify-center overflow-hidden',
+      SEAT_KIND_VISUAL.full.surfaceClass,
+    ),
+    iconColor: SEAT_KIND_VISUAL.full.iconColor,
   },
   collab: {
     Icon: Icon24SeatCollab,
     label: 'Collab',
-    iconWrapClass:
-      'relative shrink-0 size-24px rounded-md flex items-center justify-center overflow-hidden bg-bg-figjam-tertiary',
-    iconColor: 'var(--color-icon-component)',
+    iconWrapClass: clsx(
+      'relative shrink-0 size-24px rounded-md flex items-center justify-center overflow-hidden',
+      SEAT_KIND_VISUAL.collab.surfaceClass,
+    ),
+    iconColor: SEAT_KIND_VISUAL.collab.iconColor,
   },
   dev: {
     Icon: Icon24SeatDev,
     label: 'Dev',
-    iconWrapClass:
-      'relative shrink-0 size-24px rounded-md flex items-center justify-center overflow-hidden bg-bg-handoff-tertiary',
-    iconColor: 'var(--color-icon-success)',
+    iconWrapClass: clsx(
+      'relative shrink-0 size-24px rounded-md flex items-center justify-center overflow-hidden',
+      SEAT_KIND_VISUAL.dev.surfaceClass,
+    ),
+    iconColor: SEAT_KIND_VISUAL.dev.iconColor,
   },
   view: {
     Icon: Icon24SeatView,
     label: 'View',
-    iconWrapClass:
-      'relative shrink-0 size-24px rounded-md flex items-center justify-center overflow-hidden bg-bg-secondary',
-    iconColor: 'var(--color-icon-secondary)',
+    iconWrapClass: clsx(
+      'relative shrink-0 size-24px rounded-md flex items-center justify-center overflow-hidden',
+      SEAT_KIND_VISUAL.view.surfaceClass,
+    ),
+    iconColor: SEAT_KIND_VISUAL.view.iconColor,
   },
 };
 
@@ -148,143 +159,58 @@ const FLYOUT_PRORATED_COST_TOOLTIP =
 const FLYOUT_SEAT_CREDITS_USED_TOOLTIP =
   "Credits this member has used toward their seat's AI credit limit for the current billing period.";
 
-/** Flip to top, bottom, or right of the term (not left) so the flyout edge doesn’t trap the panel. */
-const FLYOUT_DOTTED_TERM_TOOLTIP_MIDDLEWARE = [
-  offset(8),
-  flip({
-    padding: 12,
-    fallbackPlacements: [
-      'top',
-      'bottom',
-      'right',
-      'top-start',
-      'top-end',
-      'bottom-start',
-      'bottom-end',
-      'right-start',
-      'right-end',
-    ],
-  }),
-  shift({ padding: 12 }),
-];
-
 /**
- * Flyout dotted-term hovers: position with Floating UI, but open/close with plain mouse events.
- * `useHover` can set `document.body { pointer-events: none }` when certain close handlers run,
- * which blocks every other trigger in the flyout. `strategy: 'fixed'` avoids bad coords when the
- * flyout sits under a transformed `motion` panel.
+ * Dotted / underlined flyout terms using FPL ToggleTip (hover, `placement: 'top'`).
+ * `ButtonPrimitive` + `getTriggerProps()` keeps the text look; `disableTransform` helps inside the transformed flyout panel.
  */
 function FlyoutDottedTermTooltip({
   children,
   tooltip,
   className,
-  /** When true, span fills a flex slot and truncates (seat picker rows). Otherwise shrink-wrap for a reliable hit target (AI credits, etc.). */
   fillRow = false,
+  onTriggerClick,
+  /** When true, trigger is not `disabled` (so ToggleTip hover still works); omit `onTriggerClick` to block selection. */
+  triggerInert = false,
 }: {
   children: React.ReactNode;
   tooltip: React.ReactNode;
   className?: string;
   fillRow?: boolean;
+  onTriggerClick?: React.MouseEventHandler<HTMLButtonElement>;
+  triggerInert?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const openTimerRef = useRef<number | undefined>(undefined);
-  const closeTimerRef = useRef<number | undefined>(undefined);
-
-  const clearOpenTimer = () => {
-    if (openTimerRef.current !== undefined) {
-      window.clearTimeout(openTimerRef.current);
-      openTimerRef.current = undefined;
-    }
-  };
-  const clearCloseTimer = () => {
-    if (closeTimerRef.current !== undefined) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = undefined;
-    }
-  };
-
-  const { refs, floatingStyles, context } = useFloating({
-    open,
-    onOpenChange: setOpen,
-    placement: 'bottom',
-    strategy: 'fixed',
-    middleware: FLYOUT_DOTTED_TERM_TOOLTIP_MIDDLEWARE,
-    whileElementsMounted: autoUpdate,
+  const manager = ToggleTip.useUncontrolledToggleTip({
+    placement: 'top',
+    padding: 12,
+    disableTransform: true,
   });
 
-  const dismiss = useDismiss(context);
-  const role = useRole(context, { role: 'tooltip' });
-  const { getFloatingProps } = useInteractions([dismiss, role]);
-  const fp = getFloatingProps() as React.HTMLAttributes<HTMLDivElement>;
-  const {
-    onMouseEnter: floatingOnMouseEnter,
-    onMouseLeave: floatingOnMouseLeave,
-    ...floatingRest
-  } = fp;
-
-  const scheduleOpen = () => {
-    clearCloseTimer();
-    clearOpenTimer();
-    openTimerRef.current = window.setTimeout(() => setOpen(true), 200);
-  };
-  const scheduleClose = () => {
-    clearOpenTimer();
-    clearCloseTimer();
-    closeTimerRef.current = window.setTimeout(() => setOpen(false), 120);
-  };
-
-  useEffect(
-    () => () => {
-      clearOpenTimer();
-      clearCloseTimer();
-    },
-    [],
-  );
+  const triggerProps = manager.getTriggerProps();
 
   return (
     <>
-      <span
-        ref={refs.setReference}
+      <ButtonPrimitive
+        type="button"
+        {...triggerProps}
+        aria-disabled={triggerInert ? true : undefined}
+        onClick={(e) => {
+          triggerProps.onClick?.(e);
+          if (!triggerInert) onTriggerClick?.(e);
+        }}
         className={clsx(
-          'pointer-events-auto cursor-default max-w-full',
-          fillRow ? 'block min-w-0 w-full truncate' : 'inline-block shrink-0',
+          'pointer-events-auto max-w-full border-0 bg-transparent p-0 font-[inherit] leading-[inherit]',
+          triggerInert ? 'cursor-not-allowed' : 'cursor-inherit',
+          fillRow
+            ? 'block min-w-0 w-full truncate text-left'
+            : 'inline-block w-fit max-w-full shrink-0',
           className,
         )}
-        onMouseEnter={scheduleOpen}
-        onMouseLeave={scheduleClose}
       >
         {children}
-      </span>
-      {open ? (
-        <FloatingPortal>
-          <div
-            style={{
-              ...floatingStyles,
-              zIndex: 'var(--z-index-tooltip, 200)',
-              maxWidth: 'min(320px, calc(100vw - 48px))',
-              padding: '8px 12px',
-              borderRadius: 'var(--radius-medium, 5px)',
-              backgroundColor: 'var(--color-bg-tooltip)',
-              color: 'var(--color-text-tooltip)',
-              boxShadow:
-                '0 0.5px 0 rgba(0,0,0,0.15), 0 5px 12px rgba(0,0,0,0.13), 0 1px 3px rgba(0,0,0,0.1)',
-            }}
-            className="pointer-events-auto text-bodyMd font-normal leading-[16px]"
-            {...floatingRest}
-            ref={refs.setFloating}
-            onMouseEnter={(e) => {
-              clearCloseTimer();
-              floatingOnMouseEnter?.(e);
-            }}
-            onMouseLeave={(e) => {
-              scheduleClose();
-              floatingOnMouseLeave?.(e);
-            }}
-          >
-            {tooltip}
-          </div>
-        </FloatingPortal>
-      ) : null}
+      </ButtonPrimitive>
+      <ToggleTip.Container manager={manager}>
+        <ToggleTip.Content maxWidth="min(320px, calc(100vw - 48px))">{tooltip}</ToggleTip.Content>
+      </ToggleTip.Container>
     </>
   );
 }
@@ -294,23 +220,31 @@ function FlyoutSeatUnderlinedWithTooltip({
   triggerClassName,
   muted,
   fillRow = false,
+  onTriggerClick,
+  /** Picker: current seat row — keep tooltip hover, block choosing this seat. */
+  selectionDisabled = false,
 }: {
   kind: SeatKind;
   /** Optional; defaults to picker row label styles */
   triggerClassName?: string;
   muted?: boolean;
   fillRow?: boolean;
+  onTriggerClick?: React.MouseEventHandler<HTMLButtonElement>;
+  selectionDisabled?: boolean;
 }) {
   const { label } = SEAT_META[kind];
   return (
     <FlyoutDottedTermTooltip
       fillRow={fillRow}
+      triggerInert={selectionDisabled}
+      onTriggerClick={onTriggerClick}
       tooltip={FLYOUT_SEAT_TOOLTIP_COPY[kind]}
       className={clsx(
         triggerClassName,
         !triggerClassName &&
-          'rounded-sm text-bodyLg font-bold underline decoration-dotted underline-offset-2 hover:bg-bg-hover',
-        muted ? 'text-text-secondary' : !triggerClassName && 'text-text',
+          'rounded-sm text-bodyLg font-bold underline decoration-dotted underline-offset-2',
+        !triggerClassName && !selectionDisabled && 'hover:bg-bg-hover',
+        selectionDisabled ? 'text-text-disabled' : muted ? 'text-text-secondary' : !triggerClassName && 'text-text',
       )}
     >
       {label}
@@ -712,19 +646,12 @@ function flyoutMockDetails(person: PersonRow) {
   };
 }
 
+/** Flyout header: Figma admin “Avatar / Avatar-Large” = 32×32 — use shared `Avatar` `lg` for photo + initial. */
 function FlyoutHeaderAvatar({ spec, name }: { spec: AvatarSpec; name: string }) {
   if (spec.kind === 'photo') {
-    return (
-      <img
-        src={spec.src}
-        alt={name}
-        width={48}
-        height={48}
-        className="size-48px shrink-0 rounded-full border border-border object-cover"
-      />
-    );
+    return <Avatar size="lg" src={spec.src} alt={name} />;
   }
-  return <Avatar size="xlg" initial={spec.initial} color={spec.color ?? 'grey'} alt={name} />;
+  return <Avatar size="lg" initial={spec.initial} color={spec.color ?? 'grey'} alt={name} />;
 }
 
 function FlyoutDetailRow({
@@ -754,12 +681,9 @@ function FlyoutDetailRow({
 
 function flyoutSeatPickerBadge(kind: SeatKind, currentSeat: SeatKind) {
   if (kind !== currentSeat) return null;
-  return kind === 'collab' ? (
-    <Badge variant="componentOutline" size="md">
-      Current
-    </Badge>
-  ) : (
-    <Badge variant="defaultOutline" size="md">
+  /** Picker only: current row is non-selectable — `inactiveOutline` matches FPL disabled list / option tone. */
+  return (
+    <Badge variant="inactiveOutline" size="md">
       Current
     </Badge>
   );
@@ -770,53 +694,78 @@ function FlyoutSeatPickerRow({
   currentSeat,
   pendingSeatKind,
   onPick,
+  /** Dashboard seat request: highlight the row the user asked for (Figma “Requested”). */
+  requestedSeat,
 }: {
   kind: SeatKind;
   currentSeat: SeatKind;
   pendingSeatKind: SeatKind | null;
   onPick: (k: SeatKind) => void;
+  requestedSeat?: SeatKind;
 }) {
   const { Icon, iconWrapClass, iconColor } = SEAT_META[kind];
-  const isCurrent = kind === currentSeat;
-  const isPendingNewSeat =
-    pendingSeatKind !== null && pendingSeatKind === kind && pendingSeatKind !== currentSeat;
-  const isSelectedPending = pendingSeatKind === kind && !isPendingNewSeat;
+  const isRowDisabled = kind === currentSeat;
+  const isRequestedRow = requestedSeat !== undefined && kind === requestedSeat;
+  /** Single selection: only the row matching pending choice is highlighted (Requested badge still marks the request). */
+  const isRowSelected = pendingSeatKind !== null && pendingSeatKind === kind && !isRowDisabled;
   return (
     <div
       role="button"
-      tabIndex={0}
-      onClick={() => onPick(kind)}
+      tabIndex={isRowDisabled ? -1 : 0}
+      aria-disabled={isRowDisabled}
+      aria-label={
+        isRowDisabled
+          ? `${SEAT_META[kind].label} seat, current seat, cannot select`
+          : `${SEAT_META[kind].label} seat`
+      }
+      onClick={() => {
+        if (!isRowDisabled) onPick(kind);
+      }}
       onKeyDown={(e) => {
+        if (isRowDisabled) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onPick(kind);
         }
       }}
       className={clsx(
-        'flex w-full cursor-pointer items-center justify-between rounded-[4px] border border-solid px-12px py-4px text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-selected focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
-        isPendingNewSeat
-          ? 'border-bg-brand bg-[#f2f9ff] hover:bg-[#f2f9ff]'
-          : 'border-border hover:bg-bg-secondary',
-        !isPendingNewSeat && isSelectedPending && 'bg-bg-secondary',
+        'flex w-full items-center justify-between rounded-md border border-solid px-12px py-4px text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-selected focus-visible:ring-offset-2 focus-visible:ring-offset-bg',
+        isRowDisabled && 'cursor-not-allowed border-border bg-bg focus-visible:ring-0',
+        !isRowDisabled && isRowSelected && 'cursor-pointer border-border-selected bg-bg-selected hover:bg-bg-selected',
+        !isRowDisabled && !isRowSelected && 'cursor-pointer border-border hover:bg-bg-hover',
       )}
     >
       <div className="flex min-w-0 flex-1 items-center gap-8px py-4px">
         <div
-          className={iconWrapClass}
+          className={clsx(iconWrapClass, isRowDisabled && 'opacity-60')}
           style={{ '--fpl-icon-color': iconColor } as React.CSSProperties}
         >
           <Icon />
         </div>
-        <div className="min-w-0 flex-1">
-          <FlyoutSeatUnderlinedWithTooltip kind={kind} muted={isCurrent} fillRow />
+        {/* Let hovers/clicks on empty label hit the row; only the underlined name keeps pointer events for ToggleTip */}
+        <div className="pointer-events-none min-w-0 flex-1">
+          <FlyoutSeatUnderlinedWithTooltip
+            kind={kind}
+            selectionDisabled={isRowDisabled}
+            onTriggerClick={(e) => {
+              e.stopPropagation();
+              onPick(kind);
+            }}
+          />
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-8px">
-        {flyoutSeatPickerBadge(kind, currentSeat)}
+        {isRequestedRow ? (
+          <Badge variant="brandOutline" size="md">
+            Requested
+          </Badge>
+        ) : (
+          flyoutSeatPickerBadge(kind, currentSeat)
+        )}
         <span
           className={clsx(
             'shrink-0 text-bodyLg font-normal tabular-nums',
-            isCurrent ? 'text-text-secondary' : 'text-text',
+            isRowDisabled ? 'text-text-disabled' : 'text-text',
           )}
         >
           {SEAT_PRICE_LABEL[kind]}
@@ -830,18 +779,22 @@ function PersonFlyoutInner({
   person,
   onClose,
   onSeatChange,
+  seatApproval,
 }: {
   person: PersonRow;
   onClose: () => void;
   onSeatChange?: (personId: string, seatKind: SeatKind) => void;
+  seatApproval?: SeatRequestApprovalContext;
 }) {
   const [tabPropsMap, tabPanelPropsMap, tabManager] = Tabs.useTabs<FlyoutMemberTab>(FLYOUT_MEMBER_TAB_MAP, {
     defaultActive: 'manage',
   });
 
   const [flyoutSeatKind, setFlyoutSeatKind] = useState<SeatKind | null>(null);
-  const [seatChangeOpen, setSeatChangeOpen] = useState(false);
-  const [pendingSeatKind, setPendingSeatKind] = useState<SeatKind | null>(null);
+  const [seatChangeOpen, setSeatChangeOpen] = useState(() => Boolean(seatApproval));
+  const [pendingSeatKind, setPendingSeatKind] = useState<SeatKind | null>(() =>
+    seatApproval ? seatApproval.requestedSeat : null,
+  );
   /** Wall-clock ms when the user last confirmed a seat change in this flyout session. */
   const [flyoutSeatChangedAt, setFlyoutSeatChangedAt] = useState<number | null>(null);
   const [, setSeatUpdatedTick] = useState(0);
@@ -850,10 +803,15 @@ function PersonFlyoutInner({
 
   useEffect(() => {
     setFlyoutSeatKind(null);
-    setSeatChangeOpen(false);
-    setPendingSeatKind(null);
     setFlyoutSeatChangedAt(null);
-  }, [person.id]);
+    if (seatApproval) {
+      setSeatChangeOpen(true);
+      setPendingSeatKind(seatApproval.requestedSeat);
+    } else {
+      setSeatChangeOpen(false);
+      setPendingSeatKind(null);
+    }
+  }, [person.id, seatApproval?.requestedSeat]);
 
   useEffect(() => {
     if (flyoutSeatChangedAt === null) return;
@@ -906,7 +864,7 @@ function PersonFlyoutInner({
   };
 
   return (
-    <>
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div className="flex min-h-96px w-full shrink-0 items-start gap-16px px-24px py-24px">
         <FlyoutHeaderAvatar spec={person.avatar} name={person.name} />
         <div className="flex min-w-0 flex-1 flex-col gap-4px">
@@ -934,10 +892,11 @@ function PersonFlyoutInner({
         </Tabs.TabStrip>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Tabs.TabPanel {...tabPanelPropsMap.manage} height="fill" width="fill">
-          <div className="flex max-h-full flex-col gap-24px overflow-y-auto p-24px">
-            <div className="flex w-full flex-col gap-16px rounded-[6px] border border-border border-solid p-16px">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col gap-24px overflow-y-auto overscroll-y-contain p-24px">
+            <div className="flex w-full shrink-0 flex-col gap-16px rounded-[6px] border border-border border-solid p-16px">
               {!seatChangeOpen ? (
                 <>
                   <div className="flex w-full items-center justify-between">
@@ -992,26 +951,38 @@ function PersonFlyoutInner({
                         currentSeat={effectiveSeat}
                         pendingSeatKind={pendingSeatKind}
                         onPick={setPendingSeatKind}
+                        requestedSeat={seatApproval?.requestedSeat}
                       />
                     ))}
                   </div>
                   {canConfirmSeatChange && pendingSeatKind !== null ? (
                     <div className="flex w-full flex-col gap-12px">
                       <div className="flex w-full flex-col gap-8px">
-                        <p className="m-0 text-bodyLg font-bold text-text">
-                          Change {person.name} from {SEAT_META[effectiveSeat].label} to{' '}
-                          {SEAT_META[pendingSeatKind].label}?
-                        </p>
-                        <p className="m-0 text-bodyLg font-normal text-text">
-                          This will add one {SEAT_META[pendingSeatKind].label} seat to{' '}
-                          {FLYOUT_ORG_DISPLAY_NAME}. Their {SEAT_META[effectiveSeat].label} seat will be
-                          removed from your plan and credited on your {formatFlyoutInvoiceDate()} invoice.
-                        </p>
+                        <Text as="p" size="lg" strong className="m-0">
+                          {seatApproval
+                            ? `Approve ${person.name}'s request for a ${SEAT_META[pendingSeatKind].label} seat?`
+                            : `Change ${person.name} from ${SEAT_META[effectiveSeat].label} to ${SEAT_META[pendingSeatKind].label}?`}
+                        </Text>
+                        {seatApproval ? (
+                          <Text as="p" size="lg" className="m-0">
+                            If you approve, {FLYOUT_ORG_DISPLAY_NAME} will assign them a{' '}
+                            {SEAT_META[pendingSeatKind].label} seat and use one seat from your plan. Their{' '}
+                            {SEAT_META[effectiveSeat].label} seat will become available to assign later.
+                          </Text>
+                        ) : (
+                          <Text as="p" size="lg" className="m-0">
+                            This will add one {SEAT_META[pendingSeatKind].label} seat to {FLYOUT_ORG_DISPLAY_NAME}.
+                            Their {SEAT_META[effectiveSeat].label} seat will be removed from your plan and credited
+                            on your {formatFlyoutInvoiceDate()} invoice.
+                          </Text>
+                        )}
                       </div>
                       <div className="flex w-full flex-col gap-[5px]">
                         <div className="flex w-full flex-col gap-4px">
                           <div className="flex w-full items-center justify-between">
-                            <span className="text-bodyLg font-bold text-text">Billing preview</span>
+                            <Text as="span" size="lg" strong>
+                              Billing preview
+                            </Text>
                             <span
                               className="flex size-24px shrink-0 items-center justify-center text-icon"
                               style={{ '--fpl-icon-color': 'var(--color-icon)' } as React.CSSProperties}
@@ -1045,15 +1016,20 @@ function PersonFlyoutInner({
                       </div>
                       <div className="h-px w-full bg-border" />
                       <Button variant="primary" width="fill" onClick={confirmSeatChange}>
-                        Change seat
+                        {seatApproval ? 'Approve seat request' : 'Change seat'}
                       </Button>
+                      {seatApproval ? (
+                        <Button variant="secondary" width="fill" onClick={onClose}>
+                          Decline request
+                        </Button>
+                      ) : null}
                     </div>
                   ) : null}
                 </>
               )}
             </div>
 
-            <div className="flex w-full flex-col overflow-hidden rounded-[5px] border border-border border-solid bg-bg">
+            <div className="flex w-full shrink-0 flex-col rounded-[5px] border border-border border-solid bg-bg">
               <div className="flex w-full items-center justify-between px-16px pb-12px pt-16px">
                 <span className="text-bodyLg font-bold text-text">AI Credits</span>
                 <span className="text-bodyLg font-normal text-text-secondary">
@@ -1090,7 +1066,7 @@ function PersonFlyoutInner({
               </div>
             </div>
 
-            <div className="flex w-full flex-col overflow-hidden rounded-[5px] border border-border border-solid bg-bg">
+            <div className="flex w-full shrink-0 flex-col rounded-[5px] border border-border border-solid bg-bg">
               <div className="flex w-full items-center justify-between px-16px pb-12px pt-16px">
                 <span className="text-bodyLg font-bold text-text">Details</span>
                 <Button variant="secondary" onClick={() => undefined}>
@@ -1108,14 +1084,14 @@ function PersonFlyoutInner({
                 <FlyoutDetailRow icon={<Icon24Calendar />} label="Joined" value={details.joinedLabel} />
               </div>
             </div>
+            </div>
           </div>
         </Tabs.TabPanel>
 
         <Tabs.TabPanel {...tabPanelPropsMap.activity} height="fill" width="fill">
-          <div
-            className="h-full min-h-[120px] w-full bg-bg"
-            aria-label="Activity"
-          />
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <div className="min-h-0 flex-1 w-full overflow-y-auto bg-bg" aria-label="Activity" />
+          </div>
         </Tabs.TabPanel>
       </div>
 
@@ -1124,18 +1100,20 @@ function PersonFlyoutInner({
           Remove from organization
         </Button>
       </div>
-    </>
+    </div>
   );
 }
 
-function PersonDetailFlyout({
+export function PersonDetailFlyout({
   person,
   onClose,
   onSeatChange,
+  seatApproval,
 }: {
   person: PersonRow | null;
   onClose: () => void;
   onSeatChange?: (personId: string, seatKind: SeatKind) => void;
+  seatApproval?: SeatRequestApprovalContext;
 }) {
   return (
     <AnimatePresence>
@@ -1145,13 +1123,18 @@ function PersonDetailFlyout({
           role="dialog"
           aria-modal="true"
           aria-labelledby="person-flyout-name"
-          className="pointer-events-auto fixed top-0 right-0 bottom-0 z-[101] flex w-[min(480px,100vw)] flex-col border border-border bg-bg"
+          className="pointer-events-auto fixed top-0 right-0 bottom-0 z-[101] flex h-full min-h-0 w-[min(480px,100vw)] flex-col overflow-hidden border border-border bg-bg"
           initial={{ x: '100%' }}
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={{ type: 'spring', stiffness: 420, damping: 36 }}
         >
-          <PersonFlyoutInner person={person} onClose={onClose} onSeatChange={onSeatChange} />
+          <PersonFlyoutInner
+            person={person}
+            onClose={onClose}
+            onSeatChange={onSeatChange}
+            seatApproval={seatApproval}
+          />
         </motion.aside>
       ) : null}
     </AnimatePresence>

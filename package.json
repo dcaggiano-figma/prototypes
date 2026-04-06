@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.0.0",
   "engines": {
     "node": ">=22",
     "pnpm": ">=10 <11",
@@ -32,6 +33,7 @@
   "scripts": {
     "dev": "pnpm exec vite",
     "build": "pnpm -r --filter './templates/*' build && pnpm --filter @apps/prototype build",
+    "build:prototype": "pnpm --filter @apps/prototype build",
     "lint": "pnpm -r --filter './templates/*' lint",
     "typecheck": "pnpm -r --filter './templates/*' typecheck",
     "verify": "pnpm -r --filter './templates/*' --filter './apps/*' verify"

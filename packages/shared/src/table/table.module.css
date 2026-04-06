@@ -292,6 +292,13 @@
   transition: none !important;
 }
 
+/* Name column — pointer focus hides the cell ring (row chrome = selection). Keyboard keeps it via
+   :focus-visible on the cell or :has(:focus-visible) for nested AG Grid focus targets. */
+.wrapper
+  :global(.ag-cell[col-id='name'].ag-cell-focus:not(.ag-cell-inline-editing):not(:focus-visible):not(:has(:focus-visible)))::after {
+  display: none;
+}
+
 /* Disable focus ring, selection highlight, and borders on drag handle cells */
 .wrapper :global(.ag-cell[col-id="__drag"].ag-cell-focus) {
   box-shadow: none !important;

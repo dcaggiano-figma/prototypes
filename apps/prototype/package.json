@@ -14,7 +14,6 @@
     "verify": "pnpm build && pnpm lint && pnpm typecheck"
   },
   "dependencies": {
-    "@floating-ui/react": "^0.26.25",
     "clsx": "^2.1.1",
     "@figma/fpl-components": "catalog:",
     "@figma/fpl-icons": "catalog:",
