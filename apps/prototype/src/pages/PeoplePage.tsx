@@ -883,10 +883,24 @@ function PersonFlyoutInner({
   }, [onClose, seatChangeOpen]);
 
   const details = useMemo(() => flyoutMockDetails(person), [person]);
-  const limit = AI_CREDIT_LIMIT_BY_SEAT[effectiveSeat];
-  const used = useMemo(() => flyoutAiCreditsUsed(person.id, limit), [person.id, limit]);
-  const usedClamped = limit > 0 ? Math.min(limit, Math.max(0, used)) : 0;
-  const fillPct = limit > 0 ? Math.min(100, Math.max(0, (usedClamped / limit) * 100)) : 0;
+
+  /** Credits used stay fixed for this member while the flyout is open; only the limit changes with seat preview/change. */
+  const [stableAiCreditsUsed, setStableAiCreditsUsed] = useState(() =>
+    flyoutAiCreditsUsed(person.id, AI_CREDIT_LIMIT_BY_SEAT[person.seatType]),
+  );
+  useEffect(() => {
+    setStableAiCreditsUsed(flyoutAiCreditsUsed(person.id, AI_CREDIT_LIMIT_BY_SEAT[person.seatType]));
+  }, [person.id]);
+
+  /** Limit follows the confirmed seat only; no preview while a new seat is selected in the picker. */
+  const previewLimit = AI_CREDIT_LIMIT_BY_SEAT[effectiveSeat];
+  const aiCreditsOverLimit = previewLimit > 0 && stableAiCreditsUsed > previewLimit;
+  const aiCreditsFillPct =
+    previewLimit <= 0
+      ? 0
+      : aiCreditsOverLimit
+        ? 100
+        : Math.min(100, Math.max(0, (stableAiCreditsUsed / previewLimit) * 100));
   const seatLastUpdatedSuffix =
     flyoutSeatChangedAt !== null
       ? formatFlyoutSeatLastUpdatedRelative(flyoutSeatChangedAt)
@@ -1169,21 +1183,34 @@ function PersonFlyoutInner({
                       Seat credits used
                     </FlyoutDottedTermTooltip>
                   </div>
-                  <span className="text-bodyLg font-normal text-text-secondary tabular-nums">
-                    {usedClamped.toLocaleString('en-US')} / {limit.toLocaleString('en-US')}
+                  <span
+                    className={clsx(
+                      'text-bodyLg font-normal tabular-nums',
+                      aiCreditsOverLimit ? 'text-text-danger' : 'text-text-secondary',
+                    )}
+                  >
+                    {stableAiCreditsUsed.toLocaleString('en-US')} / {previewLimit.toLocaleString('en-US')}
                   </span>
                 </div>
                 <div
-                  className="relative h-8px w-full min-w-0 overflow-hidden rounded-md bg-bg-hover"
+                  className={clsx(
+                    'relative h-8px w-full min-w-0 overflow-hidden rounded-md transition-colors duration-200',
+                    aiCreditsOverLimit ? 'bg-bg-danger-tertiary' : 'bg-bg-hover',
+                  )}
                   role="progressbar"
                   aria-valuemin={0}
-                  aria-valuemax={limit}
-                  aria-valuenow={usedClamped}
+                  aria-valuemax={previewLimit}
+                  aria-valuenow={stableAiCreditsUsed}
                   aria-label="Seat credits used"
                 >
                   <div
-                    className="box-border absolute left-0 top-1/2 h-6px max-w-full -translate-y-1/2 rounded-l-full border-r-2 border-solid border-icon-onbrand bg-bg-brand transition-[width] duration-200 ease-out"
-                    style={{ width: `${fillPct}%` }}
+                    className={clsx(
+                      'box-border absolute left-0 top-1/2 h-6px max-w-full -translate-y-1/2 border-solid transition-[width] duration-200 ease-out',
+                      aiCreditsOverLimit
+                        ? 'rounded-full border-0 bg-bg-danger'
+                        : 'rounded-l-full border-r-2 border-icon-onbrand bg-bg-brand',
+                    )}
+                    style={{ width: `${aiCreditsFillPct}%` }}
                   />
                 </div>
               </div>

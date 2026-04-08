@@ -38,7 +38,7 @@ import { ResearchCopyProvider, useResearch } from '../research/researchCopy';
 /* ------------------------------------------------------------------ */
 
 const PRIMARY_NAV = [
-  { path: '/' as const, label: 'Dashboard', icon: Icon24ApprovedCheckmark },
+  { path: '/dashboard' as const, label: 'Dashboard', icon: Icon24ApprovedCheckmark },
   { path: '/people' as const, label: 'People', icon: Icon24Person },
   { path: '/billing' as const, label: 'Billing', icon: Icon24Billing },
 ];
@@ -110,7 +110,7 @@ function Shell() {
                 <MenuV2.Group>
                   <MenuV2.Item
                     onClick={() => {
-                      void navigate({ to: '/', search: { variant } });
+                      void navigate({ to: '/people', search: { variant } });
                       window.location.reload();
                     }}
                   >
@@ -144,7 +144,7 @@ function Shell() {
                 key={item.path}
                 to={item.path}
                 search={{ variant }}
-                activeOptions={{ exact: item.path === '/' }}
+                activeOptions={{ exact: item.path === '/dashboard' }}
                 activeProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline bg-bg-selected text-text' }}
                 inactiveProps={{ className: 'flex items-center gap-8px px-4px py-4px rounded-md text-bodyMd no-underline text-text hover:bg-bg-transparent-hover' }}
               >
