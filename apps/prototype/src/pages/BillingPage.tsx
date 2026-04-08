@@ -34,15 +34,17 @@ function CounterBadge({ children }: { children: React.ReactNode }) {
 }
 
 function BillingOverview() {
-  const { variant } = useResearch();
+  const { variant, copy } = useResearch();
   const navigate = useNavigate();
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-24px items-start w-full">
       <section className="min-w-0 xl:col-span-2 border border-border rounded-lg bg-bg overflow-hidden">
         <div className="p-16px border-b border-border">
-          <h2 className="text-bodyLg font-bold text-text m-0">Your Figma Enterprise plan</h2>
+          <h2 className="text-bodyLg font-bold text-text m-0">{copy.billingPlanTitle}</h2>
           <p className="text-bodyLg text-text-secondary m-0 mt-0">
-            <span>Renews July 18, 2026</span>
+            <span>{copy.billingPlanDescriptor}</span>
+            <span className="text-text-tertiary"> · </span>
+            <span>Renews {copy.planRenewalDate}</span>
             <span className="text-text-tertiary"> · </span>
             <ButtonPrimitive
               type="button"
@@ -103,7 +105,7 @@ function BillingOverview() {
       <aside className="min-w-0 xl:col-span-1 border border-border rounded-lg bg-bg overflow-hidden flex flex-col">
         <div className="p-16px border-b border-border">
           <p className="text-bodyLg font-bold text-text m-0 tabular-nums">$400.68</p>
-          <p className="text-bodyLg text-text-secondary m-0 mt-0">due July 18</p>
+          <p className="text-bodyLg text-text-secondary m-0 mt-0">due July 30</p>
         </div>
         <div className="px-8px py-0 border-b border-border flex flex-col gap-16px">
           <div className="px-8px py-16px flex flex-col gap-16px">

@@ -56,7 +56,10 @@ function TwigmaMark() {
 type SeatRequest = {
   id: string;
   name: string;
+  /** Seat they are requesting to move to. */
   seatKind: SeatKind;
+  /** Current seat (for billing copy / flyout). */
+  currentSeatKind: SeatKind;
   subhead: string;
   metaParts: { email: string; guest?: boolean; time: string };
   avatar: { type: 'photo'; src: string; alt: string } | { type: 'initial'; initial: string; color: 'green' | 'purple' };
@@ -67,6 +70,7 @@ const INITIAL_SEAT_REQUESTS: SeatRequest[] = [
     id: '1',
     name: 'Mariko Hyder-Fukawa',
     seatKind: 'collab',
+    currentSeatKind: 'view',
     subhead: 'Wants to create a file in the team Mobile Space Explorers',
     metaParts: { email: 'mfukawa@memorymachines.com', time: '1 hour ago' },
     avatar: {
@@ -79,6 +83,7 @@ const INITIAL_SEAT_REQUESTS: SeatRequest[] = [
     id: '2',
     name: 'Molly Sapiro',
     seatKind: 'full',
+    currentSeatKind: 'collab',
     subhead: 'Wants to edit the file Galaxy Design System, in the team Dream Team',
     metaParts: { email: 'msapiro@memorymachines.com', time: '1 day ago' },
     avatar: { type: 'initial', initial: 'M', color: 'green' },
@@ -87,6 +92,7 @@ const INITIAL_SEAT_REQUESTS: SeatRequest[] = [
     id: '3',
     name: 'Austin Cheng',
     seatKind: 'full',
+    currentSeatKind: 'view',
     subhead: '“I’m a new grad joining the team and my manager approved me for Figma.”',
     metaParts: { email: 'acheng@gmail.com', guest: true, time: '1 day ago' },
     avatar: { type: 'initial', initial: 'A', color: 'purple' },
@@ -95,6 +101,7 @@ const INITIAL_SEAT_REQUESTS: SeatRequest[] = [
     id: '4',
     name: 'Lena Miao',
     seatKind: 'dev',
+    currentSeatKind: 'collab',
     subhead: 'Wants to use Dev Mode in file Jupiter 2.0, in the team Mobile Space Explorers',
     metaParts: { email: 'lmiao@memorymachines.com', time: '1 week ago' },
     avatar: {
@@ -133,7 +140,7 @@ function seatRequestToPersonRow(req: SeatRequest): PersonRow {
       req.avatar.type === 'photo'
         ? { kind: 'photo', src: req.avatar.src }
         : { kind: 'initial', initial: req.avatar.initial, color: req.avatar.color },
-    seatType: 'view',
+    seatType: req.currentSeatKind,
     lastActive: req.metaParts.time,
   };
 }
@@ -368,10 +375,11 @@ function HomePage() {
         person={approvalPerson}
         onClose={() => setSeatRequestFlyout(null)}
         seatApproval={seatApprovalContext}
-        onSeatChange={(personId, seatKind) => {
+        onSeatChange={(personId, seatKind, toastMessage) => {
           const name = approvalPerson?.name ?? 'Member';
           showToast({
-            message: `Approved ${name} for a ${SEAT_LABEL[seatKind]}.`,
+            message:
+              toastMessage ?? `Approved ${name} for a ${SEAT_LABEL[seatKind]}.`,
           });
           const approvedId = personId.replace(/^seat-req-/, '');
           setSeatRequestFlyout(null);

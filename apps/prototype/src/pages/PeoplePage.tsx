@@ -33,6 +33,12 @@ import {
 import { Avatar, Table, Text, type TableColumnDef, type MultiplayerColor } from '@prototype/shared';
 import { showToast } from '../components/toast';
 import { useResearch } from '../research/researchCopy';
+import {
+  buildResolvedBillingCopy,
+  resolveBillingScenario,
+  seatPriceOnlyForVariant,
+  seatTooltipsForVariant,
+} from '../research/billingResearch';
 
 /* -------------------------------------------------------------------------- */
 /*  Layout: match ContentPage inset column (mx-32px + w-[calc(100%-64px)])      */
@@ -137,22 +143,11 @@ const SEAT_META: Record<
   },
 };
 
+export function seatTierLabel(kind: SeatKind): string {
+  return SEAT_META[kind].label;
+}
+
 const SEAT_PICKER_ORDER: SeatKind[] = ['full', 'dev', 'collab', 'view'];
-
-const SEAT_PRICE_LABEL: Record<SeatKind, string> = {
-  full: '$200/yr',
-  dev: '$150/yr',
-  collab: '$50/yr',
-  view: 'Free',
-};
-
-/** Hover copy for underlined seat names in the member flyout seat section (Figma full-seat wording + limits for others). */
-const FLYOUT_SEAT_TOOLTIP_COPY: Record<SeatKind, string> = {
-  full: 'Includes 5,000 seat credits and access to all Figma products.',
-  dev: `Includes ${AI_CREDIT_LIMIT_BY_SEAT.dev.toLocaleString('en-US')} seat credits per billing period for Dev seats.`,
-  collab: `Includes ${AI_CREDIT_LIMIT_BY_SEAT.collab.toLocaleString('en-US')} seat credits per billing period for Collab seats.`,
-  view: `Includes ${AI_CREDIT_LIMIT_BY_SEAT.view.toLocaleString('en-US')} seat credits per billing period for View seats.`,
-};
 
 const FLYOUT_PRORATED_COST_TOOLTIP =
   'Prorated charges reflect the time remaining in your billing period before your next invoice.';
@@ -218,6 +213,7 @@ function FlyoutDottedTermTooltip({
 
 function FlyoutSeatUnderlinedWithTooltip({
   kind,
+  seatTooltip,
   triggerClassName,
   muted,
   fillRow = false,
@@ -226,6 +222,7 @@ function FlyoutSeatUnderlinedWithTooltip({
   selectionDisabled = false,
 }: {
   kind: SeatKind;
+  seatTooltip: string;
   /** Optional; defaults to picker row label styles */
   triggerClassName?: string;
   muted?: boolean;
@@ -239,7 +236,7 @@ function FlyoutSeatUnderlinedWithTooltip({
       fillRow={fillRow}
       triggerInert={selectionDisabled}
       onTriggerClick={onTriggerClick}
-      tooltip={FLYOUT_SEAT_TOOLTIP_COPY[kind]}
+      tooltip={seatTooltip}
       className={clsx(
         triggerClassName,
         !triggerClassName &&
@@ -251,10 +248,6 @@ function FlyoutSeatUnderlinedWithTooltip({
       {label}
     </FlyoutDottedTermTooltip>
   );
-}
-
-function formatFlyoutInvoiceDate(date: Date = new Date()): string {
-  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 /** Relative “last updated” after a seat change (matches flyout design, e.g. “1 min ago”). */
@@ -687,23 +680,79 @@ function flyoutSeatPickerBadge(kind: SeatKind, currentSeat: SeatKind) {
   );
 }
 
+/** One row in seat-change billing preview; label/value split on last ": ". */
+function BillingFlyoutPreviewLine({
+  line,
+  proratedDetailTooltip,
+}: {
+  line: string;
+  /** Scenario-specific prorated explanation; falls back to generic copy. */
+  proratedDetailTooltip?: string;
+}) {
+  const lastSep = line.lastIndexOf(': ');
+  if (lastSep === -1) {
+    return (
+      <div className="flex w-full items-center justify-between gap-8px">
+        <span className="text-bodyLg text-text-secondary">{line}</span>
+      </div>
+    );
+  }
+  const labelPart = line.slice(0, lastSep);
+  const valuePart = line.slice(lastSep + 2);
+  return (
+    <div className="flex w-full items-center justify-between gap-8px">
+      {labelPart.startsWith('Prorated cost') ? (
+        <FlyoutDottedTermTooltip
+          className="cursor-default border-0 bg-transparent p-0 text-left text-bodyLg font-normal text-text-secondary underline decoration-dotted underline-offset-2"
+          tooltip={proratedDetailTooltip ?? FLYOUT_PRORATED_COST_TOOLTIP}
+        >
+          {labelPart}
+        </FlyoutDottedTermTooltip>
+      ) : (
+        <span className="text-bodyLg font-normal text-text-secondary">{labelPart}</span>
+      )}
+      <span
+        className={clsx(
+          'text-bodyLg font-normal tabular-nums shrink-0',
+          valuePart.startsWith('+') ? 'text-text-handoff' : 'text-text-secondary',
+        )}
+      >
+        {valuePart}
+      </span>
+    </div>
+  );
+}
+
 function FlyoutSeatPickerRow({
   kind,
   currentSeat,
   pendingSeatKind,
   onPick,
+  seatTooltips,
+  seatPrices,
   /** Dashboard seat request: highlight the row the user asked for (Figma “Requested”). */
   requestedSeat,
+  /** When set with `requestedSeat`, that row shows “N available” instead of price. */
+  requestedSeatAvailableCount,
 }: {
   kind: SeatKind;
   currentSeat: SeatKind;
   pendingSeatKind: SeatKind | null;
   onPick: (k: SeatKind) => void;
+  seatTooltips: Record<SeatKind, string>;
+  seatPrices: Record<SeatKind, string>;
   requestedSeat?: SeatKind;
+  requestedSeatAvailableCount?: number;
 }) {
   const { Icon, iconWrapClass, iconColor } = SEAT_META[kind];
   const isRowDisabled = kind === currentSeat;
   const isRequestedRow = requestedSeat !== undefined && kind === requestedSeat;
+  const rightLabel =
+    requestedSeat !== undefined &&
+    requestedSeatAvailableCount !== undefined &&
+    kind === requestedSeat
+      ? `${String(requestedSeatAvailableCount)} available`
+      : seatPrices[kind];
   /** Single selection: only the row matching pending choice is highlighted (Requested badge still marks the request). */
   const isRowSelected = pendingSeatKind !== null && pendingSeatKind === kind && !isRowDisabled;
   return (
@@ -744,6 +793,7 @@ function FlyoutSeatPickerRow({
         <div className="pointer-events-none min-w-0 flex-1">
           <FlyoutSeatUnderlinedWithTooltip
             kind={kind}
+            seatTooltip={seatTooltips[kind]}
             selectionDisabled={isRowDisabled}
             onTriggerClick={(e) => {
               e.stopPropagation();
@@ -766,7 +816,7 @@ function FlyoutSeatPickerRow({
             isRowDisabled ? 'text-text-disabled' : 'text-text',
           )}
         >
-          {SEAT_PRICE_LABEL[kind]}
+          {rightLabel}
         </span>
       </div>
     </div>
@@ -781,10 +831,10 @@ function PersonFlyoutInner({
 }: {
   person: PersonRow;
   onClose: () => void;
-  onSeatChange?: (personId: string, seatKind: SeatKind) => void;
+  onSeatChange?: (personId: string, seatKind: SeatKind, toastMessage?: string) => void;
   seatApproval?: SeatRequestApprovalContext;
 }) {
-  const { copy } = useResearch();
+  const { copy, variant } = useResearch();
   const [tabPropsMap, tabPanelPropsMap, tabManager] = Tabs.useTabs<FlyoutMemberTab>(FLYOUT_MEMBER_TAB_MAP, {
     defaultActive: 'manage',
   });
@@ -847,6 +897,38 @@ function PersonFlyoutInner({
   const canConfirmSeatChange =
     pendingSeatKind !== null && pendingSeatKind !== effectiveSeat;
 
+  const seatTooltips = useMemo(() => seatTooltipsForVariant(variant), [variant]);
+  const seatPrices = useMemo(() => seatPriceOnlyForVariant(variant), [variant]);
+
+  /** Dashboard requests always assume seats available for the requested tier (stable per open). */
+  const dashboardRequestedAvailableCount = useMemo(() => {
+    if (!seatApproval) return undefined;
+    return Math.floor(Math.random() * 12) + 4;
+  }, [person.id, seatApproval]);
+
+  const billingScenario = useMemo(() => {
+    if (!canConfirmSeatChange || pendingSeatKind === null) return null;
+    return resolveBillingScenario({
+      variant,
+      isSeatRequestApproval: Boolean(seatApproval),
+      effectiveSeat,
+      pendingSeat: pendingSeatKind,
+    });
+  }, [canConfirmSeatChange, pendingSeatKind, seatApproval, effectiveSeat, variant]);
+
+  const resolvedSeatChangeCopy = useMemo(() => {
+    if (!billingScenario || pendingSeatKind === null) return null;
+    return buildResolvedBillingCopy(billingScenario, {
+      orgName: copy.billingOrgName,
+      invoiceDate: copy.billingInvoiceDate,
+      planRenewalDate: copy.planRenewalDate,
+      startDate: copy.billingMonthlyStartDate,
+      oldSeatLabel: SEAT_META[effectiveSeat].label,
+      newSeatLabel: SEAT_META[pendingSeatKind].label,
+      requestSeatTierLabel: SEAT_META[pendingSeatKind].label,
+    });
+  }, [billingScenario, pendingSeatKind, effectiveSeat, copy]);
+
   const cancelSeatChange = () => {
     setSeatChangeOpen(false);
     setPendingSeatKind(null);
@@ -855,11 +937,28 @@ function PersonFlyoutInner({
   const confirmSeatChange = () => {
     if (!canConfirmSeatChange || pendingSeatKind === null) return;
     const next = pendingSeatKind;
+    const scenario = resolveBillingScenario({
+      variant,
+      isSeatRequestApproval: Boolean(seatApproval),
+      effectiveSeat,
+      pendingSeat: next,
+    });
+    const resolved = scenario
+      ? buildResolvedBillingCopy(scenario, {
+          orgName: copy.billingOrgName,
+          invoiceDate: copy.billingInvoiceDate,
+          planRenewalDate: copy.planRenewalDate,
+          startDate: copy.billingMonthlyStartDate,
+          oldSeatLabel: SEAT_META[effectiveSeat].label,
+          newSeatLabel: SEAT_META[next].label,
+          requestSeatTierLabel: SEAT_META[next].label,
+        })
+      : null;
     setFlyoutSeatKind(next);
     setFlyoutSeatChangedAt(Date.now());
     setSeatChangeOpen(false);
     setPendingSeatKind(null);
-    onSeatChange?.(person.id, next);
+    onSeatChange?.(person.id, next, resolved?.toastBody);
   };
 
   return (
@@ -921,6 +1020,7 @@ function PersonFlyoutInner({
                       <div className="min-w-0 shrink-0">
                         <FlyoutSeatUnderlinedWithTooltip
                           kind={effectiveSeat}
+                          seatTooltip={seatTooltips[effectiveSeat]}
                           triggerClassName={FLYOUT_DOT_LINK_CLASS}
                         />
                       </div>
@@ -950,7 +1050,10 @@ function PersonFlyoutInner({
                         currentSeat={effectiveSeat}
                         pendingSeatKind={pendingSeatKind}
                         onPick={setPendingSeatKind}
+                        seatTooltips={seatTooltips}
+                        seatPrices={seatPrices}
                         requestedSeat={seatApproval?.requestedSeat}
+                        requestedSeatAvailableCount={dashboardRequestedAvailableCount}
                       />
                     ))}
                   </div>
@@ -962,7 +1065,11 @@ function PersonFlyoutInner({
                             ? `Approve ${person.name}'s request for a ${SEAT_META[pendingSeatKind].label} seat?`
                             : `Change ${person.name} from ${SEAT_META[effectiveSeat].label} to ${SEAT_META[pendingSeatKind].label}?`}
                         </Text>
-                        {seatApproval ? (
+                        {billingScenario && resolvedSeatChangeCopy ? (
+                          <Text as="p" size="lg" className="m-0">
+                            {resolvedSeatChangeCopy.confirmationBody}
+                          </Text>
+                        ) : seatApproval ? (
                           <Text as="p" size="lg" className="m-0">
                             If you approve, {copy.seatFlyoutEntityName} will assign them a{' '}
                             {SEAT_META[pendingSeatKind].label} seat and use one seat from your plan. Their{' '}
@@ -972,47 +1079,64 @@ function PersonFlyoutInner({
                           <Text as="p" size="lg" className="m-0">
                             This will add one {SEAT_META[pendingSeatKind].label} seat to {copy.seatFlyoutEntityName}.
                             Their {SEAT_META[effectiveSeat].label} seat will be removed from your plan and credited
-                            on your {formatFlyoutInvoiceDate()} invoice.
+                            on your {copy.billingInvoiceDate} invoice.
                           </Text>
                         )}
                       </div>
-                      <div className="flex w-full flex-col gap-[5px]">
-                        <div className="flex w-full flex-col gap-4px">
-                          <div className="flex w-full items-center justify-between">
+                      {billingScenario && resolvedSeatChangeCopy && resolvedSeatChangeCopy.billingPreviewLines.length > 0 ? (
+                        <div className="flex w-full flex-col gap-[5px]">
+                          <div className="flex w-full flex-col gap-4px">
                             <Text as="span" size="lg" strong>
                               Billing preview
                             </Text>
-                            <span
-                              className="flex size-24px shrink-0 items-center justify-center text-icon"
-                              style={{ '--fpl-icon-color': 'var(--color-icon)' } as React.CSSProperties}
-                              aria-hidden
-                            >
-                              <span className="inline-block rotate-90">
-                                <Icon24ChevronRightLarge />
-                              </span>
-                            </span>
+                          </div>
+                          <div className="flex w-full flex-col gap-4px">
+                            {resolvedSeatChangeCopy.billingPreviewLines.map((line) => (
+                              <BillingFlyoutPreviewLine
+                                key={line}
+                                line={line}
+                                proratedDetailTooltip={resolvedSeatChangeCopy.proratedCostTooltip}
+                              />
+                            ))}
                           </div>
                         </div>
-                        <div className="flex w-full flex-col gap-4px">
-                          <div className="flex w-full items-center justify-between gap-8px">
-                            <div className="shrink-0">
-                              <FlyoutDottedTermTooltip
-                                className="cursor-default border-0 bg-transparent p-0 text-left text-bodyLg font-normal text-text-secondary underline decoration-dotted underline-offset-2"
-                                tooltip={FLYOUT_PRORATED_COST_TOOLTIP}
-                              >
-                                Prorated cost
-                              </FlyoutDottedTermTooltip>
+                      ) : !billingScenario ? (
+                        <div className="flex w-full flex-col gap-[5px]">
+                          <div className="flex w-full flex-col gap-4px">
+                            <Text as="span" size="lg" strong>
+                              Billing preview
+                            </Text>
+                          </div>
+                          <div className="flex w-full flex-col gap-4px">
+                            <div className="flex w-full items-center justify-between gap-8px">
+                              <div className="shrink-0">
+                                <FlyoutDottedTermTooltip
+                                  className="cursor-default border-0 bg-transparent p-0 text-left text-bodyLg font-normal text-text-secondary underline decoration-dotted underline-offset-2"
+                                  tooltip={FLYOUT_PRORATED_COST_TOOLTIP}
+                                >
+                                  Prorated cost
+                                </FlyoutDottedTermTooltip>
+                              </div>
+                              <span className="text-bodyLg font-normal text-text-secondary tabular-nums">$120</span>
                             </div>
-                            <span className="text-bodyLg font-normal text-text-secondary tabular-nums">$120</span>
-                          </div>
-                          <div className="flex w-full items-center justify-between">
-                            <span className="text-bodyLg font-normal text-text-secondary">
-                              {SEAT_META[effectiveSeat].label} seat credit
-                            </span>
-                            <span className="text-bodyLg font-normal tabular-nums text-text-handoff">+$70</span>
+                            <div className="flex w-full items-center justify-between">
+                              <span className="text-bodyLg font-normal text-text-secondary">
+                                {SEAT_META[effectiveSeat].label} seat credit
+                              </span>
+                              <span className="text-bodyLg font-normal tabular-nums text-text-handoff">+$70</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ) : null}
+                      {resolvedSeatChangeCopy && resolvedSeatChangeCopy.helperTextLines.length > 0 ? (
+                        <div className="flex flex-col gap-4px">
+                          {resolvedSeatChangeCopy.helperTextLines.map((h) => (
+                            <Text key={h} as="p" size="md" className="m-0 text-text-secondary">
+                              {h}
+                            </Text>
+                          ))}
+                        </div>
+                      ) : null}
                       <div className="h-px w-full bg-border" />
                       <Button variant="primary" width="fill" onClick={confirmSeatChange}>
                         {seatApproval ? 'Approve seat request' : 'Change seat'}
@@ -1111,7 +1235,7 @@ export function PersonDetailFlyout({
 }: {
   person: PersonRow | null;
   onClose: () => void;
-  onSeatChange?: (personId: string, seatKind: SeatKind) => void;
+  onSeatChange?: (personId: string, seatKind: SeatKind, toastMessage?: string) => void;
   seatApproval?: SeatRequestApprovalContext;
 }) {
   return (
@@ -1222,7 +1346,7 @@ function PeoplePage() {
 
   const peopleGridApiRef = useRef<PeopleTableGridApi | null>(null);
 
-  const handleSeatChange = useCallback((personId: string, seatKind: SeatKind) => {
+  const handleSeatChange = useCallback((personId: string, seatKind: SeatKind, toastMessage?: string) => {
     let changed = false;
     setPeopleRows((prev) => {
       const row = prev.find((p) => p.id === personId);
@@ -1230,7 +1354,8 @@ function PeoplePage() {
       changed = true;
       queueMicrotask(() => {
         showToast({
-          message: `${row.name} is now on a ${SEAT_META[seatKind].label} seat.`,
+          message:
+            toastMessage ?? `${row.name} is now on a ${SEAT_META[seatKind].label} seat.`,
         });
       });
       return prev.map((p) => (p.id === personId ? { ...p, seatType: seatKind } : p));
